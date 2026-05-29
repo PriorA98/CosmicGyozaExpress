@@ -15,6 +15,17 @@ type FlightKeys = {
   ESC: Phaser.Input.Keyboard.Key;
 };
 
+type TouchControlKey = keyof ShipControls;
+
+type TouchControlPad = {
+  control: TouchControlKey;
+  hitArea: Phaser.Geom.Rectangle;
+  active: boolean;
+  bg: Phaser.GameObjects.Arc;
+  ring: Phaser.GameObjects.Arc;
+  group: Phaser.GameObjects.Container;
+};
+
 export class FlightScene extends Phaser.Scene {
   private ship!: GyozaShip;
   private keys!: FlightKeys;
@@ -25,6 +36,7 @@ export class FlightScene extends Phaser.Scene {
     rotateLeft: false,
     rotateRight: false,
   };
+  private touchPads: TouchControlPad[] = [];
 
   constructor() {
     super("FlightScene");
@@ -34,7 +46,7 @@ export class FlightScene extends Phaser.Scene {
     const { width, height } = this.scale;
 
     this.createStarfield(width, height);
-    this.input.addPointer(3);
+    this.input.addPointer(5);
     this.add.image(width * 0.78, height * 0.28, "planet-im-fine").setScale(0.13).setAlpha(0.85);
 
     this.ship = new GyozaShip(this, width / 2, height / 2);
@@ -72,6 +84,7 @@ export class FlightScene extends Phaser.Scene {
   }
 
   override update(_time: number, delta: number): void {
+    this.updateTouchControlState();
     const controls = this.readControls();
     this.ship.updateShip(delta, controls);
     this.keepShipInBounds();
@@ -88,28 +101,59 @@ export class FlightScene extends Phaser.Scene {
   }
 
   private createTouchControls(width: number, height: number): void {
-    const y = height - 102;
-    const leftX = 84;
-    const rightX = 184;
-    const brakeX = width - 184;
-    const thrustX = width - 84;
+    this.touchPads = [];
 
-    this.createTouchButton(leftX, y, "◀", "rotate left", "rotateLeft");
-    this.createTouchButton(rightX, y, "▶", "rotate right", "rotateRight");
-    this.createTouchButton(brakeX, y, "S", "brake", "brake", colors.duskBlue);
-    this.createTouchButton(thrustX, y, "▲", "thrust", "thrust", colors.terracotta);
+    const panelWidth = Math.min(430, width * 0.42);
+    const panelGap = 16;
+    const zoneWidth = (panelWidth - panelGap) / 2;
+    const zoneHeight = 250;
+    const zoneTop = height - zoneHeight;
+    const rightPanelX = width - panelWidth;
+
+    this.createTouchButton(
+      new Phaser.Geom.Rectangle(0, zoneTop, zoneWidth, zoneHeight),
+      "◀",
+      "rotate left",
+      "rotateLeft",
+    );
+    this.createTouchButton(
+      new Phaser.Geom.Rectangle(zoneWidth + panelGap, zoneTop, zoneWidth, zoneHeight),
+      "▶",
+      "rotate right",
+      "rotateRight",
+    );
+    this.createTouchButton(
+      new Phaser.Geom.Rectangle(rightPanelX, zoneTop, zoneWidth, zoneHeight),
+      "S",
+      "brake",
+      "brake",
+      colors.duskBlue,
+    );
+    this.createTouchButton(
+      new Phaser.Geom.Rectangle(rightPanelX + zoneWidth + panelGap, zoneTop, zoneWidth, zoneHeight),
+      "▲",
+      "thrust",
+      "thrust",
+      colors.terracotta,
+    );
+
+    this.input.on("pointerdown", () => this.updateTouchControlState());
+    this.input.on("pointermove", () => this.updateTouchControlState());
+    this.input.on("pointerup", () => this.updateTouchControlState());
+    this.input.on("pointercancel", () => this.updateTouchControlState());
+    this.input.on("gameout", () => this.clearTouchControls());
   }
 
   private createTouchButton(
-    x: number,
-    y: number,
+    hitArea: Phaser.Geom.Rectangle,
     glyph: string,
     label: string,
-    control: keyof ShipControls,
+    control: TouchControlKey,
     accent: string = colors.ember,
   ): void {
-    const radius = 38;
-    const hitRadius = 48;
+    const x = hitArea.x + hitArea.width / 2;
+    const y = hitArea.y + hitArea.height / 2;
+    const radius = 46;
     const group = this.add.container(x, y).setDepth(20);
     const bg = this.add.circle(0, 0, radius, Phaser.Display.Color.HexStringToColor(accent).color, 0.2);
     const ring = this.add.circle(0, 0, radius).setStrokeStyle(2, 0xfbf7ec, 0.32);
@@ -130,21 +174,61 @@ export class FlightScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     group.add([bg, ring, glyphText, labelText]);
-    group.setSize(hitRadius * 2, hitRadius * 2);
-    group.setInteractive(new Phaser.Geom.Circle(0, 0, hitRadius), Phaser.Geom.Circle.Contains);
 
-    const setPressed = (pressed: boolean): void => {
-      this.touchControls[control] = pressed;
-      bg.setAlpha(pressed ? 0.46 : 0.2);
-      ring.setStrokeStyle(pressed ? 3 : 2, 0xfbf7ec, pressed ? 0.72 : 0.32);
-      group.setScale(pressed ? 0.96 : 1);
+    this.touchPads.push({
+      control,
+      hitArea,
+      active: false,
+      bg,
+      ring,
+      group,
+    });
+  }
+
+  private updateTouchControlState(): void {
+    const next: ShipControls = {
+      thrust: false,
+      brake: false,
+      rotateLeft: false,
+      rotateRight: false,
     };
 
-    group.on("pointerdown", () => setPressed(true));
-    group.on("pointerup", () => setPressed(false));
-    group.on("pointerout", () => setPressed(false));
-    group.on("pointerupoutside", () => setPressed(false));
-    group.on("pointercancel", () => setPressed(false));
+    for (const pointer of this.input.manager.pointers) {
+      if (!pointer.isDown) continue;
+
+      pointer.updateWorldPoint(this.cameras.main);
+      const pad = this.findTouchedPad(pointer.worldX, pointer.worldY);
+      if (pad) next[pad.control] = true;
+    }
+
+    this.touchControls = next;
+    this.updateTouchPadVisuals();
+  }
+
+  private findTouchedPad(x: number, y: number): TouchControlPad | undefined {
+    return this.touchPads.find((pad) => Phaser.Geom.Rectangle.Contains(pad.hitArea, x, y));
+  }
+
+  private updateTouchPadVisuals(): void {
+    for (const pad of this.touchPads) {
+      const active = this.touchControls[pad.control];
+      if (pad.active === active) continue;
+
+      pad.active = active;
+      pad.bg.setAlpha(active ? 0.5 : 0.2);
+      pad.ring.setStrokeStyle(active ? 3 : 2, 0xfbf7ec, active ? 0.76 : 0.32);
+      pad.group.setScale(active ? 0.96 : 1);
+    }
+  }
+
+  private clearTouchControls(): void {
+    this.touchControls = {
+      thrust: false,
+      brake: false,
+      rotateLeft: false,
+      rotateRight: false,
+    };
+    this.updateTouchPadVisuals();
   }
 
   private keepShipInBounds(): void {
