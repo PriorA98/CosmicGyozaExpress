@@ -21,6 +21,10 @@ Cosmic Gyoza Express is a small cozy physics-based space delivery game about a t
 - `docs/assets/asset-inventory.md` - asset catalog and production notes.
 - `docs/implementation/frontend-integration.md` - Phaser frontend integration guidance.
 - `docs/deployment.md` - GitHub Pages demo and itch.io final deployment plan.
+- `docs/engineering/development-standards.md` - clean code and stack-specific implementation standards.
+- `docs/engineering/implementation-checklist.md` - practical implementation quality checklist.
+- `docs/engineering/online-reference-map.md` - official online references for the locked stack.
+- `AGENTS.md` - Codex project instructions for applying these standards during future implementation.
 
 ## Reference Material
 
