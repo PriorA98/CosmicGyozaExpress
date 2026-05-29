@@ -35,3 +35,4 @@ Production code should not import directly from `references/design-handoff/`. Wh
 - Final player-facing page: itch.io HTML5.
 - Normal static build: `npm run build`.
 - GitHub Pages build: `npm run build:pages`.
+- GitHub Pages deploys from the `demo` branch only; see `docs/deployment.md`.

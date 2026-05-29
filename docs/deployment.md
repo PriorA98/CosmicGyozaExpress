@@ -61,6 +61,68 @@ It runs:
 - `npm run build:pages`
 - GitHub Pages artifact upload/deploy
 
+## Branch Strategy
+
+Use milestone-gated demo promotion so the public GitHub Pages build stays clean.
+
+### Branches
+
+`main`
+
+- Stable integration branch.
+- Code here should build and pass tests.
+- Does not automatically deploy to the public demo URL.
+
+`feature/<phase-or-task>`
+
+- Daily development branches.
+- Examples:
+  - `feature/phase-1-flight-feel`
+  - `feature/gyoza-incident-animation`
+  - `feature/tea-moon-vertical-slice`
+
+`demo`
+
+- GitHub Pages deployment branch.
+- Only update this branch when a meaningful phase is complete and locally verified.
+- Pushing this branch triggers the GitHub Pages workflow.
+
+`release/itch-v0.1`
+
+- Future branch for itch.io release preparation once the Tea Moon vertical slice is complete.
+- Add this only when the first itch.io release candidate exists.
+
+### Promotion Flow
+
+1. Work on a `feature/...` branch.
+2. Verify locally:
+
+```bash
+npm test
+npm run typecheck
+npm run build
+npm run build:pages
+```
+
+3. Merge the feature into `main`.
+4. When a big phase is complete, merge `main` into `demo`.
+5. Push `demo`.
+6. GitHub Pages deploys to:
+
+```text
+https://priora98.github.io/CosmicGyozaExpress/
+```
+
+### Demo Deployment Milestones
+
+Deploy to GitHub Pages only at meaningful checkpoints:
+
+- Phase 1: flight-feel prototype is playable.
+- Phase 2: Tea Moon vertical slice is complete.
+- Phase 4/5: visual/UI identity pass is complete.
+- Phase 6: full campaign is playable end-to-end.
+- Release candidate before itch.io upload.
+
 ## itch.io Final Deploy
 
 itch.io should become the final shareable game page after the Tea Moon vertical slice is playable:
