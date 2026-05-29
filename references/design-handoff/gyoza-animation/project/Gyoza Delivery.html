@@ -1,0 +1,1072 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>delivery gyoza — across the galaxy</title>
+<link rel="stylesheet" href="colors_and_type.css">
+<style>
+  html, body { height: 100%; margin: 0; }
+  body {
+    background:
+      radial-gradient(1200px 600px at 50% -10%, var(--plaster), transparent 65%),
+      var(--parchment);
+    color: var(--fg);
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 14px;
+    box-sizing: border-box;
+    font-family: var(--font-ui);
+  }
+
+  /* =========================================================
+     CABINET — full HUD shell
+     ========================================================= */
+  .cabinet {
+    width: min(100%, 1180px);
+    display: grid;
+    grid-template-columns: 1fr 296px;
+    grid-template-rows: auto auto auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+  }
+
+  /* ===== TOP STRIP ===== */
+  .strip {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 18px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 18px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+  .brand-mark {
+    width: 30px;
+    height: 30px;
+    image-rendering: pixelated;
+  }
+  .brand-name {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 17px;
+    letter-spacing: var(--ls-tight);
+    line-height: 1.05;
+  }
+  .brand-sub {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--fg-mute);
+    margin-top: 2px;
+  }
+  .meta-row {
+    display: flex;
+    gap: 22px;
+    justify-content: center;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-mute);
+  }
+  .meta-row .item { display: inline-flex; gap: 6px; align-items: baseline; }
+  .meta-row .k { color: var(--ink-dim); text-transform: uppercase; letter-spacing: var(--ls-wide); font-size: 9.5px; }
+  .meta-row b { color: var(--ink); font-weight: 600; }
+
+  .state-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    background: var(--state-idle-bg);
+    color: var(--state-idle-fg);
+    padding: 4px 10px;
+    border-radius: var(--r-pill);
+    border: 1px solid var(--border);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .state-pill .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--state-idle-dot);
+    box-shadow: 0 0 6px currentColor;
+  }
+  .state-pill[data-state="flying"]      { background: var(--state-running-bg); color: var(--state-running-fg); }
+  .state-pill[data-state="flying"] .dot { background: var(--state-running-dot); }
+  .state-pill[data-state="docking"]     { background: var(--state-waiting-bg); color: var(--state-waiting-fg); }
+  .state-pill[data-state="docking"] .dot{ background: var(--state-waiting-dot); animation: pulse 1.2s ease-in-out infinite; }
+  .state-pill[data-state="exploded"]    { background: var(--state-error-bg); color: var(--state-error-fg); }
+  .state-pill[data-state="exploded"] .dot { background: var(--state-error-dot); animation: blink 0.4s steps(2,end) infinite; }
+  .state-pill[data-state="delivering"]  { background: var(--state-thinking-bg); color: var(--state-thinking-fg); }
+  .state-pill[data-state="delivering"] .dot { background: var(--state-thinking-dot); }
+  @keyframes blink { 50% { opacity: 0.3; } }
+  @keyframes pulse { 50% { transform: scale(1.4); opacity: 0.6; } }
+
+  /* ===== STAGE ===== */
+  .stage-wrap {
+    position: relative;
+    grid-column: 1;
+    grid-row: 2;
+    background: var(--ink);
+    overflow: hidden;
+    border-right: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  canvas#game {
+    display: block;
+    width: 100%;
+    max-width: 800px;
+    height: auto;
+    aspect-ratio: 800 / 600;
+    image-rendering: pixelated;
+    background: #1A1B2E;
+  }
+
+  /* HUD OVERLAYS in canvas */
+  .hud-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    font-family: var(--font-mono);
+    color: var(--plaster);
+  }
+  .hud-overlay > * { pointer-events: auto; }
+
+  /* quest mini-card top-left */
+  .quest-card {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(20, 22, 38, 0.78);
+    border: 1px solid rgba(247, 240, 220, 0.18);
+    border-radius: var(--r-md);
+    padding: 8px 12px 8px 8px;
+    backdrop-filter: blur(2px);
+    min-width: 230px;
+  }
+  .quest-avatar {
+    width: 34px; height: 34px;
+    border-radius: var(--r-sm);
+    background: var(--plum-soft);
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(0,0,0,0.15);
+    flex-shrink: 0;
+  }
+  .quest-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .quest-eyebrow {
+    font-size: 9px;
+    letter-spacing: var(--ls-wide);
+    text-transform: uppercase;
+    color: rgba(247,240,220,0.55);
+  }
+  .quest-title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--plaster);
+    line-height: 1.15;
+  }
+  .quest-dish {
+    font-size: 11px;
+    color: rgba(247,240,220,0.75);
+    line-height: 1.2;
+  }
+
+  /* mini-radar top-right */
+  .radar-frame {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    background: rgba(20, 22, 38, 0.78);
+    border: 1px solid rgba(247, 240, 220, 0.18);
+    border-radius: var(--r-md);
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    backdrop-filter: blur(2px);
+  }
+  .radar-label {
+    font-size: 9px;
+    letter-spacing: var(--ls-wide);
+    text-transform: uppercase;
+    color: rgba(247,240,220,0.55);
+    display: flex; justify-content: space-between;
+  }
+  .radar-label .dist { color: var(--ember-soft); }
+  canvas#radar {
+    display: block;
+    width: 96px; height: 96px;
+    border-radius: 50%;
+    background: #0E0F1C;
+    box-shadow: inset 0 0 0 1px rgba(247,240,220,0.12);
+  }
+
+  /* stats bottom-left */
+  .stats {
+    position: absolute;
+    left: 14px;
+    bottom: 14px;
+    display: flex;
+    gap: 12px;
+    background: rgba(20, 22, 38, 0.75);
+    border: 1px solid rgba(247, 240, 220, 0.16);
+    border-radius: var(--r-sm);
+    padding: 6px 10px;
+    font-size: 10.5px;
+    backdrop-filter: blur(2px);
+  }
+  .stats .stat { display: flex; flex-direction: column; line-height: 1.15; }
+  .stats .k { color: rgba(247,240,220,0.5); text-transform: uppercase; letter-spacing: var(--ls-wide); font-size: 8.5px; }
+  .stats b { color: var(--plaster); font-weight: 600; }
+  .stats .seg-row { display: flex; gap: 3px; align-items: center; height: 13px; }
+  .stats .seg { width: 12px; height: 4px; background: rgba(247,240,220,0.15); border-radius: 1px; }
+  .stats .seg.on { background: var(--sage); box-shadow: 0 0 6px var(--sage); }
+  .stats .seg.on.fast { background: var(--terracotta); box-shadow: 0 0 6px var(--terracotta); }
+
+  /* delivery prompt bottom-right */
+  .prompt {
+    position: absolute;
+    right: 14px;
+    bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--ember);
+    color: #2A1908;
+    border: 1px solid #7A4017;
+    border-radius: var(--r-sm);
+    padding: 7px 12px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+    text-transform: uppercase;
+    box-shadow: 0 4px 12px rgba(224, 138, 75, 0.4);
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 220ms var(--ease-soft), transform 220ms var(--ease-soft);
+    pointer-events: none;
+  }
+  .prompt.show { opacity: 1; transform: translateY(0); }
+  .prompt .key {
+    background: #FBF7EC;
+    color: var(--ink);
+    border: 1px solid rgba(0,0,0,0.2);
+    border-bottom-width: 2px;
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-weight: 700;
+    font-size: 10px;
+    margin-right: 2px;
+  }
+
+  /* center landing overlay (when descending) */
+  .descend-veil {
+    position: absolute; inset: 0;
+    background: radial-gradient(circle at 50% 60%, rgba(217,119,87,0.18), rgba(20,22,38,0.55));
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 320ms var(--ease-soft);
+  }
+  .descend-veil.show { opacity: 1; }
+
+  /* =========================================================
+     RIGHT RAIL
+     ========================================================= */
+  .rail {
+    grid-column: 2;
+    grid-row: 2 / 4;
+    background: var(--parchment-warm);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .rail-section {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .rail-section:last-child { border-bottom: 0; }
+  .rail-h {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .rail-h .label {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: var(--ls-wide);
+    color: var(--ink-mute);
+    text-transform: uppercase;
+  }
+  .rail-h .meta {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-dim);
+  }
+
+  /* current order card */
+  .order-card {
+    display: grid;
+    grid-template-columns: 48px 1fr;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    padding: 12px;
+  }
+  .portrait {
+    width: 48px; height: 48px;
+    border-radius: var(--r-sm);
+    background: var(--plum-soft);
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(0,0,0,0.15);
+    position: relative;
+  }
+  .portrait.gloop { background: var(--teal-soft); }
+  .portrait.void  { background: var(--slate-300); color: var(--plaster); }
+  .portrait.quench{ background: var(--brick-soft); }
+  .portrait.nani  { background: var(--amber-soft); }
+  .portrait.porra { background: var(--terracotta-soft); }
+  .portrait .mood {
+    position: absolute;
+    bottom: -4px; right: -4px;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--ember);
+    border: 2px solid var(--surface);
+  }
+  .portrait .mood.calm { background: var(--sage); }
+
+  .order-meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .order-name {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--ink);
+    line-height: 1.1;
+  }
+  .order-where {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--ink-mute);
+    display: flex;
+    gap: 6px;
+    align-items: baseline;
+  }
+  .order-where .dot { color: var(--ink-dim); }
+  .order-dish {
+    margin-top: 4px;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    line-height: 1.3;
+  }
+  .order-progress {
+    margin-top: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .progress-track {
+    flex: 1;
+    height: 6px;
+    background: var(--parchment-deep);
+    border-radius: 3px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 0 rgba(0,0,0,0.06);
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--sage);
+    width: 66%;
+    border-radius: 3px;
+    transition: width 320ms var(--ease-soft);
+  }
+  .progress-text {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-mute);
+    letter-spacing: 0.04em;
+  }
+
+  /* pantry grid */
+  .pantry {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+  .ing {
+    aspect-ratio: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: transform 80ms var(--ease-soft);
+  }
+  .ing:hover { transform: translateY(-1px); border-color: var(--border-strong); }
+  .ing[data-empty] { opacity: 0.35; border-style: dashed; }
+  .ing .swatch {
+    width: 60%; height: 60%;
+    border-radius: 4px;
+    box-shadow: inset 0 -2px 0 rgba(0,0,0,0.15), 0 1px 0 rgba(255,255,255,0.6);
+  }
+  .ing .count {
+    position: absolute;
+    bottom: 2px; right: 3px;
+    font-family: var(--font-pixel);
+    font-size: 9px;
+    color: var(--ink);
+    background: var(--plaster);
+    border: 1px solid var(--border-strong);
+    padding: 0 3px;
+    border-radius: 2px;
+    line-height: 1.2;
+  }
+  .ing .name {
+    position: absolute;
+    bottom: 2px; left: 3px;
+    font-family: var(--font-mono);
+    font-size: 8.5px;
+    color: var(--ink-mute);
+  }
+
+  /* toppings slots */
+  .toppings {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+  .topping {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    padding: 7px 8px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    min-height: 36px;
+  }
+  .topping[data-empty] {
+    border-style: dashed;
+    color: var(--ink-dim);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    justify-content: center;
+  }
+  .topping-glyph {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 1px solid rgba(0,0,0,0.18);
+    background: var(--sage);
+  }
+  .topping-glyph.chili { background: var(--terracotta); }
+  .topping-glyph.crown { background: var(--sage); }
+  .topping-glyph.miso  { background: var(--amber); }
+  .topping-glyph.shimmer { background: var(--plum); }
+  .topping-meta { display: flex; flex-direction: column; line-height: 1.1; min-width: 0; }
+  .topping-name {
+    font-size: 11px;
+    color: var(--ink);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .topping-effect {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    color: var(--ink-mute);
+  }
+
+  .kitchen-btn {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    background: var(--ink);
+    color: var(--plaster);
+    border: 1px solid var(--ink);
+    border-radius: var(--r-sm);
+    padding: 8px 12px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 120ms var(--ease-soft), transform 80ms;
+    text-transform: lowercase;
+  }
+  .kitchen-btn:hover { background: var(--slate-700); }
+  .kitchen-btn:active { transform: translateY(1px); }
+  .kitchen-btn svg { width: 13px; height: 13px; }
+
+  /* =========================================================
+     COMM PANEL (bottom under canvas)
+     ========================================================= */
+  .comm {
+    grid-column: 1;
+    grid-row: 3;
+    background: var(--parchment-warm);
+    border-top: 1px solid var(--border);
+    padding: 12px 18px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 16px;
+    align-items: stretch;
+    min-height: 108px;
+  }
+  .comm-portrait {
+    width: 76px; height: 76px;
+    border-radius: var(--r-md);
+    background: var(--teal-soft);
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    position: relative;
+    flex-shrink: 0;
+    box-shadow: var(--shadow-sm);
+  }
+  .comm-portrait .ring {
+    position: absolute;
+    inset: -1px;
+    border-radius: var(--r-md);
+    border: 1px dashed var(--teal);
+    opacity: 0.4;
+    animation: spin 16s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .comm-portrait .mood {
+    position: absolute;
+    bottom: -6px; right: -6px;
+    padding: 2px 7px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-pill);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: var(--ls-wide);
+    color: var(--sage-deep);
+    line-height: 1.4;
+  }
+
+  .comm-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+  .comm-meta-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .comm-name {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 18px;
+    color: var(--ink);
+  }
+  .comm-handle {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-dim);
+  }
+  .comm-channel {
+    margin-left: auto;
+    font-family: var(--font-pixel);
+    font-size: 9px;
+    letter-spacing: var(--ls-pixel);
+    color: var(--ink-dim);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .comm-channel .blip {
+    width: 6px; height: 6px;
+    background: var(--sage);
+    border-radius: 50%;
+    animation: blink-soft 1.6s ease-in-out infinite;
+  }
+  @keyframes blink-soft { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  .comm-line {
+    font-family: var(--font-display);
+    font-size: 16px;
+    line-height: 1.4;
+    color: var(--ink-soft);
+    text-wrap: pretty;
+    max-width: 62ch;
+  }
+  .comm-line .typed::after {
+    content: "▍";
+    color: var(--terracotta);
+    margin-left: 1px;
+    animation: caret 1s steps(2,end) infinite;
+  }
+  @keyframes caret { 50% { opacity: 0; } }
+
+  .comm-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    justify-content: center;
+    min-width: 132px;
+  }
+  .act {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-sm);
+    padding: 8px 12px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 120ms var(--ease-soft), transform 80ms;
+  }
+  .act:hover { background: var(--parchment-deep); }
+  .act:active { transform: translateY(1px); }
+  .act.primary {
+    background: var(--terracotta);
+    color: #FBF7EC;
+    border-color: var(--terracotta-deep);
+    box-shadow: 0 2px 0 var(--terracotta-deep);
+  }
+  .act.primary:hover { background: var(--terracotta-deep); }
+  .act .k {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    background: rgba(0,0,0,0.12);
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-left: auto;
+  }
+  .act.primary .k { background: rgba(0,0,0,0.18); color: #FBF7EC; }
+
+  /* =========================================================
+     KITCHEN MODAL (toppings shop)
+     ========================================================= */
+  .modal-veil {
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 22, 38, 0.55);
+    backdrop-filter: blur(4px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 30;
+    padding: 20px;
+  }
+  .modal-veil.open { display: flex; animation: fadein 220ms var(--ease-soft); }
+  @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-lg);
+    width: min(720px, 100%);
+    max-height: 86vh;
+    overflow: auto;
+  }
+  .modal-h {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .modal-h h2 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 20px;
+    margin: 0;
+    color: var(--ink);
+  }
+  .modal-h .sub {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-mute);
+  }
+  .modal-close {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    width: 28px; height: 28px;
+    cursor: pointer;
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    line-height: 1;
+  }
+  .modal-close:hover { background: var(--parchment-warm); }
+  .modal-grid {
+    padding: 16px 20px 20px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .topping-card {
+    background: var(--parchment-warm);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    cursor: pointer;
+    transition: transform 80ms var(--ease-soft), border-color 120ms;
+    position: relative;
+  }
+  .topping-card:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+  .topping-card[data-equipped] { border-color: var(--sage-deep); background: var(--sage-soft); }
+  .topping-card .badge {
+    position: absolute;
+    top: 8px; right: 8px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    background: var(--sage-deep);
+    color: var(--plaster);
+    padding: 2px 6px;
+    border-radius: var(--r-pill);
+    letter-spacing: var(--ls-wide);
+    display: none;
+  }
+  .topping-card[data-equipped] .badge { display: inline-block; }
+  .topping-card .glyph {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    border: 2px solid rgba(0,0,0,0.18);
+    background: var(--sage);
+  }
+  .topping-card.chili  .glyph { background: var(--terracotta); }
+  .topping-card.crown  .glyph { background: var(--sage); }
+  .topping-card.miso   .glyph { background: var(--amber); }
+  .topping-card.shimmer .glyph { background: var(--plum); }
+  .topping-card.nori   .glyph { background: var(--slate-700); }
+  .topping-card.honey  .glyph { background: var(--ember); }
+  .topping-card .tn {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--ink);
+  }
+  .topping-card .te {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--ink-mute);
+    line-height: 1.3;
+  }
+  .topping-card .price {
+    margin-top: 6px;
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    letter-spacing: var(--ls-pixel);
+    color: var(--ink-soft);
+  }
+
+  /* responsive collapse */
+  @media (max-width: 1100px) {
+    .cabinet {
+      grid-template-columns: 1fr;
+    }
+    .stage-wrap { grid-column: 1; }
+    .rail { grid-column: 1; grid-row: auto; border-left: 0; border-top: 1px solid var(--border); }
+    .comm { grid-column: 1; grid-row: auto; }
+  }
+</style>
+</head>
+<body>
+
+<main class="cabinet" data-screen-label="01 Gyoza Delivery HUD">
+  <!-- ============ TOP STRIP ============ -->
+  <header class="strip">
+    <div class="brand">
+      <img class="brand-mark" src="assets/default.png" alt="">
+      <div>
+        <div class="brand-name">delivery gyoza</div>
+        <div class="brand-sub">across the galaxy · v0.3</div>
+      </div>
+    </div>
+    <div class="meta-row">
+      <div class="item"><span class="k">sector</span><b>porra ribbon</b></div>
+      <div class="item"><span class="k">day</span><b>03</b></div>
+      <div class="item"><span class="k">deliveries</span><b>11/24</b></div>
+      <div class="item"><span class="k">coins</span><b>248ø</b></div>
+    </div>
+    <div class="state-pill" id="state-pill" data-state="idle">
+      <span class="dot"></span><span id="state-text">idle</span>
+    </div>
+  </header>
+
+  <!-- ============ STAGE / CANVAS ============ -->
+  <div class="stage-wrap">
+    <canvas id="game" width="800" height="600" aria-label="gyoza delivery game canvas"></canvas>
+
+    <div class="hud-overlay">
+      <!-- quest mini-card -->
+      <div class="quest-card">
+        <div class="quest-avatar" id="quest-avatar">G</div>
+        <div class="quest-body">
+          <span class="quest-eyebrow">current delivery</span>
+          <span class="quest-title" id="quest-title">gloop · mossport</span>
+          <span class="quest-dish" id="quest-dish">emotionally supportive takoyaki</span>
+        </div>
+      </div>
+
+      <!-- mini-radar -->
+      <div class="radar-frame">
+        <div class="radar-label">
+          <span>radar</span>
+          <span class="dist" id="radar-dist">0.4 ly</span>
+        </div>
+        <canvas id="radar" width="192" height="192"></canvas>
+      </div>
+
+      <!-- stats bottom-left -->
+      <div class="stats">
+        <div class="stat">
+          <span class="k">pos</span>
+          <span><b id="hud-x">400</b>,<b id="hud-y">300</b></span>
+        </div>
+        <div class="stat">
+          <span class="k">vel</span>
+          <span><b id="hud-spd">000.0</b> px/s</span>
+        </div>
+        <div class="stat">
+          <span class="k">heading</span>
+          <span><b id="hud-hdg">000°</b></span>
+        </div>
+        <div class="stat">
+          <span class="k">thrust</span>
+          <span class="seg-row" id="frame-readout">
+            <span class="seg"></span><span class="seg"></span><span class="seg"></span>
+          </span>
+        </div>
+      </div>
+
+      <!-- delivery prompt (appears near target) -->
+      <div class="prompt" id="prompt"><span class="key">E</span> begin descent</div>
+
+      <!-- descend veil -->
+      <div class="descend-veil" id="descend-veil"></div>
+    </div>
+  </div>
+
+  <!-- ============ RIGHT RAIL ============ -->
+  <aside class="rail">
+    <!-- current order -->
+    <section class="rail-section">
+      <div class="rail-h">
+        <span class="label">current order</span>
+        <span class="meta">#247-b</span>
+      </div>
+      <div class="order-card">
+        <div class="portrait gloop">
+          G<span class="mood" title="stressed"></span>
+        </div>
+        <div class="order-meta">
+          <div class="order-name">gloop</div>
+          <div class="order-where">
+            <span>mossport</span><span class="dot">·</span><span>0.4 ly</span>
+          </div>
+          <div class="order-dish">"emotionally supportive takoyaki"</div>
+          <div class="order-progress">
+            <div class="progress-track"><div class="progress-fill" style="width: 66%"></div></div>
+            <span class="progress-text">2/3</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- pantry -->
+    <section class="rail-section">
+      <div class="rail-h">
+        <span class="label">pantry</span>
+        <span class="meta">4/8 slots</span>
+      </div>
+      <div class="pantry">
+        <div class="ing" title="moon-egg ×3">
+          <span class="swatch" style="background: var(--amber-soft);"></span>
+          <span class="count">×3</span>
+        </div>
+        <div class="ing" title="scallion ×2">
+          <span class="swatch" style="background: var(--sage);"></span>
+          <span class="count">×2</span>
+        </div>
+        <div class="ing" title="nori ×1">
+          <span class="swatch" style="background: var(--slate-700);"></span>
+          <span class="count">×1</span>
+        </div>
+        <div class="ing" title="comfort dashi ×1">
+          <span class="swatch" style="background: var(--terracotta-soft);"></span>
+          <span class="count">×1</span>
+        </div>
+        <div class="ing" data-empty></div>
+        <div class="ing" data-empty></div>
+        <div class="ing" data-empty></div>
+        <div class="ing" data-empty></div>
+      </div>
+    </section>
+
+    <!-- toppings equipped -->
+    <section class="rail-section">
+      <div class="rail-h">
+        <span class="label">toppings equipped</span>
+        <span class="meta">2/4</span>
+      </div>
+      <div class="toppings">
+        <div class="topping">
+          <span class="topping-glyph crown"></span>
+          <div class="topping-meta">
+            <span class="topping-name">scallion crown</span>
+            <span class="topping-effect">+1 charm</span>
+          </div>
+        </div>
+        <div class="topping">
+          <span class="topping-glyph chili"></span>
+          <div class="topping-meta">
+            <span class="topping-name">chili dust</span>
+            <span class="topping-effect">+12% thrust</span>
+          </div>
+        </div>
+        <div class="topping" data-empty>+ empty slot</div>
+        <div class="topping" data-empty>+ empty slot</div>
+      </div>
+      <button class="kitchen-btn" id="open-kitchen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3l8 4v6c0 5-3.5 7.5-8 8-4.5-.5-8-3-8-8V7l8-4z"/>
+          <path d="M12 8v4M8 10h8"/>
+        </svg>
+        open kitchen
+      </button>
+    </section>
+  </aside>
+
+  <!-- ============ COMM PANEL ============ -->
+  <footer class="comm" id="comm">
+    <div class="comm-portrait gloop" id="comm-portrait">
+      <span class="ring"></span>
+      G
+      <span class="mood" id="comm-mood">stressed</span>
+    </div>
+    <div class="comm-body">
+      <div class="comm-meta-row">
+        <span class="comm-name" id="comm-name">gloop</span>
+        <span class="comm-handle" id="comm-handle">slime · mossport</span>
+        <span class="comm-channel"><span class="blip"></span>open frequency · ch-7</span>
+      </div>
+      <p class="comm-line" id="comm-line">
+        <span class="typed">hey little gyoza… i'm having one of those days. when you can, no rush. i'll leave the porch light on.</span>
+      </p>
+    </div>
+    <div class="comm-actions">
+      <button class="act primary" id="act-primary">begin descent <span class="k">E</span></button>
+      <button class="act" id="act-log">delivery log <span class="k">L</span></button>
+    </div>
+  </footer>
+</main>
+
+<!-- ============ KITCHEN MODAL ============ -->
+<div class="modal-veil" id="kitchen-veil">
+  <div class="modal" role="dialog" aria-label="kitchen — toppings">
+    <div class="modal-h">
+      <div>
+        <h2>the kitchen</h2>
+        <span class="sub">absurd toppings · tap to equip · 2/4 slots</span>
+      </div>
+      <button class="modal-close" id="close-kitchen" aria-label="close">×</button>
+    </div>
+    <div class="modal-grid">
+      <div class="topping-card crown" data-equipped>
+        <span class="badge">equipped</span>
+        <span class="glyph"></span>
+        <span class="tn">scallion crown</span>
+        <span class="te">npcs trust you 14% more. pretty.</span>
+        <span class="price">owned</span>
+      </div>
+      <div class="topping-card chili" data-equipped>
+        <span class="badge">equipped</span>
+        <span class="glyph"></span>
+        <span class="tn">chili dust</span>
+        <span class="te">+12% thrust. mildly emotional.</span>
+        <span class="price">owned</span>
+      </div>
+      <div class="topping-card miso">
+        <span class="glyph"></span>
+        <span class="tn">miso glaze</span>
+        <span class="te">absorbs one impact. tastes like a hug.</span>
+        <span class="price">80ø</span>
+      </div>
+      <div class="topping-card shimmer">
+        <span class="glyph"></span>
+        <span class="tn">shimmer salt</span>
+        <span class="te">leaves a soft trail. helps with sad clients.</span>
+        <span class="price">120ø</span>
+      </div>
+      <div class="topping-card nori">
+        <span class="glyph"></span>
+        <span class="tn">nori cape</span>
+        <span class="te">stealth in nebulae. dramatic flutter.</span>
+        <span class="price">160ø</span>
+      </div>
+      <div class="topping-card honey">
+        <span class="glyph"></span>
+        <span class="tn">honey lacquer</span>
+        <span class="te">ingredient magnet radius +30px.</span>
+        <span class="price">200ø</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="game-delivery.js"></script>
+</body>
+</html>

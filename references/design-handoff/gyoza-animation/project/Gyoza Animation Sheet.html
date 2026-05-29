@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>gyoza — reference animation sheet</title>
+<link rel="stylesheet" href="colors_and_type.css">
+<style>
+  /* ---------- page ---------- */
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1200px 600px at 50% -10%, var(--plaster), transparent 60%),
+      var(--parchment);
+    color: var(--fg);
+    min-height: 100vh;
+    padding: 48px 32px 80px;
+    box-sizing: border-box;
+  }
+
+  .sheet {
+    max-width: 1080px;
+    margin: 0 auto;
+  }
+
+  /* ---------- header ---------- */
+  .head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 32px;
+  }
+  .head .title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 40px;
+    line-height: 1.05;
+    letter-spacing: var(--ls-tight);
+    margin: 0 0 6px 0;
+  }
+  .head .title em {
+    font-style: normal;
+    color: var(--fg-mute);
+    font-weight: 400;
+  }
+  .head .sub {
+    font-family: var(--font-mono);
+    font-size: var(--fs-sm);
+    color: var(--fg-mute);
+  }
+  .head .meta {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .stamp {
+    font-family: var(--font-pixel);
+    font-size: 11px;
+    letter-spacing: var(--ls-pixel);
+    color: var(--ink);
+    background: var(--parchment-warm);
+    border: 2px solid var(--ink);
+    padding: 4px 8px 3px;
+    box-shadow: var(--shadow-pixel-sm);
+    align-self: flex-end;
+  }
+  .head .legend {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--fg-mute);
+    display: flex;
+    gap: 14px;
+    justify-content: flex-end;
+  }
+  .head .legend b { color: var(--fg); font-weight: 600; }
+
+  /* ---------- animation row ---------- */
+  .row {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 28px;
+    padding: 28px 0;
+    border-bottom: 1px dashed var(--border);
+  }
+  .row:last-of-type { border-bottom: 0; }
+
+  .row-meta { padding-top: 6px; }
+  .row-meta .name {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 22px;
+    line-height: 1;
+    margin: 0 0 6px 0;
+    color: var(--fg);
+  }
+  .row-meta .desc {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    color: var(--fg-mute);
+    line-height: 1.5;
+    margin: 0 0 14px 0;
+  }
+  .tag-stack { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+  .tag {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--fg);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+    border-radius: var(--r-sm);
+    letter-spacing: 0.02em;
+  }
+  .tag b { font-weight: 600; }
+  .tag.loop  { background: var(--sage-soft); border-color: var(--sage); color: var(--sage-deep); }
+  .tag.once  { background: var(--ember-soft); border-color: var(--ember); color: #7A4017; }
+  .tag.still { background: var(--dusk-blue-soft); border-color: var(--dusk-blue); color: #2F4E5E; }
+
+  /* ---------- strip ---------- */
+  .strip-wrap {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .strip {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .cell {
+    width: 116px;
+    box-sizing: border-box;
+    background:
+      linear-gradient(var(--parchment-warm), var(--parchment-warm)),
+      repeating-conic-gradient(
+        rgba(29,31,51,0.04) 0% 25%,
+        transparent 0% 50%);
+    background-size: auto, 12px 12px;
+    background-blend-mode: normal;
+    border: 2px solid var(--ink);
+    box-shadow: var(--shadow-pixel-sm);
+    border-radius: var(--r-pixel);
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  /* checker pattern for cell interior */
+  .cell .frame {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    background-color: var(--parchment-warm);
+    background-image:
+      linear-gradient(45deg, rgba(29,31,51,0.05) 25%, transparent 25%, transparent 75%, rgba(29,31,51,0.05) 75%),
+      linear-gradient(45deg, rgba(29,31,51,0.05) 25%, transparent 25%, transparent 75%, rgba(29,31,51,0.05) 75%);
+    background-size: 12px 12px;
+    background-position: 0 0, 6px 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 6px;
+    border: 1px solid var(--border);
+  }
+  .cell img {
+    max-width: 100%;
+    max-height: 100%;
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+  }
+  .cell .frame-label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    letter-spacing: var(--ls-pixel);
+    color: var(--ink);
+  }
+  .cell .frame-label .ms {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0;
+    color: var(--fg-mute);
+    text-transform: none;
+  }
+
+  /* ---------- preview ---------- */
+  .preview {
+    width: 168px;
+    box-sizing: border-box;
+    background: var(--ink);
+    color: var(--plaster);
+    border: 2px solid var(--ink);
+    box-shadow: var(--shadow-pixel);
+    border-radius: var(--r-pixel);
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .preview .stage {
+    aspect-ratio: 1 / 1;
+    background:
+      radial-gradient(circle at 50% 60%, #2F3149 0%, #1D1F33 70%),
+      var(--ink);
+    border: 1px solid #3D3E4D;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .preview .stage::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 12px 12px;
+  }
+  .preview .stage img {
+    max-width: 78%;
+    max-height: 78%;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+    position: relative;
+    z-index: 1;
+  }
+  .preview .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: var(--font-pixel);
+    font-size: 9px;
+    letter-spacing: var(--ls-pixel);
+    color: var(--plaster);
+  }
+  .preview .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--sage);
+    box-shadow: 0 0 6px var(--sage);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  .preview[data-mode="once"] .dot { background: var(--ember); box-shadow: 0 0 6px var(--ember); }
+  .preview[data-mode="still"] .dot { background: var(--dusk-blue); box-shadow: 0 0 6px var(--dusk-blue); animation: none; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+  .preview .controls {
+    display: flex;
+    gap: 4px;
+  }
+  .preview button {
+    flex: 1;
+    background: var(--parchment-warm);
+    color: var(--ink);
+    border: 1px solid var(--ink);
+    font-family: var(--font-pixel);
+    font-size: 9px;
+    letter-spacing: var(--ls-pixel);
+    padding: 6px 4px 5px;
+    cursor: pointer;
+    transition: transform 80ms var(--ease-soft), background 120ms;
+    box-shadow: 2px 2px 0 rgba(0,0,0,0.4);
+  }
+  .preview button:hover { background: var(--plaster); }
+  .preview button:active { transform: translate(2px, 2px); box-shadow: 0 0 0 rgba(0,0,0,0); }
+  .preview .now {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--fg-faint);
+    text-align: center;
+  }
+  .preview .now b { color: var(--plaster); font-weight: 600; }
+
+  /* ---------- footer ---------- */
+  .foot {
+    margin-top: 36px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--fg-mute);
+  }
+
+  @media (max-width: 760px) {
+    .row { grid-template-columns: 1fr; }
+    .strip-wrap { grid-template-columns: 1fr; }
+    .preview { width: 100%; max-width: 240px; }
+  }
+</style>
+</head>
+<body>
+
+<main class="sheet" data-screen-label="01 Animation Sheet">
+
+  <header class="head">
+    <div>
+      <h1 class="title">gyoza <em>— reference sheet</em></h1>
+      <div class="sub">sprite · 144×128 · transparent png · 3 states</div>
+    </div>
+    <div class="meta">
+      <span class="stamp">ref-01 · v1</span>
+      <div class="legend">
+        <span><b>loop</b> repeats</span>
+        <span><b>once</b> plays then holds</span>
+        <span><b>still</b> single frame</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== STANDARD ===================== -->
+  <section class="row" data-screen-label="standard">
+    <div class="row-meta">
+      <h2 class="name">standard</h2>
+      <p class="desc">default resting pose. used when the gyoza is idle on the page.</p>
+      <div class="tag-stack">
+        <span class="tag still"><b>still</b> · 1 frame</span>
+        <span class="tag">no timing</span>
+      </div>
+    </div>
+    <div class="strip-wrap">
+      <div class="strip">
+        <div class="cell">
+          <div class="frame"><img src="assets/default.png" alt="standard"></div>
+          <div class="frame-label"><span>frame 00</span><span class="ms">∞</span></div>
+        </div>
+      </div>
+      <div class="preview" data-mode="still">
+        <div class="stage"><img src="assets/default.png" alt=""></div>
+        <div class="bar"><span>standard</span><span class="dot"></span></div>
+        <div class="now">held · <b>00</b></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== FLY ===================== -->
+  <section class="row" data-screen-label="fly">
+    <div class="row-meta">
+      <h2 class="name">fly</h2>
+      <p class="desc">looping liftoff cycle. thruster pulse alternates between idle, half-burn, and full plume.</p>
+      <div class="tag-stack">
+        <span class="tag loop"><b>loop</b> · 3 frames</span>
+        <span class="tag">150ms / frame</span>
+        <span class="tag">~6.7 fps · 450ms cycle</span>
+      </div>
+    </div>
+    <div class="strip-wrap">
+      <div class="strip">
+        <div class="cell">
+          <div class="frame"><img src="assets/fly-1.png" alt="fly 1"></div>
+          <div class="frame-label"><span>frame 00</span><span class="ms">150ms</span></div>
+        </div>
+        <div class="cell">
+          <div class="frame"><img src="assets/fly-2.png" alt="fly 2"></div>
+          <div class="frame-label"><span>frame 01</span><span class="ms">150ms</span></div>
+        </div>
+        <div class="cell">
+          <div class="frame"><img src="assets/fly-3.png" alt="fly 3"></div>
+          <div class="frame-label"><span>frame 02</span><span class="ms">150ms</span></div>
+        </div>
+      </div>
+      <div class="preview" data-mode="loop" id="prev-fly">
+        <div class="stage"><img id="prev-fly-img" src="assets/fly-1.png" alt=""></div>
+        <div class="bar"><span>fly · loop</span><span class="dot"></span></div>
+        <div class="now">playing · <b id="prev-fly-now">00</b> / 02</div>
+        <div class="controls">
+          <button data-target="fly" data-action="toggle">pause</button>
+          <button data-target="fly" data-action="step">step ›</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== DAMAGE ===================== -->
+  <section class="row" data-screen-label="damage">
+    <div class="row-meta">
+      <h2 class="name">damage</h2>
+      <p class="desc">one-shot hit reaction. the gyoza is struck, breaks apart, and dissipates into a puff.</p>
+      <div class="tag-stack">
+        <span class="tag once"><b>once</b> · 5 frames</span>
+        <span class="tag">100ms / frame</span>
+        <span class="tag">10 fps · 500ms total</span>
+      </div>
+    </div>
+    <div class="strip-wrap">
+      <div class="strip">
+        <div class="cell">
+          <div class="frame"><img src="assets/dmg-1.png" alt="dmg 1"></div>
+          <div class="frame-label"><span>frame 00</span><span class="ms">100ms</span></div>
+        </div>
+        <div class="cell">
+          <div class="frame"><img src="assets/dmg-2.png" alt="dmg 2"></div>
+          <div class="frame-label"><span>frame 01</span><span class="ms">100ms</span></div>
+        </div>
+        <div class="cell">
+          <div class="frame"><img src="assets/dmg-3.png" alt="dmg 3"></div>
+          <div class="frame-label"><span>frame 02</span><span class="ms">100ms</span></div>
+        </div>
+        <div class="cell">
+          <div class="frame"><img src="assets/dmg-4.png" alt="dmg 4"></div>
+          <div class="frame-label"><span>frame 03</span><span class="ms">100ms</span></div>
+        </div>
+        <div class="cell">
+          <div class="frame"><img src="assets/dmg-5.png" alt="dmg 5"></div>
+          <div class="frame-label"><span>frame 04</span><span class="ms">100ms</span></div>
+        </div>
+      </div>
+      <div class="preview" data-mode="once" id="prev-dmg">
+        <div class="stage"><img id="prev-dmg-img" src="assets/dmg-1.png" alt=""></div>
+        <div class="bar"><span>damage · once</span><span class="dot"></span></div>
+        <div class="now">playing · <b id="prev-dmg-now">00</b> / 04</div>
+        <div class="controls">
+          <button data-target="dmg" data-action="replay">replay</button>
+          <button data-target="dmg" data-action="step">step ›</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <span>gyoza.spr · png sequence · pixel-perfect, no smoothing</span>
+    <span>frames are referenced by index — 00 first</span>
+  </footer>
+</main>
+
+<script>
+  // animation registry
+  const anims = {
+    fly: {
+      frames: ['assets/fly-1.png','assets/fly-2.png','assets/fly-3.png'],
+      ms: 150,
+      mode: 'loop',
+      i: 0,
+      playing: true,
+      timer: null,
+    },
+    dmg: {
+      frames: ['assets/dmg-1.png','assets/dmg-2.png','assets/dmg-3.png','assets/dmg-4.png','assets/dmg-5.png'],
+      ms: 100,
+      mode: 'once',
+      i: 0,
+      playing: true,
+      timer: null,
+    },
+  };
+
+  function render(key) {
+    const a = anims[key];
+    const img = document.getElementById(`prev-${key}-img`);
+    const now = document.getElementById(`prev-${key}-now`);
+    img.src = a.frames[a.i];
+    now.textContent = String(a.i).padStart(2, '0');
+  }
+
+  function tick(key) {
+    const a = anims[key];
+    if (!a.playing) return;
+    a.i++;
+    if (a.i >= a.frames.length) {
+      if (a.mode === 'loop') {
+        a.i = 0;
+      } else {
+        a.i = a.frames.length - 1;
+        a.playing = false;
+        // pause briefly then replay automatically for the demo
+        setTimeout(() => {
+          if (!a.playing) {
+            a.i = 0;
+            a.playing = true;
+            render(key);
+            schedule(key);
+          }
+        }, 900);
+      }
+    }
+    render(key);
+    if (a.playing) schedule(key);
+  }
+
+  function schedule(key) {
+    const a = anims[key];
+    clearTimeout(a.timer);
+    a.timer = setTimeout(() => tick(key), a.ms);
+  }
+
+  function start(key) {
+    render(key);
+    schedule(key);
+  }
+
+  document.querySelectorAll('button[data-target]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.target;
+      const action = btn.dataset.action;
+      const a = anims[key];
+      if (action === 'toggle') {
+        a.playing = !a.playing;
+        btn.textContent = a.playing ? 'pause' : 'play';
+        if (a.playing) schedule(key);
+        else clearTimeout(a.timer);
+      } else if (action === 'step') {
+        a.playing = false;
+        clearTimeout(a.timer);
+        const sibling = btn.parentElement.querySelector('[data-action="toggle"], [data-action="replay"]');
+        if (sibling && sibling.dataset.action === 'toggle') sibling.textContent = 'play';
+        a.i = (a.i + 1) % a.frames.length;
+        render(key);
+      } else if (action === 'replay') {
+        clearTimeout(a.timer);
+        a.i = 0;
+        a.playing = true;
+        render(key);
+        schedule(key);
+      }
+    });
+  });
+
+  start('fly');
+  start('dmg');
+</script>
+
+</body>
+</html>

@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>gyoza galaxy delivery — ui system</title>
+<link rel="stylesheet" href="colors_and_type.css">
+<style>
+  html, body { margin: 0; background: #f0eee9; }
+  body { font-family: var(--font-ui); color: var(--ink); }
+
+  /* shared art-board background: deep cosmos that the gyoza ship lives in */
+  .ab {
+    width: 100%; height: 100%;
+    position: relative; overflow: hidden;
+    box-sizing: border-box;
+  }
+  .ab.parchment { background: var(--parchment); }
+  .ab.warm      { background: var(--parchment-warm); }
+  .ab.cosmos {
+    background:
+      radial-gradient(900px 500px at 70% 20%, rgba(155,143,184,0.18), transparent 60%),
+      radial-gradient(700px 500px at 20% 80%, rgba(111,163,154,0.16), transparent 60%),
+      radial-gradient(circle at 50% 50%, #2A2D4A 0%, #1A1B2E 80%);
+    color: var(--plaster);
+  }
+  .ab.cosmos-deep {
+    background:
+      radial-gradient(circle at 50% 35%, #20223A 0%, #0E0F1C 75%);
+    color: var(--plaster);
+  }
+
+  /* pixel-perfect sprites */
+  .pix { image-rendering: pixelated; image-rendering: crisp-edges; }
+
+  /* tiny pixel star backdrop helper — used in dark cosmos artboards */
+  .stars { position:absolute; inset:0; pointer-events:none; opacity:0.9; }
+  .stars span {
+    position:absolute; width:2px; height:2px; background:var(--plaster);
+    border-radius:0; opacity: var(--o, 0.7);
+  }
+  .stars span.big { width:3px; height:3px; }
+  .stars span.tint { background: var(--dusk-blue); }
+
+  /* small label for "stub" artboard sections */
+  .stub-eyebrow {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--ls-wide);
+    text-transform: uppercase; color: var(--ink-mute);
+  }
+</style>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="gyoza-primitives.jsx"></script>
+<script type="text/babel" src="gyoza-foundations.jsx"></script>
+<script type="text/babel" src="gyoza-components.jsx"></script>
+<script type="text/babel" src="gyoza-screens.jsx"></script>
+<script type="text/babel">
+  const { DesignCanvas, DCSection, DCArtboard, PostIt } = window;
+
+  function App() {
+    return (
+      <DesignCanvas
+        title="Gyoza Galaxy Delivery"
+        subtitle="UI system · core components & screens"
+      >
+        <DCSection
+          id="foundations"
+          title="Foundations"
+          subtitle="brand, palette, type — the cozy-cosmos vocabulary"
+        >
+          <DCArtboard id="logo" label="01 · brand mark" width={1100} height={620}>
+            <window.GFLogoBoard />
+          </DCArtboard>
+          <DCArtboard id="palette" label="02 · palette" width={1100} height={620}>
+            <window.GFPaletteBoard />
+          </DCArtboard>
+          <DCArtboard id="type" label="03 · typography" width={900} height={620}>
+            <window.GFTypeBoard />
+          </DCArtboard>
+          <DCArtboard id="iconography" label="04 · iconography" width={900} height={520}>
+            <window.GFIconBoard />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="components"
+          title="Components"
+          subtitle="reusable parts — buttons, pills, npcs, dashboard widgets, map nodes"
+        >
+          <DCArtboard id="buttons" label="05 · buttons & inputs" width={1100} height={600}>
+            <window.GCButtonsBoard />
+          </DCArtboard>
+          <DCArtboard id="pills" label="06 · state pills" width={780} height={420}>
+            <window.GCPillsBoard />
+          </DCArtboard>
+          <DCArtboard id="npcs" label="07 · npc portraits" width={1100} height={620}>
+            <window.GCNpcBoard />
+          </DCArtboard>
+          <DCArtboard id="dashboard-widgets" label="08 · dashboard widgets" width={1280} height={680}>
+            <window.GCDashboardBoard />
+          </DCArtboard>
+          <DCArtboard id="map-nodes" label="09 · galaxy map nodes" width={900} height={520}>
+            <window.GCMapNodesBoard />
+          </DCArtboard>
+          <DCArtboard id="cards" label="10 · cards" width={1180} height={520}>
+            <window.GCCardsBoard />
+          </DCArtboard>
+          <DCArtboard id="dialog" label="11 · comm & dialog" width={1100} height={420}>
+            <window.GCDialogBoard />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="screens"
+          title="Screens"
+          subtitle="full layouts at 1280×720 — every core surface"
+        >
+          <DCArtboard id="title" label="12 · title screen" width={1280} height={720}>
+            <window.GSTitle />
+          </DCArtboard>
+          <DCArtboard id="mode-select" label="13 · mode select" width={1280} height={720}>
+            <window.GSModeSelect />
+          </DCArtboard>
+          <DCArtboard id="galaxy-map" label="14 · galaxy map" width={1280} height={720}>
+            <window.GSGalaxyMap />
+          </DCArtboard>
+          <DCArtboard id="briefing" label="15 · mission briefing" width={1280} height={720}>
+            <window.GSBriefing />
+          </DCArtboard>
+          <DCArtboard id="hud" label="16 · gameplay hud (live)" width={1280} height={820}>
+            <iframe
+              src="Gyoza Delivery.html"
+              style={{ width: '100%', height: '100%', border: 0, background: 'var(--parchment)' }}
+              title="gameplay hud — embedded live design"
+            />
+          </DCArtboard>
+          <DCArtboard id="cockpit" label="17 · cockpit dashboard" width={1280} height={720}>
+            <window.GSCockpit />
+          </DCArtboard>
+          <DCArtboard id="crash" label="18 · crash & respawn" width={1280} height={720}>
+            <window.GSCrash />
+          </DCArtboard>
+          <DCArtboard id="success" label="19 · delivery success" width={1280} height={720}>
+            <window.GSSuccess />
+          </DCArtboard>
+          <DCArtboard id="memories" label="20 · memories collection" width={1280} height={720}>
+            <window.GSMemories />
+          </DCArtboard>
+          <DCArtboard id="pause" label="21 · pause menu" width={1280} height={720}>
+            <window.GSPause />
+          </DCArtboard>
+          <DCArtboard id="ending" label="22 · ending" width={1280} height={720}>
+            <window.GSEnding />
+          </DCArtboard>
+        </DCSection>
+      </DesignCanvas>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

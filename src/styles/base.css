@@ -1,0 +1,26 @@
+html,
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100%;
+  background:
+    radial-gradient(900px 500px at 70% 20%, rgb(155 143 184 / 18%), transparent 60%),
+    radial-gradient(700px 500px at 20% 80%, rgb(111 163 154 / 16%), transparent 60%),
+    var(--color-cosmos-deep);
+  color: var(--color-plaster);
+  font-family: var(--font-ui);
+}
+
+body {
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+}
+
+canvas {
+  display: block;
+  image-rendering: pixelated;
+}

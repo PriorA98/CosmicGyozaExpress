@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>gyoza ship — flight test</title>
+<link rel="stylesheet" href="colors_and_type.css">
+<style>
+  html, body { height: 100%; margin: 0; }
+  body {
+    background:
+      radial-gradient(900px 500px at 50% -10%, var(--plaster), transparent 65%),
+      var(--parchment);
+    color: var(--fg);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    box-sizing: border-box;
+    font-family: var(--font-ui);
+  }
+
+  .cabinet {
+    width: min(100%, 880px);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* ===== title strip ===== */
+  .strip {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-bottom: 0;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    padding: 12px 18px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+  .brand-mark {
+    width: 28px;
+    height: 28px;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+  .brand-name {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 18px;
+    letter-spacing: var(--ls-tight);
+    line-height: 1;
+  }
+  .brand-sub {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--fg-mute);
+    margin-top: 2px;
+  }
+
+  .center-label {
+    text-align: center;
+    font-family: var(--font-pixel);
+    font-size: 11px;
+    letter-spacing: var(--ls-pixel);
+    color: var(--ink);
+  }
+
+  .state-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    background: var(--state-idle-bg);
+    color: var(--state-idle-fg);
+    padding: 4px 10px;
+    border-radius: var(--r-pill);
+    border: 1px solid var(--border);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .state-pill .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--state-idle-dot);
+    box-shadow: 0 0 6px currentColor;
+  }
+  .state-pill[data-state="flying"]   { background: var(--state-running-bg); color: var(--state-running-fg); }
+  .state-pill[data-state="flying"] .dot { background: var(--state-running-dot); }
+  .state-pill[data-state="exploded"] { background: var(--state-error-bg); color: var(--state-error-fg); }
+  .state-pill[data-state="exploded"] .dot { background: var(--state-error-dot); animation: blink 0.4s steps(2,end) infinite; }
+  @keyframes blink { 50% { opacity: 0.3; } }
+
+  /* ===== stage ===== */
+  .stage-wrap {
+    position: relative;
+    background: var(--ink);
+    border: 1px solid var(--border-ink);
+    border-top: 2px solid var(--ink);
+    border-bottom: 2px solid var(--ink);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 800 / 600;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    background: #1A1B2E;
+  }
+
+  /* HUD overlays inside stage */
+  .hud {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    display: flex;
+    justify-content: space-between;
+    pointer-events: none;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--plaster);
+    letter-spacing: 0.04em;
+  }
+  .hud .panel {
+    background: rgba(20, 22, 38, 0.75);
+    border: 1px solid rgba(247, 240, 220, 0.18);
+    border-radius: var(--r-sm);
+    padding: 6px 10px;
+    backdrop-filter: blur(2px);
+    display: flex;
+    gap: 14px;
+  }
+  .hud .panel .k { color: var(--fg-faint); text-transform: uppercase; letter-spacing: var(--ls-wide); font-size: 9px; }
+  .hud .panel b { color: var(--plaster); font-weight: 600; }
+  .hud .panel .stat { display: flex; flex-direction: column; line-height: 1.1; }
+  .hud .right { gap: 10px; }
+  .hud .frame-readout {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .hud .frame-readout .seg {
+    width: 14px; height: 4px; background: rgba(247,240,220,0.15); border-radius: 1px;
+  }
+  .hud .frame-readout .seg.on { background: var(--sage); box-shadow: 0 0 6px var(--sage); }
+  .hud .frame-readout .seg.on.fast { background: var(--terracotta); box-shadow: 0 0 6px var(--terracotta); }
+
+  /* center hint (shown briefly on load) */
+  .hint {
+    position: absolute;
+    inset: auto 0 14px 0;
+    text-align: center;
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    letter-spacing: var(--ls-pixel);
+    color: rgba(247, 240, 220, 0.55);
+    pointer-events: none;
+    transition: opacity 600ms var(--ease-soft);
+  }
+  .hint.hide { opacity: 0; }
+
+  /* ===== controls strip ===== */
+  .controls {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 0;
+    border-radius: 0 0 var(--r-lg) var(--r-lg);
+    padding: 12px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .keys {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--fg-mute);
+  }
+  .key {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    padding: 2px 6px;
+    background: var(--parchment-warm);
+    border: 1px solid var(--border-strong);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .reset-btn {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    background: var(--parchment-warm);
+    color: var(--ink);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-sm);
+    padding: 6px 12px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: background 120ms var(--ease-soft), transform 80ms;
+  }
+  .reset-btn:hover { background: var(--plaster); }
+  .reset-btn:active { transform: translateY(1px); }
+  .reset-btn:focus-visible { outline: 2px solid var(--terracotta); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<main class="cabinet" data-screen-label="01 Gyoza Ship">
+  <header class="strip">
+    <div class="brand">
+      <img class="brand-mark" src="assets/default.png" alt="">
+      <div>
+        <div class="brand-name">gyoza ship</div>
+        <div class="brand-sub">flight test · v0.1</div>
+      </div>
+    </div>
+    <div class="center-label">— drift &amp; explore —</div>
+    <div class="state-pill" id="state-pill" data-state="idle">
+      <span class="dot"></span><span id="state-text">idle</span>
+    </div>
+  </header>
+
+  <div class="stage-wrap">
+    <canvas id="game" width="800" height="600" aria-label="gyoza ship game canvas"></canvas>
+
+    <div class="hud">
+      <div class="panel left">
+        <div class="stat">
+          <span class="k">pos</span>
+          <span><b id="hud-x">000</b>,<b id="hud-y">000</b></span>
+        </div>
+        <div class="stat">
+          <span class="k">vel</span>
+          <span><b id="hud-spd">0.00</b> px/s</span>
+        </div>
+        <div class="stat">
+          <span class="k">heading</span>
+          <span><b id="hud-hdg">000°</b></span>
+        </div>
+      </div>
+      <div class="panel right">
+        <div class="stat">
+          <span class="k">frame</span>
+          <span><b id="hud-frame">standard</b></span>
+        </div>
+        <div class="stat">
+          <span class="k">thrust</span>
+          <span class="frame-readout" id="frame-readout">
+            <span class="seg"></span><span class="seg"></span><span class="seg"></span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="hint" id="hint">wasd or arrows to fly · avoid the asteroids</div>
+  </div>
+
+  <footer class="controls">
+    <div class="keys">
+      <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span>
+      <span>or</span>
+      <span class="key">↑</span><span class="key">←</span><span class="key">↓</span><span class="key">→</span>
+      <span>· drift physics</span>
+    </div>
+    <button class="reset-btn" id="reset-btn">reset position</button>
+  </footer>
+</main>
+
+<script src="game.js"></script>
+</body>
+</html>

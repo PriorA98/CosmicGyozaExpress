@@ -1,0 +1,341 @@
+/* =========================================================================
+   MyAgentCompanion — Color & Type Foundations
+   A cozy pixel-room control surface for local AI coding agents.
+   ========================================================================= */
+
+/* ---------- Fonts ----------
+   Substitutions in use (flagged to user):
+   - Bricolage Grotesque  → headings / display (warm geometric, chunky)
+   - Geist               → UI body / labels (clean, developer-oriented)
+   - JetBrains Mono      → code, state pills, technical readouts
+   - Silkscreen          → pixel-art accents, badge cues, sprite labels
+*/
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Silkscreen:wght@400;700&display=swap');
+
+:root {
+  /* =====================================================================
+     COLOR  —  Cozy room + dusk navy ink. NOT a SaaS purple-blue palette.
+     Warm parchment base, sage + terracotta atmospherics, slate UI ink.
+     ===================================================================== */
+
+  /* Surface (room atmosphere — parchments, walls, floors) */
+  --parchment:        #F4ECDC;  /* primary app background — warm cream wall */
+  --parchment-deep:   #ECDFC5;  /* recessed wall, drawer interior */
+  --parchment-warm:   #F9F3E5;  /* paper panel surface */
+  --plaster:          #FBF7EC;  /* highest light, lamp glow */
+  --wood-floor:       #C49A6C;  /* room floor band */
+  --wood-floor-deep:  #A07A4F;  /* shadow under floor */
+  --wallpaper:        #E8D9BD;  /* pattern band, wainscot */
+
+  /* Ink (text + pixel outlines — matches robot sprite outline exactly) */
+  --ink:              #1D1F33;  /* primary text, pixel outline */
+  --ink-soft:         #2F3149;
+  --ink-mute:         #5A5C70;  /* secondary text */
+  --ink-dim:          #8A8B9A;  /* tertiary, placeholders */
+  --ink-faint:        #B7B6C1;  /* dividers, ghost text */
+
+  /* Slate (panels, sprite mid-tones — sampled from robot sprite) */
+  --slate-50:         #EFEEF1;
+  --slate-100:        #DDDCE2;
+  --slate-200:        #C2C0CB;
+  --slate-300:        #9A98A3;  /* robot body light panel */
+  --slate-400:        #76747F;
+  --slate-500:        #6E6E72;  /* robot body main */
+  --slate-700:        #3D3E4D;
+  --slate-900:        #232434;
+
+  /* Accents (warm pets-and-room palette — restrained, not gradient blobs) */
+  --terracotta:       #C97B5A;  /* warm action, primary CTA */
+  --terracotta-deep:  #A6614A;
+  --terracotta-soft:  #E8B69D;
+  --sage:             #8DA17A;  /* idle / healthy state */
+  --sage-deep:        #6B7E5A;
+  --sage-soft:        #C2CFAE;
+  --dusk-blue:        #9EB6C4;  /* sprite screen color — used as info accent */
+  --dusk-blue-deep:   #6B8B9F;
+  --dusk-blue-soft:   #C9D9E3;
+  --amber:            #D4A055;  /* reading, doc cues */
+  --amber-soft:       #ECCC8C;
+  --plum:             #9B8FB8;  /* thinking, planning */
+  --plum-soft:        #C7BEDE;
+  --rose:             #C490A8;  /* cloning */
+  --rose-soft:        #E2C0D1;
+  --teal:             #6FA39A;  /* writing */
+  --teal-soft:        #B5D2CC;
+  --brick:            #C26954;  /* error — muted, not aggressive */
+  --brick-soft:       #E5B0A2;
+  --ember:            #E08A4B;  /* waiting / attention */
+  --ember-soft:       #F2C49A;
+
+  /* =====================================================================
+     SEMANTIC STATE COLORS (the agent activity states)
+     Each state gets a fg (ink-on-soft), bg (soft pill), dot (accent dot)
+     ===================================================================== */
+  --state-idle-bg:    var(--sage-soft);
+  --state-idle-fg:    var(--sage-deep);
+  --state-idle-dot:   var(--sage);
+
+  --state-thinking-bg: var(--plum-soft);
+  --state-thinking-fg: #5E4F7A;
+  --state-thinking-dot: var(--plum);
+
+  --state-reading-bg:  var(--amber-soft);
+  --state-reading-fg:  #7C5B22;
+  --state-reading-dot: var(--amber);
+
+  --state-writing-bg:  var(--teal-soft);
+  --state-writing-fg:  #2F5C56;
+  --state-writing-dot: var(--teal);
+
+  --state-running-bg:  #C6DCC2;
+  --state-running-fg:  #2E5232;
+  --state-running-dot: #5A8B5E;
+
+  --state-waiting-bg:  var(--ember-soft);
+  --state-waiting-fg:  #7A4017;
+  --state-waiting-dot: var(--ember);
+
+  --state-sleeping-bg: var(--slate-100);
+  --state-sleeping-fg: var(--ink-mute);
+  --state-sleeping-dot: var(--slate-400);
+
+  --state-cloning-bg:  var(--rose-soft);
+  --state-cloning-fg:  #7C4866;
+  --state-cloning-dot: var(--rose);
+
+  --state-error-bg:    var(--brick-soft);
+  --state-error-fg:    #7A2E1F;
+  --state-error-dot:   var(--brick);
+
+  /* =====================================================================
+     SEMANTIC ROLES (use these, not the raw palette, in components)
+     ===================================================================== */
+  --bg:              var(--parchment);
+  --bg-recessed:     var(--parchment-deep);
+  --bg-raised:       var(--plaster);
+  --surface:         var(--parchment-warm);   /* card / panel */
+  --surface-alt:     var(--plaster);
+  --surface-mute:    var(--parchment-deep);
+
+  --fg:              var(--ink);
+  --fg-mute:         var(--ink-mute);
+  --fg-dim:          var(--ink-dim);
+  --fg-faint:        var(--ink-faint);
+  --fg-inverse:      var(--plaster);
+
+  --border:          #D7CDB5;          /* warm parchment edge */
+  --border-strong:   #B9AB8B;
+  --border-ink:      var(--ink);       /* pixel-art outline border */
+  --divider:         #E0D6BE;
+
+  --accent:          var(--terracotta);
+  --accent-deep:     var(--terracotta-deep);
+  --accent-soft:     var(--terracotta-soft);
+  --accent-2:        var(--sage);
+  --accent-3:        var(--dusk-blue);
+
+  --focus-ring:      var(--terracotta);
+  --selection-bg:    #FBE3C4;
+  --selection-fg:    var(--ink);
+
+  /* =====================================================================
+     TYPE SCALE
+     ===================================================================== */
+  --font-display: 'Bricolage Grotesque', ui-rounded, system-ui, sans-serif;
+  --font-ui:      'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+  --font-pixel:   'Silkscreen', 'Press Start 2P', ui-monospace, monospace;
+
+  --fs-xs:    11px;     /* meta labels, pixel pills */
+  --fs-sm:    13px;     /* body small, controls */
+  --fs-base:  14px;     /* default UI */
+  --fs-md:    16px;     /* card body */
+  --fs-lg:    20px;     /* card title */
+  --fs-xl:    26px;     /* panel title */
+  --fs-2xl:   34px;     /* room header */
+  --fs-3xl:   48px;     /* display */
+
+  --lh-tight: 1.15;
+  --lh-snug:  1.3;
+  --lh-base:  1.5;
+  --lh-loose: 1.7;
+
+  --ls-tight: -0.02em;
+  --ls-base:  -0.005em;
+  --ls-wide:  0.06em;     /* small caps / pixel labels */
+  --ls-pixel: 0.12em;
+
+  /* =====================================================================
+     SPACING — 4px base, plus a 6px pixel grid for pet-room layouts
+     ===================================================================== */
+  --s-0:  0;
+  --s-1:  4px;
+  --s-2:  8px;
+  --s-3:  12px;
+  --s-4:  16px;
+  --s-5:  20px;
+  --s-6:  24px;
+  --s-8:  32px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --s-16: 64px;
+  --px:   6px;   /* one room pixel-cell — pets walk on multiples of this */
+
+  /* =====================================================================
+     RADII — small and crisp. Pixel things stay sharp (--r-pixel = 0)
+     ===================================================================== */
+  --r-pixel:   0;    /* pet sprites, pixel panels, room tiles */
+  --r-xs:      3px;
+  --r-sm:      5px;  /* default chip / pill */
+  --r-md:      8px;  /* default card / button */
+  --r-lg:      12px; /* large panel */
+  --r-xl:      18px; /* hero panel */
+  --r-pill:    999px;
+
+  /* =====================================================================
+     SHADOWS — gentle, warm, never blue-black SaaS drops.
+     Pixel-style hard shadow (--shadow-pixel) for retro panels.
+     ===================================================================== */
+  --shadow-xs:    0 1px 0 rgba(29, 31, 51, 0.06);
+  --shadow-sm:    0 1px 2px rgba(72, 56, 30, 0.08), 0 1px 0 rgba(29, 31, 51, 0.04);
+  --shadow-md:    0 4px 12px rgba(72, 56, 30, 0.10), 0 1px 0 rgba(29, 31, 51, 0.05);
+  --shadow-lg:    0 10px 28px rgba(72, 56, 30, 0.14), 0 2px 0 rgba(29, 31, 51, 0.05);
+  --shadow-lamp:  0 -2px 24px rgba(232, 154, 75, 0.20), inset 0 1px 0 rgba(255,255,255,0.5);
+  --shadow-pixel: 3px 3px 0 var(--ink);
+  --shadow-pixel-sm: 2px 2px 0 var(--ink);
+  --shadow-inset: inset 0 1px 0 rgba(255,255,255,0.6), inset 0 -1px 0 rgba(29,31,51,0.04);
+
+  /* =====================================================================
+     MOTION — calm, never bouncy-juvenile, never SaaS-snappy
+     ===================================================================== */
+  --ease-out:   cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in:    cubic-bezier(0.55, 0, 0.68, 0);
+  --ease-soft:  cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-step:  steps(8, end);    /* pixel-art frame animation */
+  --dur-fast:   120ms;
+  --dur-base:   200ms;
+  --dur-slow:   320ms;
+  --dur-breath: 2400ms;           /* pet idle breathing */
+}
+
+/* =========================================================================
+   SEMANTIC TYPE STYLES
+   Use these classes/elements rather than inline font props.
+   ========================================================================= */
+
+html, body {
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+  color: var(--fg);
+  background: var(--bg);
+  font-feature-settings: 'ss01', 'cv01';
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection { background: var(--selection-bg); color: var(--selection-fg); }
+
+.h-display, h1 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--fs-3xl);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-tight);
+  color: var(--fg);
+}
+.h1, h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--fs-2xl);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-tight);
+  color: var(--fg);
+}
+.h2, h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--fs-xl);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--ls-tight);
+  color: var(--fg);
+}
+.h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--fs-lg);
+  line-height: var(--lh-snug);
+  color: var(--fg);
+}
+.body, p {
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+  color: var(--fg);
+}
+.body-sm, .meta {
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  color: var(--fg-mute);
+  line-height: var(--lh-base);
+}
+.label, label {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--fg-mute);
+  letter-spacing: var(--ls-wide);
+  text-transform: uppercase;
+}
+.mono, code, kbd, pre, samp {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  color: var(--fg);
+}
+.pixel {
+  font-family: var(--font-pixel);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-pixel);
+  text-transform: uppercase;
+  color: var(--fg);
+}
+
+/* =========================================================================
+   STATE PILL helper — used wherever a session activity state is shown
+   ========================================================================= */
+.state-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px 3px 7px;
+  border-radius: var(--r-pill);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.state-pill::before {
+  content: '';
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.85;
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 18%, transparent);
+}
+.state-pill[data-state="idle"]     { background: var(--state-idle-bg);     color: var(--state-idle-fg); }
+.state-pill[data-state="thinking"] { background: var(--state-thinking-bg); color: var(--state-thinking-fg); }
+.state-pill[data-state="reading"]  { background: var(--state-reading-bg);  color: var(--state-reading-fg); }
+.state-pill[data-state="writing"]  { background: var(--state-writing-bg);  color: var(--state-writing-fg); }
+.state-pill[data-state="running"]  { background: var(--state-running-bg);  color: var(--state-running-fg); }
+.state-pill[data-state="waiting"]  { background: var(--state-waiting-bg);  color: var(--state-waiting-fg); }
+.state-pill[data-state="sleeping"] { background: var(--state-sleeping-bg); color: var(--state-sleeping-fg); }
+.state-pill[data-state="cloning"]  { background: var(--state-cloning-bg);  color: var(--state-cloning-fg); }
+.state-pill[data-state="error"]    { background: var(--state-error-bg);    color: var(--state-error-fg); }
+
+/* Pet sprite — pixel-perfect scaling */
+.pixel-art, img.pixel-art {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
