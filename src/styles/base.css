@@ -9,6 +9,12 @@ body {
     var(--color-cosmos-deep);
   color: var(--color-plaster);
   font-family: var(--font-ui);
+  overscroll-behavior: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
 }
 
 body {
@@ -23,4 +29,7 @@ button {
 canvas {
   display: block;
   image-rendering: pixelated;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }

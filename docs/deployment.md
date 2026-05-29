@@ -48,7 +48,18 @@ In the GitHub repository:
 1. Open Settings.
 2. Open Pages.
 3. Under Build and deployment, set Source to `GitHub Actions`.
-4. Push to `main` or manually run `Deploy demo to GitHub Pages` from the Actions tab.
+4. Open Settings, then Environments.
+5. Open the `github-pages` environment.
+6. Under Deployment branches and tags, allow the `demo` branch to deploy.
+7. Push to `demo` or manually run `Deploy demo to GitHub Pages` from the Actions tab.
+
+Recommended environment branch setting:
+
+- Selected branches and tags: `demo`
+
+Alternative:
+
+- No restriction, if this repository is private/personal and strict environment gating is not useful yet.
 
 The workflow lives at:
 
@@ -60,6 +71,31 @@ It runs:
 - `npm test`
 - `npm run build:pages`
 - GitHub Pages artifact upload/deploy
+
+### Troubleshooting
+
+Error:
+
+```text
+Branch "demo" is not allowed to deploy to github-pages due to environment protection rules.
+The deployment was rejected or didn't satisfy other protection rules.
+```
+
+Cause:
+
+- The workflow is correct, but GitHub's `github-pages` environment is configured to reject deployments from `demo`.
+
+Fix:
+
+1. Open the GitHub repository.
+2. Go to Settings.
+3. Go to Environments.
+4. Open `github-pages`.
+5. Find Deployment branches and tags.
+6. Add `demo` as an allowed deployment branch, or temporarily choose no restriction.
+7. Rerun the failed workflow.
+
+Do not change the workflow back to `main` for this error. The point of the branch strategy is that `demo` is the only branch allowed to publish the public demo.
 
 ## Branch Strategy
 
@@ -112,6 +148,36 @@ npm run build:pages
 ```text
 https://priora98.github.io/CosmicGyozaExpress/
 ```
+
+### Testing A Feature Branch On The Demo URL
+
+Use this when a feature needs real-device testing through the GitHub Pages URL, such as mobile controls.
+
+Example for `feature/mobile-support`:
+
+```bash
+git checkout feature/mobile-support
+npm test
+npm run typecheck
+npm run build
+npm run build:pages
+git push origin feature/mobile-support
+git checkout demo
+git merge --ff-only feature/mobile-support
+git push origin demo
+```
+
+If `--ff-only` fails, stop and inspect the branch relationship before merging. The `demo` branch should remain an intentional published snapshot, not a place for active development.
+
+After testing the deployed demo on devices:
+
+```bash
+git checkout main
+git merge --ff-only feature/mobile-support
+git push origin main
+```
+
+If the mobile test fails, fix it on `feature/mobile-support`, rerun local validation, and promote to `demo` again.
 
 ### Demo Deployment Milestones
 
