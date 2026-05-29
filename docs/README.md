@@ -10,6 +10,8 @@ This folder contains the official project documentation derived from the origina
   - Original game concept and tone source.
 - `implementation/implementation-plan.md`
   - Technical and production plan for Phaser + TypeScript + Vite + localStorage.
+- `gameplay-decisions.md`
+  - Locked gameplay decisions for Phase 1 and the Tea Moon vertical slice.
 - `design/design-system.md`
   - Official visual design system derived from the UI prototype.
 - `design/ui-reference.md`
