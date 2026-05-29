@@ -113,6 +113,36 @@ npm run build:pages
 https://priora98.github.io/CosmicGyozaExpress/
 ```
 
+### Testing A Feature Branch On The Demo URL
+
+Use this when a feature needs real-device testing through the GitHub Pages URL, such as mobile controls.
+
+Example for `feature/mobile-support`:
+
+```bash
+git checkout feature/mobile-support
+npm test
+npm run typecheck
+npm run build
+npm run build:pages
+git push origin feature/mobile-support
+git checkout demo
+git merge --ff-only feature/mobile-support
+git push origin demo
+```
+
+If `--ff-only` fails, stop and inspect the branch relationship before merging. The `demo` branch should remain an intentional published snapshot, not a place for active development.
+
+After testing the deployed demo on devices:
+
+```bash
+git checkout main
+git merge --ff-only feature/mobile-support
+git push origin main
+```
+
+If the mobile test fails, fix it on `feature/mobile-support`, rerun local validation, and promote to `demo` again.
+
 ### Demo Deployment Milestones
 
 Deploy to GitHub Pages only at meaningful checkpoints:

@@ -9,6 +9,8 @@ body {
     var(--color-cosmos-deep);
   color: var(--color-plaster);
   font-family: var(--font-ui);
+  touch-action: none;
+  user-select: none;
 }
 
 body {

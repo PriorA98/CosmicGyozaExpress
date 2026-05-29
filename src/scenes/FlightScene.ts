@@ -19,6 +19,12 @@ export class FlightScene extends Phaser.Scene {
   private ship!: GyozaShip;
   private keys!: FlightKeys;
   private debugText!: Phaser.GameObjects.Text;
+  private touchControls: ShipControls = {
+    thrust: false,
+    brake: false,
+    rotateLeft: false,
+    rotateRight: false,
+  };
 
   constructor() {
     super("FlightScene");
@@ -28,6 +34,7 @@ export class FlightScene extends Phaser.Scene {
     const { width, height } = this.scale;
 
     this.createStarfield(width, height);
+    this.input.addPointer(3);
     this.add.image(width * 0.78, height * 0.28, "planet-im-fine").setScale(0.13).setAlpha(0.85);
 
     this.ship = new GyozaShip(this, width / 2, height / 2);
@@ -54,12 +61,14 @@ export class FlightScene extends Phaser.Scene {
     });
 
     this.add
-      .text(width / 2, height - 28, "W/UP thrust · S/DOWN brake · A/D rotate · refresh to reset", {
+      .text(width / 2, height - 28, "keyboard: W/S/A/D · touch: hold pads to fly · refresh to reset", {
         color: "rgba(251,247,236,0.72)",
         fontFamily: "monospace",
         fontSize: "13px",
       })
       .setOrigin(0.5);
+
+    this.createTouchControls(width, height);
   }
 
   override update(_time: number, delta: number): void {
@@ -71,11 +80,71 @@ export class FlightScene extends Phaser.Scene {
 
   private readControls(): ShipControls {
     return {
-      thrust: this.keys.W.isDown || this.keys.UP.isDown,
-      brake: this.keys.S.isDown || this.keys.DOWN.isDown,
-      rotateLeft: this.keys.A.isDown || this.keys.LEFT.isDown,
-      rotateRight: this.keys.D.isDown || this.keys.RIGHT.isDown,
+      thrust: this.keys.W.isDown || this.keys.UP.isDown || this.touchControls.thrust,
+      brake: this.keys.S.isDown || this.keys.DOWN.isDown || this.touchControls.brake,
+      rotateLeft: this.keys.A.isDown || this.keys.LEFT.isDown || this.touchControls.rotateLeft,
+      rotateRight: this.keys.D.isDown || this.keys.RIGHT.isDown || this.touchControls.rotateRight,
     };
+  }
+
+  private createTouchControls(width: number, height: number): void {
+    const y = height - 102;
+    const leftX = 84;
+    const rightX = 184;
+    const brakeX = width - 184;
+    const thrustX = width - 84;
+
+    this.createTouchButton(leftX, y, "◀", "rotate left", "rotateLeft");
+    this.createTouchButton(rightX, y, "▶", "rotate right", "rotateRight");
+    this.createTouchButton(brakeX, y, "S", "brake", "brake", colors.duskBlue);
+    this.createTouchButton(thrustX, y, "▲", "thrust", "thrust", colors.terracotta);
+  }
+
+  private createTouchButton(
+    x: number,
+    y: number,
+    glyph: string,
+    label: string,
+    control: keyof ShipControls,
+    accent: string = colors.ember,
+  ): void {
+    const radius = 38;
+    const hitRadius = 48;
+    const group = this.add.container(x, y).setDepth(20);
+    const bg = this.add.circle(0, 0, radius, Phaser.Display.Color.HexStringToColor(accent).color, 0.2);
+    const ring = this.add.circle(0, 0, radius).setStrokeStyle(2, 0xfbf7ec, 0.32);
+    const glyphText = this.add
+      .text(0, -7, glyph, {
+        color: colors.plaster,
+        fontFamily: "monospace",
+        fontSize: "22px",
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5);
+    const labelText = this.add
+      .text(0, 22, label, {
+        color: "rgba(251,247,236,0.66)",
+        fontFamily: "monospace",
+        fontSize: "10px",
+      })
+      .setOrigin(0.5);
+
+    group.add([bg, ring, glyphText, labelText]);
+    group.setSize(hitRadius * 2, hitRadius * 2);
+    group.setInteractive(new Phaser.Geom.Circle(0, 0, hitRadius), Phaser.Geom.Circle.Contains);
+
+    const setPressed = (pressed: boolean): void => {
+      this.touchControls[control] = pressed;
+      bg.setAlpha(pressed ? 0.46 : 0.2);
+      ring.setStrokeStyle(pressed ? 3 : 2, 0xfbf7ec, pressed ? 0.72 : 0.32);
+      group.setScale(pressed ? 0.96 : 1);
+    };
+
+    group.on("pointerdown", () => setPressed(true));
+    group.on("pointerup", () => setPressed(false));
+    group.on("pointerout", () => setPressed(false));
+    group.on("pointerupoutside", () => setPressed(false));
+    group.on("pointercancel", () => setPressed(false));
   }
 
   private keepShipInBounds(): void {
