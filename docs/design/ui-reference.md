@@ -290,7 +290,7 @@ Production movement:
 - Braking/counter-thrust matters.
 - Docking uses speed and optional facing checks.
 
-Use prototype values as rough feel references only. The official model is defined in `implementation-plan.md`.
+Use prototype values as rough feel references only. The official model is defined in `docs/implementation/implementation-plan.md`.
 
 ## 6. Copy And Tone Reference
 
@@ -315,7 +315,7 @@ Avoid:
 When documents conflict, use this order:
 
 1. `Cosmic Gyoza Express.md` for game intent and emotional boundaries.
-2. `implementation-plan.md` for technical scope and production phases.
+2. `docs/implementation/implementation-plan.md` for technical scope and production phases.
 3. `docs/design/design-system.md` for visual design decisions.
 4. `docs/design/ui-reference.md` for how to interpret the handoff.
 5. Raw files in `references/design-handoff/` for source inspection only.

@@ -8,7 +8,7 @@ This folder contains the official project documentation derived from the origina
 
 - `../Cosmic Gyoza Express.md`
   - Original game concept and tone source.
-- `../implementation-plan.md`
+- `implementation/implementation-plan.md`
   - Technical and production plan for Phaser + TypeScript + Vite + localStorage.
 - `design/design-system.md`
   - Official visual design system derived from the UI prototype.
@@ -18,6 +18,8 @@ This folder contains the official project documentation derived from the origina
   - Reference asset catalog, dimensions, animation timing, duplication notes, and production recommendations.
 - `implementation/frontend-integration.md`
   - How to translate the HTML/CSS/JS prototype language into the actual Phaser implementation.
+- `deployment.md`
+  - Official deployment plan: GitHub Pages for demos, itch.io HTML5 for final release.
 
 ## Reference Material
 
