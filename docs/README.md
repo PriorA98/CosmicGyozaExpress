@@ -1,6 +1,6 @@
 # Cosmic Gyoza Express Documentation Index
 
-Last updated: 2026-05-29 JST
+Last updated: 2026-05-30 JST
 
 This folder contains the official project documentation derived from the original concept document, the implementation plan, and the imported Gyoza UI prototype handoff.
 
@@ -10,6 +10,8 @@ This folder contains the official project documentation derived from the origina
   - Original game concept and tone source.
 - `implementation/implementation-plan.md`
   - Technical and production plan for Phaser + TypeScript + Vite + localStorage.
+- `implementation/phase-1-flight-feel-prototype-plan.md`
+  - Detailed implementation plan for the Phase 1 flight-feel prototype.
 - `gameplay-decisions.md`
   - Locked gameplay decisions for Phase 1 and the Tea Moon vertical slice.
 - `design/design-system.md`
