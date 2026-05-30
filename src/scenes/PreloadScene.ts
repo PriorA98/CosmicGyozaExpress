@@ -22,6 +22,10 @@ export class PreloadScene extends Phaser.Scene {
     this.load.image("ship-fly-2", "assets/ship/gyoza-fly-02.png");
     this.load.image("ship-fly-3", "assets/ship/gyoza-fly-03.png");
     this.load.image("ship-incident-1", "assets/ship/gyoza-incident-01.png");
+    this.load.image("ship-incident-2", "assets/ship/gyoza-incident-02.png");
+    this.load.image("ship-incident-3", "assets/ship/gyoza-incident-03.png");
+    this.load.image("ship-incident-4", "assets/ship/gyoza-incident-04.png");
+    this.load.image("ship-incident-5", "assets/ship/gyoza-incident-05.png");
     this.load.image("planet-tea-moon", "assets/planets/planet00.png");
     this.load.image("planet-im-fine", "assets/planets/planet04.png");
   }

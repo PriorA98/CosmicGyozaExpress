@@ -15,6 +15,7 @@ Cosmic Gyoza Express is a small cozy physics-based space delivery game about a t
 
 - `Cosmic Gyoza Express.md` - original concept document.
 - `docs/implementation/implementation-plan.md` - phased implementation plan.
+- `docs/implementation/phase-1-flight-feel-prototype-plan.md` - detailed Phase 1 flight-feel prototype plan.
 - `docs/gameplay-decisions.md` - locked gameplay decisions for Phase 1 and the Tea Moon vertical slice.
 - `docs/README.md` - documentation index.
 - `docs/design/design-system.md` - official design system.

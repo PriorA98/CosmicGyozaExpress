@@ -1,35 +1,71 @@
 import Phaser from "phaser";
-import { GyozaShip, type ShipControls } from "../entities/GyozaShip";
+import { collisionTuning, dockingTuning, respawnTuning, shipTuning, cameraTuning } from "../data/tuning";
+import { flightPrototypeRoute } from "../data/flightPrototypeRoute";
+import { GyozaShip } from "../entities/GyozaShip";
 import { colors } from "../game/designTokens";
-import { radiansToCompassDegrees } from "../utils/math";
+import {
+  classifyCollision,
+  findFirstCollision,
+  resolveCircleCollision,
+} from "../systems/CollisionSystem";
+import { dockingHint, dockingStatusLabel, evaluateDocking } from "../systems/DockingSystem";
+import { applyPackageConditionEvent, packageConditionLabel } from "../systems/PackageConditionSystem";
+import { facingVector, integrateShipMovement } from "../systems/ShipMovementSystem";
+import type { CollisionSeverity, DockingState, ShipControls, ShipKinematicState } from "../types/flight";
+import { clamp, radiansToCompassDegrees, vectorLength } from "../utils/math";
 
 type FlightKeys = {
-  W: Phaser.Input.Keyboard.Key;
-  A: Phaser.Input.Keyboard.Key;
-  S: Phaser.Input.Keyboard.Key;
-  D: Phaser.Input.Keyboard.Key;
-  UP: Phaser.Input.Keyboard.Key;
-  LEFT: Phaser.Input.Keyboard.Key;
-  DOWN: Phaser.Input.Keyboard.Key;
-  RIGHT: Phaser.Input.Keyboard.Key;
-  ESC: Phaser.Input.Keyboard.Key;
+  readonly W: Phaser.Input.Keyboard.Key;
+  readonly A: Phaser.Input.Keyboard.Key;
+  readonly S: Phaser.Input.Keyboard.Key;
+  readonly D: Phaser.Input.Keyboard.Key;
+  readonly UP: Phaser.Input.Keyboard.Key;
+  readonly LEFT: Phaser.Input.Keyboard.Key;
+  readonly DOWN: Phaser.Input.Keyboard.Key;
+  readonly RIGHT: Phaser.Input.Keyboard.Key;
+  readonly R: Phaser.Input.Keyboard.Key;
+  readonly F1: Phaser.Input.Keyboard.Key;
+  readonly BACKTICK: Phaser.Input.Keyboard.Key;
+  readonly ESC: Phaser.Input.Keyboard.Key;
 };
 
 type TouchControlKey = keyof ShipControls;
 
 type TouchControlPad = {
-  control: TouchControlKey;
-  hitArea: Phaser.Geom.Rectangle;
+  readonly control: TouchControlKey;
+  readonly hitArea: Phaser.Geom.Rectangle;
   active: boolean;
-  bg: Phaser.GameObjects.Arc;
-  ring: Phaser.GameObjects.Arc;
-  group: Phaser.GameObjects.Container;
+  readonly bg: Phaser.GameObjects.Arc;
+  readonly ring: Phaser.GameObjects.Arc;
+  readonly group: Phaser.GameObjects.Container;
 };
+
+type FlightMode =
+  | { readonly kind: "flying" }
+  | {
+      readonly kind: "incident";
+      readonly startedAtMs: number;
+      readonly respawnAtMs: number;
+      readonly resumeAtMs: number;
+      hasRespawned: boolean;
+    };
+
+type BoundsResolution = {
+  readonly state: ShipKinematicState;
+  readonly severity: CollisionSeverity;
+};
+
+const route = flightPrototypeRoute;
 
 export class FlightScene extends Phaser.Scene {
   private ship!: GyozaShip;
   private keys!: FlightKeys;
-  private debugText!: Phaser.GameObjects.Text;
+  private dashboardPanel!: Phaser.GameObjects.Rectangle;
+  private dashboardText!: Phaser.GameObjects.Text;
+  private controlsText!: Phaser.GameObjects.Text;
+  private destinationGraphics!: Phaser.GameObjects.Graphics;
+  private debugGraphics!: Phaser.GameObjects.Graphics;
+  private destinationArrow!: Phaser.GameObjects.Text;
   private touchControls: ShipControls = {
     thrust: false,
     brake: false,
@@ -37,6 +73,14 @@ export class FlightScene extends Phaser.Scene {
     rotateRight: false,
   };
   private touchPads: TouchControlPad[] = [];
+  private flightMode: FlightMode = { kind: "flying" };
+  private packageCondition = 100;
+  private debugVisible = true;
+  private lastDashboardLine = "tea moon beacon is humming";
+  private dashboardLineUntilMs = 0;
+  private badDockCooldownUntilMs = 0;
+  private collisionCooldownUntilMs = 0;
+  private invulnerableUntilMs = 0;
 
   constructor() {
     super("FlightScene");
@@ -45,11 +89,16 @@ export class FlightScene extends Phaser.Scene {
   create(): void {
     const { width, height } = this.scale;
 
-    this.createStarfield(width, height);
     this.input.addPointer(5);
-    this.add.image(width * 0.78, height * 0.28, "planet-im-fine").setScale(0.13).setAlpha(0.85);
+    this.createWorld();
+    this.createDestinationGraphics();
+    this.createObstacles();
 
-    this.ship = new GyozaShip(this, width / 2, height / 2);
+    this.ship = new GyozaShip(this, route.start);
+
+    this.cameras.main.setBounds(0, 0, route.world.width, route.world.height);
+    this.cameras.main.centerOn(route.start.x, route.start.y);
+    this.cameras.main.startFollow(this.ship, true, cameraTuning.followLerpX, cameraTuning.followLerpY);
 
     this.keys = this.input.keyboard?.addKeys({
       W: Phaser.Input.Keyboard.KeyCodes.W,
@@ -60,44 +109,133 @@ export class FlightScene extends Phaser.Scene {
       LEFT: Phaser.Input.Keyboard.KeyCodes.LEFT,
       DOWN: Phaser.Input.Keyboard.KeyCodes.DOWN,
       RIGHT: Phaser.Input.Keyboard.KeyCodes.RIGHT,
+      R: Phaser.Input.Keyboard.KeyCodes.R,
+      F1: Phaser.Input.Keyboard.KeyCodes.F1,
+      BACKTICK: Phaser.Input.Keyboard.KeyCodes.BACKTICK,
       ESC: Phaser.Input.Keyboard.KeyCodes.ESC,
     }) as FlightKeys;
 
-    this.debugText = this.add.text(22, 22, "", {
-      color: colors.plaster,
-      fontFamily: "monospace",
-      fontSize: "14px",
-      lineSpacing: 6,
-      backgroundColor: "rgba(20,22,38,0.72)",
-      padding: { x: 12, y: 10 },
-    });
+    this.createDashboard(width, height);
+    this.createTouchControls(width, height);
+    this.debugGraphics = this.add.graphics().setDepth(25);
 
+    this.restartFlight(0);
+  }
+
+  override update(time: number, delta: number): void {
+    this.updateTouchControlState();
+    this.handleUtilityKeys(time);
+
+    const docking = evaluateDocking(this.ship.kinematics, route.destination);
+    this.updateDestinationGraphics(docking);
+    this.updateDestinationArrow(docking);
+
+    if (this.flightMode.kind === "incident") {
+      this.updateIncident(time);
+      this.updateDashboard(docking, time);
+      this.updateDebugGraphics();
+      return;
+    }
+
+    const controls = this.readControls();
+    const moved = integrateShipMovement(this.ship.kinematics, controls, delta / 1000);
+    const bounded = this.resolveWorldBounds(moved);
+    this.ship.setKinematicState(bounded.state, controls.thrust);
+    this.handleBoundsCollision(bounded.severity, time);
+
+    if (time >= this.invulnerableUntilMs) {
+      this.handleObstacleCollision(time, controls.thrust);
+      this.handleBadDocking(evaluateDocking(this.ship.kinematics, route.destination), time);
+    }
+
+    const nextDocking = evaluateDocking(this.ship.kinematics, route.destination);
+    this.updateDestinationGraphics(nextDocking);
+    this.updateDestinationArrow(nextDocking);
+    this.updateDashboard(nextDocking, time);
+    this.updateDebugGraphics();
+  }
+
+  private createWorld(): void {
+    this.add.rectangle(0, 0, route.world.width, route.world.height, 0x1a1b2e).setOrigin(0, 0);
     this.add
-      .text(width / 2, height - 28, "keyboard: W/S/A/D · touch: hold pads to fly · refresh to reset", {
+      .rectangle(0, 0, route.world.width, route.world.height, 0x0e0f1c, 0.34)
+      .setOrigin(0, 0);
+
+    for (let i = 0; i < 430; i += 1) {
+      const x = Phaser.Math.Between(0, route.world.width);
+      const y = Phaser.Math.Between(0, route.world.height);
+      const size = Phaser.Math.Between(1, 2);
+      const alpha = Phaser.Math.FloatBetween(0.2, 0.88);
+      this.add.rectangle(x, y, size, size, 0xfbf7ec, alpha);
+    }
+
+    for (const planet of route.backgroundPlanets) {
+      this.add.image(planet.x, planet.y, planet.textureKey).setScale(planet.scale).setAlpha(planet.alpha);
+    }
+  }
+
+  private createDestinationGraphics(): void {
+    this.destinationGraphics = this.add.graphics().setDepth(8);
+    this.destinationArrow = this.add
+      .text(0, 0, ">", {
+        color: colors.ember,
+        fontFamily: "monospace",
+        fontSize: "34px",
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5)
+      .setDepth(45)
+      .setScrollFactor(0);
+  }
+
+  private createObstacles(): void {
+    for (const obstacle of route.obstacles) {
+      const fill = this.add.circle(obstacle.x, obstacle.y, obstacle.radius, 0x3d3e4d, 0.88);
+      fill.setStrokeStyle(3, this.colorNumber(colors.duskBlue), 0.34);
+      this.add.circle(
+        obstacle.x - obstacle.radius * 0.22,
+        obstacle.y - obstacle.radius * 0.28,
+        Math.max(8, obstacle.radius * 0.18),
+        0xf4ecdc,
+        0.13,
+      );
+      this.add.circle(
+        obstacle.x + obstacle.radius * 0.16,
+        obstacle.y + obstacle.radius * 0.2,
+        Math.max(6, obstacle.radius * 0.14),
+        0x0e0f1c,
+        0.18,
+      );
+    }
+  }
+
+  private createDashboard(width: number, height: number): void {
+    this.dashboardPanel = this.add
+      .rectangle(18, 18, 390, 178, this.colorNumber(colors.cosmosPanel), 0.82)
+      .setOrigin(0, 0)
+      .setDepth(40)
+      .setScrollFactor(0);
+    this.dashboardPanel.setStrokeStyle(1, 0xfbf7ec, 0.22);
+
+    this.dashboardText = this.add
+      .text(34, 30, "", {
+        color: colors.plaster,
+        fontFamily: "monospace",
+        fontSize: "13px",
+        lineSpacing: 5,
+      })
+      .setDepth(41)
+      .setScrollFactor(0);
+
+    this.controlsText = this.add
+      .text(width / 2, height - 28, "W/S/A/D or arrows to fly | R restart | F1/backtick debug", {
         color: "rgba(251,247,236,0.72)",
         fontFamily: "monospace",
         fontSize: "13px",
       })
-      .setOrigin(0.5);
-
-    this.createTouchControls(width, height);
-  }
-
-  override update(_time: number, delta: number): void {
-    this.updateTouchControlState();
-    const controls = this.readControls();
-    this.ship.updateShip(delta, controls);
-    this.keepShipInBounds();
-    this.updateDebugText();
-  }
-
-  private readControls(): ShipControls {
-    return {
-      thrust: this.keys.W.isDown || this.keys.UP.isDown || this.touchControls.thrust,
-      brake: this.keys.S.isDown || this.keys.DOWN.isDown || this.touchControls.brake,
-      rotateLeft: this.keys.A.isDown || this.keys.LEFT.isDown || this.touchControls.rotateLeft,
-      rotateRight: this.keys.D.isDown || this.keys.RIGHT.isDown || this.touchControls.rotateRight,
-    };
+      .setOrigin(0.5)
+      .setDepth(41)
+      .setScrollFactor(0);
   }
 
   private createTouchControls(width: number, height: number): void {
@@ -110,15 +248,10 @@ export class FlightScene extends Phaser.Scene {
     const zoneTop = height - zoneHeight;
     const rightPanelX = width - panelWidth;
 
-    this.createTouchButton(
-      new Phaser.Geom.Rectangle(0, zoneTop, zoneWidth, zoneHeight),
-      "◀",
-      "rotate left",
-      "rotateLeft",
-    );
+    this.createTouchButton(new Phaser.Geom.Rectangle(0, zoneTop, zoneWidth, zoneHeight), "<", "rotate left", "rotateLeft");
     this.createTouchButton(
       new Phaser.Geom.Rectangle(zoneWidth + panelGap, zoneTop, zoneWidth, zoneHeight),
-      "▶",
+      ">",
       "rotate right",
       "rotateRight",
     );
@@ -131,7 +264,7 @@ export class FlightScene extends Phaser.Scene {
     );
     this.createTouchButton(
       new Phaser.Geom.Rectangle(rightPanelX + zoneWidth + panelGap, zoneTop, zoneWidth, zoneHeight),
-      "▲",
+      "^",
       "thrust",
       "thrust",
       colors.terracotta,
@@ -154,7 +287,7 @@ export class FlightScene extends Phaser.Scene {
     const x = hitArea.x + hitArea.width / 2;
     const y = hitArea.y + hitArea.height / 2;
     const radius = 46;
-    const group = this.add.container(x, y).setDepth(20);
+    const group = this.add.container(x, y).setDepth(50).setScrollFactor(0);
     const bg = this.add.circle(0, 0, radius, Phaser.Display.Color.HexStringToColor(accent).color, 0.2);
     const ring = this.add.circle(0, 0, radius).setStrokeStyle(2, 0xfbf7ec, 0.32);
     const glyphText = this.add
@@ -185,6 +318,39 @@ export class FlightScene extends Phaser.Scene {
     });
   }
 
+  private handleUtilityKeys(time: number): void {
+    if (Phaser.Input.Keyboard.JustDown(this.keys.R)) {
+      this.restartFlight(time);
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.keys.F1) || Phaser.Input.Keyboard.JustDown(this.keys.BACKTICK)) {
+      this.debugVisible = !this.debugVisible;
+      this.setDashboardLine(this.debugVisible ? "debug vectors on" : "debug vectors tucked away", time);
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.keys.ESC)) {
+      this.setDashboardLine("pause menu is still in the pantry", time);
+    }
+  }
+
+  private readControls(): ShipControls {
+    if (this.flightMode.kind !== "flying") {
+      return {
+        thrust: false,
+        brake: false,
+        rotateLeft: false,
+        rotateRight: false,
+      };
+    }
+
+    return {
+      thrust: this.keys.W.isDown || this.keys.UP.isDown || this.touchControls.thrust,
+      brake: this.keys.S.isDown || this.keys.DOWN.isDown || this.touchControls.brake,
+      rotateLeft: this.keys.A.isDown || this.keys.LEFT.isDown || this.touchControls.rotateLeft,
+      rotateRight: this.keys.D.isDown || this.keys.RIGHT.isDown || this.touchControls.rotateRight,
+    };
+  }
+
   private updateTouchControlState(): void {
     const next: ShipControls = {
       thrust: false,
@@ -196,8 +362,7 @@ export class FlightScene extends Phaser.Scene {
     for (const pointer of this.input.manager.pointers) {
       if (!pointer.isDown) continue;
 
-      pointer.updateWorldPoint(this.cameras.main);
-      const pad = this.findTouchedPad(pointer.worldX, pointer.worldY);
+      const pad = this.findTouchedPad(pointer.x, pointer.y);
       if (pad) next[pad.control] = true;
     }
 
@@ -231,47 +396,332 @@ export class FlightScene extends Phaser.Scene {
     this.updateTouchPadVisuals();
   }
 
-  private keepShipInBounds(): void {
-    const margin = 42;
-    const { width, height } = this.scale;
+  private resolveWorldBounds(state: ShipKinematicState): BoundsResolution {
+    let next = state;
+    let impactSeverity: CollisionSeverity = "none";
+    const radius = shipTuning.collisionRadius;
 
-    if (this.ship.x < margin) {
-      this.ship.x = margin;
-      this.ship.velocity.x = Math.abs(this.ship.velocity.x) * 0.35;
-    } else if (this.ship.x > width - margin) {
-      this.ship.x = width - margin;
-      this.ship.velocity.x = -Math.abs(this.ship.velocity.x) * 0.35;
+    if (next.x < radius && next.velocityX < 0) {
+      impactSeverity = this.strongerSeverity(impactSeverity, classifyCollision(Math.abs(next.velocityX)));
+      next = { ...next, x: radius, velocityX: Math.abs(next.velocityX) * collisionTuning.boundaryBounce };
+    } else if (next.x > route.world.width - radius && next.velocityX > 0) {
+      impactSeverity = this.strongerSeverity(impactSeverity, classifyCollision(Math.abs(next.velocityX)));
+      next = {
+        ...next,
+        x: route.world.width - radius,
+        velocityX: -Math.abs(next.velocityX) * collisionTuning.boundaryBounce,
+      };
     }
 
-    if (this.ship.y < margin) {
-      this.ship.y = margin;
-      this.ship.velocity.y = Math.abs(this.ship.velocity.y) * 0.35;
-    } else if (this.ship.y > height - margin) {
-      this.ship.y = height - margin;
-      this.ship.velocity.y = -Math.abs(this.ship.velocity.y) * 0.35;
+    if (next.y < radius && next.velocityY < 0) {
+      impactSeverity = this.strongerSeverity(impactSeverity, classifyCollision(Math.abs(next.velocityY)));
+      next = { ...next, y: radius, velocityY: Math.abs(next.velocityY) * collisionTuning.boundaryBounce };
+    } else if (next.y > route.world.height - radius && next.velocityY > 0) {
+      impactSeverity = this.strongerSeverity(impactSeverity, classifyCollision(Math.abs(next.velocityY)));
+      next = {
+        ...next,
+        y: route.world.height - radius,
+        velocityY: -Math.abs(next.velocityY) * collisionTuning.boundaryBounce,
+      };
+    }
+
+    return {
+      state: next,
+      severity: impactSeverity,
+    };
+  }
+
+  private handleBoundsCollision(severity: CollisionSeverity, time: number): void {
+    if (severity === "none") return;
+
+    if (severity === "gyoza-incident") {
+      this.triggerIncident(time, "route wall requested a softer approach");
+      return;
+    }
+
+    if (time < this.collisionCooldownUntilMs) return;
+
+      this.applyBumpConsequence(severity, "edge bounce registered", time);
+      this.collisionCooldownUntilMs = time + collisionTuning.collisionCooldownMs;
+    }
+
+  private handleObstacleCollision(time: number, thrusting: boolean): void {
+    const contact = findFirstCollision(
+      {
+        x: this.ship.kinematics.x,
+        y: this.ship.kinematics.y,
+        radius: shipTuning.collisionRadius,
+      },
+      route.obstacles,
+    );
+
+    if (!contact) return;
+
+    const severity = classifyCollision(this.ship.speed());
+    const resolved = resolveCircleCollision(this.ship.kinematics, contact, severity);
+    this.ship.setKinematicState(resolved, thrusting);
+
+    if (severity === "gyoza-incident") {
+      this.triggerIncident(time, "gyoza incident: dumpling briefly became weather");
+      return;
+    }
+
+    if (time < this.collisionCooldownUntilMs) return;
+
+    this.applyBumpConsequence(
+      severity,
+      severity === "soft-bump" ? "soft bump, snack morale intact" : "dramatic bump, still dinner",
+      time,
+    );
+    this.collisionCooldownUntilMs = time + collisionTuning.collisionCooldownMs;
+  }
+
+  private handleBadDocking(docking: DockingState, time: number): void {
+    if (!docking.inDeliveryZone || docking.kind === "ready" || time < this.badDockCooldownUntilMs) return;
+
+    const dx = this.ship.kinematics.x - route.destination.x;
+    const dy = this.ship.kinematics.y - route.destination.y;
+    const distance = Math.max(1, vectorLength(dx, dy));
+    const normalX = dx / distance;
+    const normalY = dy / distance;
+    const next: ShipKinematicState = {
+      ...this.ship.kinematics,
+      x: this.ship.kinematics.x + normalX * 10,
+      y: this.ship.kinematics.y + normalY * 10,
+      velocityX: this.ship.kinematics.velocityX + normalX * dockingTuning.badDockBounceSpeed,
+      velocityY: this.ship.kinematics.velocityY + normalY * dockingTuning.badDockBounceSpeed,
+    };
+
+    this.ship.setKinematicState(next, false);
+    this.badDockCooldownUntilMs = time + dockingTuning.badDockCooldownMs;
+    this.setDashboardLine(
+      docking.kind === "slow-down" ? "dock says: tiny brakes, please" : "dock says: rotate the snack",
+      time,
+    );
+  }
+
+  private applyBumpConsequence(severity: CollisionSeverity, line: string, time: number): void {
+    if (severity === "none") return;
+    if (severity === "gyoza-incident") {
+      this.packageCondition = applyPackageConditionEvent(this.packageCondition, "gyoza-incident");
+      this.setDashboardLine(line, time);
+      return;
+    }
+
+    this.packageCondition = applyPackageConditionEvent(this.packageCondition, severity);
+    this.setDashboardLine(line, time);
+  }
+
+  private triggerIncident(time: number, line: string): void {
+    if (this.flightMode.kind === "incident") return;
+
+    this.clearTouchControls();
+    this.packageCondition = applyPackageConditionEvent(this.packageCondition, "gyoza-incident");
+    this.setDashboardLine(line, time, respawnTuning.respawnDelayMs + 1200);
+    this.flightMode = {
+      kind: "incident",
+      startedAtMs: time,
+      respawnAtMs: time + respawnTuning.respawnDelayMs,
+      resumeAtMs: time + respawnTuning.respawnDelayMs + 240,
+      hasRespawned: false,
+    };
+    this.collisionCooldownUntilMs = time + respawnTuning.respawnDelayMs + collisionTuning.collisionCooldownMs;
+    this.ship.setIncidentFrame(1);
+    this.createIncidentParticles(this.ship.kinematics.x, this.ship.kinematics.y);
+  }
+
+  private updateIncident(time: number): void {
+    if (this.flightMode.kind !== "incident") return;
+
+    if (!this.flightMode.hasRespawned) {
+      const elapsed = time - this.flightMode.startedAtMs;
+      const frame = clamp(Math.floor(elapsed / respawnTuning.incidentFrameMs) + 1, 1, 5);
+      this.ship.setIncidentFrame(frame);
+    }
+
+    if (!this.flightMode.hasRespawned && time >= this.flightMode.respawnAtMs) {
+      this.flightMode.hasRespawned = true;
+      this.ship.setKinematicState(route.checkpoint, false);
+      this.invulnerableUntilMs = time + respawnTuning.invulnerableMs;
+      this.setDashboardLine("gyoza reassembled. dignity optional", time);
+    }
+
+    if (time >= this.flightMode.resumeAtMs) {
+      this.flightMode = { kind: "flying" };
     }
   }
 
-  private updateDebugText(): void {
-    this.debugText.setText([
+  private createIncidentParticles(x: number, y: number): void {
+    const palette = [colors.ember, colors.plaster, colors.sage, colors.terracotta];
+
+    for (let i = 0; i < 18; i += 1) {
+      const angle = (i / 18) * Math.PI * 2;
+      const distance = Phaser.Math.Between(42, 120);
+      const dot = this.add
+        .circle(x, y, Phaser.Math.Between(3, 7), this.colorNumber(palette[i % palette.length]), 0.86)
+        .setDepth(18);
+
+      this.tweens.add({
+        targets: dot,
+        x: x + Math.cos(angle) * distance,
+        y: y + Math.sin(angle) * distance,
+        alpha: 0,
+        scale: 0.3,
+        duration: 520,
+        ease: "Quad.easeOut",
+        onComplete: () => dot.destroy(),
+      });
+    }
+  }
+
+  private restartFlight(time: number): void {
+    this.flightMode = { kind: "flying" };
+    this.packageCondition = 100;
+    this.badDockCooldownUntilMs = 0;
+    this.collisionCooldownUntilMs = 0;
+    this.invulnerableUntilMs = time + 320;
+    this.setDashboardLine("tea moon beacon is humming", time, 2200);
+    this.clearTouchControls();
+
+    if (this.ship) {
+      this.ship.setKinematicState(route.start, false);
+      this.cameras.main.centerOn(route.start.x, route.start.y);
+    }
+  }
+
+  private updateDestinationGraphics(docking: DockingState): void {
+    const destination = route.destination;
+    const color = this.dockingColor(docking.kind);
+    const facing = facingVector(destination.requiredFacingRadians);
+
+    this.destinationGraphics.clear();
+    this.destinationGraphics.lineStyle(1, this.colorNumber(colors.duskBlue), 0.22);
+    this.destinationGraphics.strokeCircle(destination.x, destination.y, destination.approachRadius);
+    this.destinationGraphics.lineStyle(docking.kind === "ready" ? 5 : 3, color, docking.kind === "too-far" ? 0.45 : 0.9);
+    this.destinationGraphics.strokeCircle(destination.x, destination.y, destination.radius);
+    this.destinationGraphics.lineStyle(3, color, 0.86);
+    this.destinationGraphics.lineBetween(
+      destination.x,
+      destination.y,
+      destination.x + facing.x * destination.radius,
+      destination.y + facing.y * destination.radius,
+    );
+  }
+
+  private updateDestinationArrow(docking: DockingState): void {
+    const { width, height } = this.scale;
+    const camera = this.cameras.main;
+    const destinationScreenX = route.destination.x - camera.scrollX;
+    const destinationScreenY = route.destination.y - camera.scrollY;
+    const margin = 34;
+    const maxY = height - 104;
+    const onScreen =
+      destinationScreenX >= margin &&
+      destinationScreenX <= width - margin &&
+      destinationScreenY >= margin &&
+      destinationScreenY <= maxY;
+
+    this.destinationArrow.setVisible(!onScreen || docking.kind === "too-far");
+
+    if (!this.destinationArrow.visible) return;
+
+    const clampedX = clamp(destinationScreenX, margin, width - margin);
+    const clampedY = clamp(destinationScreenY, margin, maxY);
+    const angle = Math.atan2(destinationScreenY - height / 2, destinationScreenX - width / 2);
+
+    this.destinationArrow.setPosition(clampedX, clampedY);
+    this.destinationArrow.setRotation(angle);
+    this.destinationArrow.setColor(docking.kind === "ready" ? colors.sage : colors.ember);
+  }
+
+  private updateDashboard(docking: DockingState, time: number): void {
+    const status = dockingStatusLabel(docking);
+    const condition = packageConditionLabel(this.packageCondition);
+    const heading = radiansToCompassDegrees(this.ship.kinematics.rotation).toString().padStart(3, "0");
+    const modeLine = this.flightMode.kind === "incident" ? "incident" : "flying";
+    const note = time < this.dashboardLineUntilMs ? this.lastDashboardLine : dockingHint(docking);
+
+    this.dashboardText.setText([
       "flight prototype",
-      `speed       ${this.ship.speed().toFixed(1)} px/s`,
-      `heading     ${radiansToCompassDegrees(this.ship.rotation).toString().padStart(3, "0")} deg`,
-      `velocity x  ${this.ship.velocity.x.toFixed(1)}`,
-      `velocity y  ${this.ship.velocity.y.toFixed(1)}`,
-      "dashboard   doing its best",
+      `mode      ${modeLine}`,
+      `speed     ${this.ship.speed().toFixed(0).padStart(3, " ")} px/s`,
+      `distance  ${docking.distance.toFixed(0).padStart(4, " ")} px`,
+      `heading   ${heading} deg`,
+      `dock      ${status}`,
+      `package   ${condition}`,
+      `note      ${note}`,
     ]);
   }
 
-  private createStarfield(width: number, height: number): void {
-    this.add.rectangle(0, 0, width, height, 0x1a1b2e).setOrigin(0, 0);
+  private setDashboardLine(line: string, time: number, durationMs = 1800): void {
+    this.lastDashboardLine = line;
+    this.dashboardLineUntilMs = time + durationMs;
+  }
 
-    for (let i = 0; i < 140; i += 1) {
-      const x = Phaser.Math.Between(0, width);
-      const y = Phaser.Math.Between(0, height);
-      const size = Phaser.Math.Between(1, 2);
-      const alpha = Phaser.Math.FloatBetween(0.25, 0.9);
-      this.add.rectangle(x, y, size, size, 0xfbf7ec, alpha);
+  private updateDebugGraphics(): void {
+    this.debugGraphics.clear();
+    if (!this.debugVisible) return;
+
+    const state = this.ship.kinematics;
+    const facing = facingVector(state.rotation);
+    const velocityScale = 0.46;
+
+    this.debugGraphics.lineStyle(1, 0xfbf7ec, 0.2);
+    this.debugGraphics.strokeRect(0, 0, route.world.width, route.world.height);
+
+    this.debugGraphics.lineStyle(2, this.colorNumber(colors.sage), 0.92);
+    this.debugGraphics.lineBetween(state.x, state.y, state.x + facing.x * 118, state.y + facing.y * 118);
+
+    this.debugGraphics.lineStyle(2, this.colorNumber(colors.ember), 0.92);
+    this.debugGraphics.lineBetween(
+      state.x,
+      state.y,
+      state.x + state.velocityX * velocityScale,
+      state.y + state.velocityY * velocityScale,
+    );
+
+    this.debugGraphics.lineStyle(1, this.colorNumber(colors.plum), 0.62);
+    this.debugGraphics.strokeCircle(state.x, state.y, shipTuning.collisionRadius);
+
+    this.debugGraphics.lineStyle(1, this.colorNumber(colors.duskBlue), 0.46);
+    for (const obstacle of route.obstacles) {
+      this.debugGraphics.strokeCircle(obstacle.x, obstacle.y, obstacle.radius);
     }
+  }
+
+  private dockingColor(kind: DockingState["kind"]): number {
+    switch (kind) {
+      case "too-far":
+        return this.colorNumber(colors.duskBlue);
+      case "approaching":
+        return this.colorNumber(colors.ember);
+      case "slow-down":
+        return this.colorNumber(colors.brick);
+      case "align":
+        return this.colorNumber(colors.plum);
+      case "ready":
+        return this.colorNumber(colors.sage);
+    }
+  }
+
+  private strongerSeverity(a: CollisionSeverity, b: CollisionSeverity): CollisionSeverity {
+    return this.severityRank(b) > this.severityRank(a) ? b : a;
+  }
+
+  private severityRank(severity: CollisionSeverity): number {
+    switch (severity) {
+      case "none":
+        return 0;
+      case "soft-bump":
+        return 1;
+      case "dramatic-bump":
+        return 2;
+      case "gyoza-incident":
+        return 3;
+    }
+  }
+
+  private colorNumber(value: string): number {
+    return Phaser.Display.Color.HexStringToColor(value).color;
   }
 }
