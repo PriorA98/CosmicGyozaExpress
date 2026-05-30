@@ -12,8 +12,22 @@ This folder contains the official project documentation derived from the origina
   - Technical and production plan for Phaser + TypeScript + Vite + localStorage.
 - `implementation/phase-1-flight-feel-prototype-plan.md`
   - Detailed implementation plan for the Phase 1 flight-feel prototype.
+- `implementation/phase-2-tea-moon-vertical-slice-plan.md`
+  - Detailed implementation plan for the Phase 2 Tea Moon vertical slice and one-bottom-thruster landing sequence.
 - `gameplay-decisions.md`
-  - Locked gameplay decisions for Phase 1 and the Tea Moon vertical slice.
+  - Locked gameplay decisions for Phase 1 and Phase 2.
+- `wiki/README.md`
+  - Gameplay and mechanics wiki index.
+- `wiki/core-gameplay.md`
+  - Core loop, phase boundaries, tone rules, and gameplay terminology.
+- `wiki/mechanics-overview.md`
+  - High-level system map for mission setup, route flight, arrival, landing, and results.
+- `wiki/flight-mechanics.md`
+  - Route-flight movement model and current Phase 1 behavior.
+- `wiki/one-bottom-thruster-landing.md`
+  - Locked Phase 2 landing mechanic built around the ship's single bottom thruster.
+- `wiki/delivery-results.md`
+  - Delivery completion, package condition, result tone, save effects, and reward behavior.
 - `design/design-system.md`
   - Official visual design system derived from the UI prototype.
 - `design/ui-reference.md`

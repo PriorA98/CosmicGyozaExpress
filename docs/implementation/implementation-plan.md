@@ -1,6 +1,6 @@
 # Cosmic Gyoza Express - Implementation Plan
 
-Last updated: 2026-05-29 JST
+Last updated: 2026-05-30 JST
 
 Status: stack locked to Phaser + TypeScript + Vite + localStorage.
 
@@ -1028,10 +1028,12 @@ Tasks:
 
 - Create mission data schema.
 - Implement BriefingScene.
-- Implement delivery target and generous speed/angle docking checks.
-- Add Tea Moon route.
-- Add package condition state.
-- Add result scene.
+- Convert Phase 1 docking readiness into an arrival gate with a short stable-ready timer.
+- Add Tea Moon route as the first mission.
+- Add `LandingScene` with the one-bottom-thruster lunar-lander landing model.
+- Add landing result classification: soft, bumpy, and incident.
+- Carry package condition from route flight into landing and result.
+- Add delivery result scene.
 - Save mission completion.
 - Add one memory reward.
 - Add initial audio placeholders.
@@ -1039,14 +1041,15 @@ Tasks:
 
 Deliverables:
 
-- Playable Tea Moon mission from title/map to result.
+- Playable Tea Moon mission from title/map to route flight, landing, and result.
 - Mission completion persists after reload.
-- Basic dashboard gives useful and funny feedback.
+- Route and landing dashboards give useful and funny feedback.
 
 Acceptance criteria:
 
 - A player can finish the first delivery without external explanation.
-- Delivery result changes based on rough/perfect delivery.
+- The landing sequence clearly uses the gyoza ship's single bottom thruster.
+- Delivery result changes based on bumpy/soft delivery.
 - Restarting the browser shows the mission as completed.
 
 ### Phase 3 - Systems Hardening

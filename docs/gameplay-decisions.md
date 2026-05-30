@@ -1,18 +1,18 @@
 # Gameplay Decisions
 
-Last updated: 2026-05-29 JST
+Last updated: 2026-05-30 JST
 
-Status: Phase 1 decisions locked with tailored docking/failure rules unless playtesting proves a problem.
+Status: Phase 1 flight-feel decisions implemented; Phase 2 Tea Moon landing/delivery model locked unless playtesting proves a problem.
 
-This document captures the gameplay choices that should guide the next implementation work. The goal is to prevent the project from drifting into a bigger or different game before the core flight prototype is proven.
+This document captures the gameplay choices that should guide the next implementation work. The goal is to prevent the project from drifting into a bigger or different game while the Tea Moon vertical slice proves the complete loop.
 
 ## Current Priority
 
 The next milestone is:
 
-> Finish Phase 1 - Flight Feel Prototype.
+> Build Phase 2 - Tea Moon Vertical Slice.
 
-This means the project should focus on making flying, bumping, crashing, recovering, and approaching a target feel good before adding the full mission loop, galaxy map, final assets, or audio polish.
+This means the project should keep the proven Phase 1 route-flight feel, then add the first complete delivery loop: Tea Moon mission setup, route approach, one-bottom-thruster landing, delivery result, and localStorage mission completion.
 
 ## Decision Summary
 
@@ -21,7 +21,8 @@ This means the project should focus on making flying, bumping, crashing, recover
 | Route format | Bounded scrolling 2D route with camera follow | Supports handcrafted delivery missions without becoming open-world or infinite-runner scope. |
 | Flight feel | Floaty velocity with direct rotation | Keeps inertia funny and skillful while preserving readable controls. |
 | Failure model | No lives and no game over | Crashes should be comedic, recoverable, and low-pressure. |
-| Docking rule | Mission 1 uses zone entry, low speed, and gentle angle alignment | Teaches controlled arrival and orientation without making the first route harsh. |
+| Arrival gate | Mission 1 uses zone entry, low speed, gentle angle alignment, and a short stable ready window | Teaches controlled arrival and starts landing without making the first route harsh. |
+| Landing model | Tea Moon uses a short assisted one-bottom-thruster lunar-lander sequence | Makes the ship's goofy physical limitation central to delivery while keeping the vertical slice memorable. |
 | Package condition | Affects flavor and result text, not progression | Keeps delivery warm and forgiving while still rewarding careful play. |
 | Difficulty default | Cozy and forgiving by default | Matches the tone and avoids turning the first playable slice into a precision challenge. |
 | Mission structure | Handcrafted linear unlocks | Keeps content authored, small, and emotionally directed. |
@@ -51,7 +52,7 @@ Do not build:
 
 Implementation implication:
 
-- Phase 1 should introduce a larger test field and camera follow.
+- Phase 1 introduced a larger test field and camera follow.
 - Tea Moon should become the first bounded route.
 
 ### 2. Flight Feel
@@ -71,7 +72,7 @@ Do not add angular inertia yet. It can make the ship harder to read and tune bef
 Implementation implication:
 
 - Keep movement tuning centralized in `src/data/tuning.ts`.
-- Add debug vector visuals for facing and velocity during Phase 1.
+- Keep debug vector visuals available for tuning.
 
 ### 3. Failure Model
 
@@ -90,18 +91,21 @@ Failure should cost dignity, not progress.
 
 Implementation implication:
 
-- Phase 1 should add collision severity and respawn.
+- Phase 1 added collision severity and respawn.
 - The first crash recovery should happen within roughly 2 seconds.
 
-### 4. Docking Rule
+### 4. Arrival Gate
 
-Tea Moon docking should require:
+Tea Moon route arrival should require:
 
 - ship inside delivery zone;
 - speed below docking threshold;
 - facing angle within a broad docking cone, defaulting to roughly 45 degrees.
+- short stable ready duration, defaulting to roughly 0.4-0.6 seconds.
 
 The first mission should include angle alignment, but it must be forgiving. It is a teaching tool, not a precision challenge.
+
+When the arrival gate is satisfied, the route should transition into the landing scene. It should not instantly complete the delivery.
 
 Later missions may add:
 
@@ -111,7 +115,7 @@ Later missions may add:
 - moving delivery target;
 - narrower docking zones.
 
-Bad docking attempts should:
+Bad arrival attempts should:
 
 - block delivery completion;
 - show whether the problem is speed or alignment;
@@ -124,7 +128,49 @@ Implementation implication:
 - Show clear dashboard states: too far, slow down, align, ready.
 - Use destination ring visuals to match the dashboard state.
 
-### 5. Package Condition
+### 5. One-Bottom-Thruster Landing
+
+Tea Moon landing should use a separate short assisted landing scene inspired by Lunar Lander.
+
+Locked landing concept:
+
+> The gyoza ship has only one thruster on its bottom. Horizontal correction comes from tilting the whole ship before firing that bottom thruster.
+
+Landing should use:
+
+- side-view or slightly angled 2D landing screen;
+- gravity pulling downward;
+- one visible bottom thruster;
+- `W` / Up to fire the bottom thruster;
+- `A` / `D` to rotate;
+- `S` / Down as a gentle stabilizer assist for Tea Moon;
+- wide landing pad;
+- generous safe speed and angle thresholds;
+- soft, bumpy, and incident landing outcomes.
+
+Tea Moon should be forgiving:
+
+- no fuel limit;
+- no hard timer;
+- no lives;
+- no full-route restart after landing incident;
+- bumpy but valid landings still complete delivery.
+
+Landing incidents should:
+
+- trigger a short gyoza incident or bounce;
+- reduce package condition when appropriate;
+- restart the landing attempt quickly;
+- preserve route progress.
+
+Implementation implication:
+
+- Add `LandingScene`.
+- Add pure landing logic that can be tested without Phaser rendering.
+- Treat current docking readiness as an arrival gate into landing.
+- Keep player-facing language focused on landing and delivery rather than scoring.
+
+### 6. Package Condition
 
 Package condition is flavor, not a blocker.
 
@@ -146,7 +192,7 @@ Implementation implication:
 - Display friendly labels instead of harsh grades.
 - Use condition in result scene text during Phase 2.
 
-### 6. Difficulty Default
+### 7. Difficulty Default
 
 The default experience should be forgiving.
 
@@ -168,7 +214,7 @@ Implementation implication:
 - Avoid adding timers or score pressure to Phase 1 and Phase 2.
 - Tune docking and crash thresholds around learning, not mastery.
 
-### 7. Mission Structure
+### 8. Mission Structure
 
 Use handcrafted linear mission unlocks.
 
@@ -188,7 +234,7 @@ Implementation implication:
 - Mission data should be authored and typed.
 - Phase 2 should only need Tea Moon plus enough unlock state to prove persistence.
 
-### 8. Mobile Role
+### 9. Mobile Role
 
 Mobile controls should work for demo testing, but PC keyboard remains the primary design baseline.
 
@@ -213,29 +259,31 @@ Implementation implication:
 
 ## Next Phase Scope
 
-Phase 1 should add only what is needed to prove flight feel:
+Phase 2 should add only what is needed to prove the Tea Moon vertical slice:
 
-- larger bounded test field;
-- camera follow;
-- destination marker;
-- gentle docking readiness check;
-- bad-docking bounce;
-- static obstacles;
-- collision severity;
-- crash respawn;
-- restart input;
-- useful dashboard readouts;
-- debug vectors for tuning.
+- Tea Moon mission data;
+- mission start flow from title or map-lite;
+- arrival gate stable-ready timer;
+- transition from route flight to landing;
+- one-bottom-thruster landing scene;
+- landing result classification;
+- delivery result scene;
+- package condition use in result text;
+- Tea Moon completion save;
+- one memory/reward placeholder;
+- useful dashboard/readout updates for landing.
 
-Avoid during Phase 1:
+Avoid during Phase 2:
 
-- galaxy map;
-- mission progression;
-- final result screen;
+- full galaxy map;
+- multiple routes;
+- final asset pipeline;
 - full dashboard skin;
 - final audio;
-- multiple routes;
-- complex asset production.
+- complex collectibles;
+- economy/upgrades;
+- gamepad support;
+- save export/import.
 
 ## Revisit Later
 
