@@ -80,7 +80,12 @@ export type CollisionContact = {
   readonly distance: number;
 };
 
-export type PackageConditionEvent = "soft-bump" | "dramatic-bump" | "gyoza-incident";
+export type PackageConditionEvent =
+  | "soft-bump"
+  | "dramatic-bump"
+  | "gyoza-incident"
+  | "bumpy-landing"
+  | "landing-incident";
 
 export type PackageConditionLabel =
   | "Perfect"

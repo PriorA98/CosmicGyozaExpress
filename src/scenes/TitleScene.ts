@@ -31,7 +31,7 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0, 0.5);
 
     this.add
-      .text(width / 2, height * 0.84, "press enter or click to launch the flight prototype", {
+      .text(width / 2, height * 0.84, "press enter or click to deliver tea to the moon", {
         color: colors.plaster,
         fontFamily: "monospace",
         fontSize: "16px",

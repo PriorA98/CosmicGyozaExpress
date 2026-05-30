@@ -1,8 +1,14 @@
 import Phaser from "phaser";
+import { TEA_MOON_MISSION_ID } from "../data/missions";
 import { collisionTuning, dockingTuning, respawnTuning, shipTuning, cameraTuning } from "../data/tuning";
 import { flightPrototypeRoute } from "../data/flightPrototypeRoute";
 import { GyozaShip } from "../entities/GyozaShip";
 import { colors } from "../game/designTokens";
+import {
+  createArrivalGateState,
+  updateArrivalGate,
+  type ArrivalGateState,
+} from "../systems/ArrivalGateSystem";
 import {
   classifyCollision,
   findFirstCollision,
@@ -81,6 +87,10 @@ export class FlightScene extends Phaser.Scene {
   private badDockCooldownUntilMs = 0;
   private collisionCooldownUntilMs = 0;
   private invulnerableUntilMs = 0;
+  private arrivalGate: ArrivalGateState = createArrivalGateState();
+  private hasStartedLanding = false;
+  private routeStartedAtMs = 0;
+  private routeCrashes = 0;
 
   constructor() {
     super("FlightScene");
@@ -119,7 +129,7 @@ export class FlightScene extends Phaser.Scene {
     this.createTouchControls(width, height);
     this.debugGraphics = this.add.graphics().setDepth(25);
 
-    this.restartFlight(0);
+    this.restartFlight(this.time.now);
   }
 
   override update(time: number, delta: number): void {
@@ -149,6 +159,7 @@ export class FlightScene extends Phaser.Scene {
     }
 
     const nextDocking = evaluateDocking(this.ship.kinematics, route.destination);
+    this.updateArrivalGate(nextDocking, time);
     this.updateDestinationGraphics(nextDocking);
     this.updateDestinationArrow(nextDocking);
     this.updateDashboard(nextDocking, time);
@@ -443,7 +454,7 @@ export class FlightScene extends Phaser.Scene {
 
       this.applyBumpConsequence(severity, "edge bounce registered", time);
       this.collisionCooldownUntilMs = time + collisionTuning.collisionCooldownMs;
-    }
+  }
 
   private handleObstacleCollision(time: number, thrusting: boolean): void {
     const contact = findFirstCollision(
@@ -516,6 +527,7 @@ export class FlightScene extends Phaser.Scene {
     if (this.flightMode.kind === "incident") return;
 
     this.clearTouchControls();
+    this.routeCrashes += 1;
     this.packageCondition = applyPackageConditionEvent(this.packageCondition, "gyoza-incident");
     this.setDashboardLine(line, time, respawnTuning.respawnDelayMs + 1200);
     this.flightMode = {
@@ -577,6 +589,10 @@ export class FlightScene extends Phaser.Scene {
   private restartFlight(time: number): void {
     this.flightMode = { kind: "flying" };
     this.packageCondition = 100;
+    this.routeCrashes = 0;
+    this.routeStartedAtMs = time;
+    this.arrivalGate = createArrivalGateState();
+    this.hasStartedLanding = false;
     this.badDockCooldownUntilMs = 0;
     this.collisionCooldownUntilMs = 0;
     this.invulnerableUntilMs = time + 320;
@@ -587,6 +603,28 @@ export class FlightScene extends Phaser.Scene {
       this.ship.setKinematicState(route.start, false);
       this.cameras.main.centerOn(route.start.x, route.start.y);
     }
+  }
+
+  private updateArrivalGate(docking: DockingState, time: number): void {
+    if (this.hasStartedLanding || this.flightMode.kind !== "flying") return;
+
+    const gate = updateArrivalGate(this.arrivalGate, docking, time);
+    this.arrivalGate = gate.state;
+
+    if (docking.kind === "ready" && !gate.complete) {
+      this.setDashboardLine(`landing window holding ${gate.readyElapsedMs.toFixed(0)}ms`, time, 120);
+    }
+
+    if (!gate.complete) return;
+
+    this.hasStartedLanding = true;
+    this.clearTouchControls();
+    this.scene.start("LandingScene", {
+      missionId: TEA_MOON_MISSION_ID,
+      packageCondition: this.packageCondition,
+      routeCrashes: this.routeCrashes,
+      routeDurationMs: Math.max(0, time - this.routeStartedAtMs),
+    });
   }
 
   private updateDestinationGraphics(docking: DockingState): void {
@@ -642,12 +680,12 @@ export class FlightScene extends Phaser.Scene {
     const note = time < this.dashboardLineUntilMs ? this.lastDashboardLine : dockingHint(docking);
 
     this.dashboardText.setText([
-      "flight prototype",
+      "tea moon route",
       `mode      ${modeLine}`,
       `speed     ${this.ship.speed().toFixed(0).padStart(3, " ")} px/s`,
       `distance  ${docking.distance.toFixed(0).padStart(4, " ")} px`,
       `heading   ${heading} deg`,
-      `dock      ${status}`,
+      `arrival   ${status}`,
       `package   ${condition}`,
       `note      ${note}`,
     ]);

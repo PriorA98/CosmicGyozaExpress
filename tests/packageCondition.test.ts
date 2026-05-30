@@ -7,6 +7,13 @@ describe("package condition", () => {
     expect(applyPackageConditionEvent(2, "gyoza-incident")).toBe(0);
   });
 
+  it("handles landing-specific condition events", () => {
+    expect(applyPackageConditionEvent(100, "bumpy-landing")).toBeLessThan(100);
+    expect(applyPackageConditionEvent(100, "landing-incident")).toBeLessThan(
+      applyPackageConditionEvent(100, "bumpy-landing"),
+    );
+  });
+
   it("uses warm labels instead of harsh grades", () => {
     expect(packageConditionLabel(100)).toBe("Perfect");
     expect(packageConditionLabel(85)).toBe("Slightly shaken");

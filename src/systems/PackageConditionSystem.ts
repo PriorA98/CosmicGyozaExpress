@@ -31,5 +31,9 @@ function conditionLoss(
       return tuning.dramaticBumpLoss;
     case "gyoza-incident":
       return tuning.incidentLoss;
+    case "bumpy-landing":
+      return tuning.bumpyLandingLoss;
+    case "landing-incident":
+      return tuning.landingIncidentLoss;
   }
 }
