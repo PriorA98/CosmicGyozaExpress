@@ -156,7 +156,7 @@ Production direction:
 - Overlay only essential live data:
   - current delivery.
   - speed.
-  - heading.
+  - bottom-side heading.
   - distance/radar.
   - package condition.
   - docking prompt.
@@ -166,7 +166,7 @@ Production direction:
 Required changes:
 
 - Do not include pantry/topping panels in MVP.
-- Do not copy the prototype input model. The production ship uses facing direction, thrust, braking, and inertia.
+- Do not copy the prototype input model. The production ship uses bottom-side orientation, thrust, braking, and inertia.
 
 ### Cockpit Dashboard
 
@@ -285,10 +285,10 @@ Prototype movement:
 Production movement:
 
 - Player rotates the ship.
-- Thrust applies acceleration in the ship-facing direction.
+- Thrust applies acceleration away from the ship's bottom thruster.
 - Velocity persists.
 - Braking/counter-thrust matters.
-- Docking uses speed and optional facing checks.
+- Docking uses speed and optional bottom-side alignment checks.
 
 Use prototype values as rough feel references only. The official model is defined in `docs/implementation/implementation-plan.md`.
 

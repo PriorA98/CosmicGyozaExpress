@@ -12,7 +12,7 @@ import {
   radiansToDegrees,
   shortestAngleDifferenceRadians,
 } from "../utils/math";
-import { facingVector } from "./ShipMovementSystem";
+import { thrustVector } from "./ShipMovementSystem";
 
 export function createLandingState(
   tuning = landingTuning,
@@ -59,7 +59,7 @@ export function integrateLandingMovement(
   let velocityY = state.velocityY + tuning.gravityAcceleration * dt;
 
   if (controls.thrust) {
-    const thrust = facingVector(rotation);
+    const thrust = thrustVector(rotation);
     velocityX += thrust.x * tuning.thrusterAcceleration * dt;
     velocityY += thrust.y * tuning.thrusterAcceleration * dt;
   }

@@ -21,7 +21,7 @@ This means the project should keep the proven Phase 1 route-flight feel, then ad
 | Route format | Bounded scrolling 2D route with camera follow | Supports handcrafted delivery missions without becoming open-world or infinite-runner scope. |
 | Flight feel | Floaty velocity with direct rotation | Keeps inertia funny and skillful while preserving readable controls. |
 | Failure model | No lives and no game over | Crashes should be comedic, recoverable, and low-pressure. |
-| Arrival gate | Mission 1 uses zone entry, low speed, gentle angle alignment, and a short stable ready window | Teaches controlled arrival and starts landing without making the first route harsh. |
+| Arrival gate | Mission 1 uses zone entry, low speed, bottom-side angle alignment, and a short stable ready window | Teaches controlled arrival and starts landing without making the first route harsh. |
 | Landing model | Tea Moon uses a short assisted one-bottom-thruster lunar-lander sequence | Makes the ship's goofy physical limitation central to delivery while keeping the vertical slice memorable. |
 | Package condition | Affects flavor and result text, not progression | Keeps delivery warm and forgiving while still rewarding careful play. |
 | Difficulty default | Cozy and forgiving by default | Matches the tone and avoids turning the first playable slice into a precision challenge. |
@@ -61,7 +61,7 @@ Use floaty momentum, but keep rotation direct.
 
 The ship should:
 
-- accelerate in the direction it faces;
+- accelerate away from its bottom thruster;
 - continue drifting when thrust stops;
 - rotate responsively when the player presses left/right;
 - brake against current velocity;
@@ -100,16 +100,16 @@ Tea Moon route arrival should require:
 
 - ship inside delivery zone;
 - speed below docking threshold;
-- facing angle within a broad docking cone, defaulting to roughly 45 degrees.
+- ship bottom angle within a broad landing-guide cone, defaulting to roughly 45 degrees.
 - short stable ready duration, defaulting to roughly 0.4-0.6 seconds.
 
-The first mission should include angle alignment, but it must be forgiving. It is a teaching tool, not a precision challenge.
+The first mission should include bottom-side angle alignment, but it must be forgiving. It is a teaching tool, not a precision challenge.
 
 When the arrival gate is satisfied, the route should transition into the landing scene. It should not instantly complete the delivery.
 
 Later missions may add:
 
-- stricter facing angles;
+- stricter bottom-side angles;
 - hold-to-deliver;
 - gravity interference;
 - moving delivery target;
@@ -119,7 +119,8 @@ Bad arrival attempts should:
 
 - block delivery completion;
 - show whether the problem is speed or alignment;
-- lightly bounce the ship away from the destination zone;
+- lightly bounce the ship away from the destination zone only when it is still too fast;
+- let the player keep rotating inside the zone when only alignment is wrong;
 - avoid package condition loss unless the ship also collides or crashes.
 
 Implementation implication:

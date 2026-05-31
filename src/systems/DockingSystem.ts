@@ -1,7 +1,7 @@
 import { dockingTuning } from "../data/tuning";
 import type { DockingState, FlightDestinationDefinition, ShipKinematicState } from "../types/flight";
 import { absoluteAngleDifferenceRadians, distanceBetween, radiansToDegrees } from "../utils/math";
-import { shipSpeed } from "./ShipMovementSystem";
+import { bottomFacingRadians, shipSpeed } from "./ShipMovementSystem";
 
 export function evaluateDocking(
   ship: ShipKinematicState,
@@ -10,7 +10,10 @@ export function evaluateDocking(
 ): DockingState {
   const distance = distanceBetween(ship, destination);
   const speed = shipSpeed(ship);
-  const angleDeltaRadians = absoluteAngleDifferenceRadians(ship.rotation, destination.requiredFacingRadians);
+  const angleDeltaRadians = absoluteAngleDifferenceRadians(
+    bottomFacingRadians(ship.rotation),
+    destination.requiredBottomFacingRadians,
+  );
   const angleDeltaDegrees = radiansToDegrees(angleDeltaRadians);
   const inApproachRange = distance <= destination.approachRadius;
   const inDeliveryZone = distance <= destination.radius;
@@ -83,7 +86,7 @@ export function dockingStatusLabel(state: DockingState): string {
     case "slow-down":
       return "slow down";
     case "align":
-      return "align";
+      return "align bottom";
     case "ready":
       return "ready";
   }
@@ -98,8 +101,8 @@ export function dockingHint(state: DockingState): string {
     case "slow-down":
       return "too spicy for docking";
     case "align":
-      return "rotate the dumpling gently";
+      return "point bottom at the landing guide";
     case "ready":
-      return "dock is ready";
+      return "bottom aligned, hold steady";
   }
 }

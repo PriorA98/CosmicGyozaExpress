@@ -60,7 +60,6 @@ export class LandingScene extends Phaser.Scene {
   private phase: LandingPhase = { kind: "intro" };
   private dashboardPanel!: Phaser.GameObjects.Rectangle;
   private dashboardText!: Phaser.GameObjects.Text;
-  private plume!: Phaser.GameObjects.Triangle;
   private touchControls: LandingControls = {
     thrust: false,
     rotateLeft: false,
@@ -98,8 +97,6 @@ export class LandingScene extends Phaser.Scene {
     this.createWorld(width, height);
     this.ship = new GyozaShip(this, this.toShipState(this.landingState));
     this.ship.setScale(0.72);
-    this.plume = this.add.triangle(0, 0, 0, 0, -14, 50, 14, 50, 0xe08a4b, 0.78).setDepth(9);
-    this.plume.setVisible(false);
 
     this.keys = this.input.keyboard?.addKeys({
       W: Phaser.Input.Keyboard.KeyCodes.W,
@@ -355,7 +352,6 @@ export class LandingScene extends Phaser.Scene {
     this.landingState = createLandingState();
     this.phase = { kind: "descending" };
     this.ship.setKinematicState(this.toShipState(this.landingState), false);
-    this.plume.setVisible(false);
   }
 
   private keepShipInsideView(): void {
@@ -369,9 +365,6 @@ export class LandingScene extends Phaser.Scene {
 
   private updateShipVisual(thrusting: boolean): void {
     this.ship.setKinematicState(this.toShipState(this.landingState), thrusting);
-    this.plume.setVisible(thrusting && this.phase.kind === "descending");
-    this.plume.setPosition(this.landingState.x, this.landingState.y + 38);
-    this.plume.setRotation(this.landingState.rotation);
   }
 
   private updateDashboard(): void {

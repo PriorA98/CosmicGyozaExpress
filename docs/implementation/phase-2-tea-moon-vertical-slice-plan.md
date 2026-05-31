@@ -67,7 +67,7 @@ Tea Moon arrival requires:
 
 - inside destination zone;
 - speed below threshold;
-- facing within broad tolerance;
+- bottom side pointed within broad tolerance of the landing guide;
 - stable ready duration around `0.4-0.6s`.
 
 ### Landing Outcome
@@ -282,7 +282,7 @@ Responsibilities:
 
 - render moon surface and landing pad;
 - render ship in side-view scale using existing ship sprite;
-- render bottom thruster plume only when thrusting;
+- switch to existing thrust ship frames while thrusting;
 - read keyboard/touch controls;
 - call landing system;
 - classify touchdown;
@@ -366,7 +366,7 @@ Tasks:
 - Show dashboard feedback during stable ready, such as `landing window holding`.
 - Transition to `LandingScene` after the ready window.
 - Pass package condition, crash count, and route duration to landing.
-- Keep bad arrival bounce behavior for too-fast/misaligned attempts.
+- Keep bad arrival bounce behavior for too-fast attempts; misalignment should be dashboard guidance only.
 
 Acceptance:
 
@@ -399,7 +399,7 @@ Tasks:
 
 - Create `LandingScene`.
 - Render moon sky/surface/pad with shapes/placeholders.
-- Render ship and one bottom plume.
+- Render ship using idle/thrust frames.
 - Add landing HUD.
 - Read controls.
 - Integrate landing state.

@@ -10,14 +10,14 @@ const destination: FlightDestinationDefinition = {
   y: 100,
   radius: 50,
   approachRadius: 150,
-  requiredFacingRadians: Math.PI / 2,
+  requiredBottomFacingRadians: Math.PI / 2,
 };
 
 function ship(overrides: Partial<ShipKinematicState>): ShipKinematicState {
   return {
     x: 100,
     y: 100,
-    rotation: Math.PI / 2,
+    rotation: -Math.PI / 2,
     velocityX: 0,
     velocityY: 0,
     ...overrides,
@@ -37,20 +37,20 @@ describe("docking readiness", () => {
     expect(evaluateDocking(ship({ velocityX: dockingTuning.maxSpeed + 1 }), destination).kind).toBe("slow-down");
   });
 
-  it("reports align inside the delivery zone when facing is outside tolerance", () => {
-    expect(evaluateDocking(ship({ rotation: Math.PI }), destination).kind).toBe("align");
+  it("reports align inside the delivery zone when the bottom side is outside tolerance", () => {
+    expect(evaluateDocking(ship({ rotation: Math.PI / 2 }), destination).kind).toBe("align");
   });
 
-  it("reports ready when distance, speed, and angle are valid", () => {
+  it("reports ready when distance, speed, and bottom-side angle are valid", () => {
     expect(evaluateDocking(ship({}), destination).kind).toBe("ready");
   });
 
   it("handles angle wraparound around zero", () => {
     const wrapDestination: FlightDestinationDefinition = {
       ...destination,
-      requiredFacingRadians: 0,
+      requiredBottomFacingRadians: 0,
     };
 
-    expect(evaluateDocking(ship({ rotation: Math.PI * 2 - 0.05 }), wrapDestination).kind).toBe("ready");
+    expect(evaluateDocking(ship({ rotation: Math.PI - 0.05 }), wrapDestination).kind).toBe("ready");
   });
 });

@@ -184,8 +184,7 @@ Avoid harsh words such as `failed`, `bad`, `dead`, or `crash penalty` in player-
 Visual priorities:
 
 - one obvious bottom nozzle;
-- steam/thrust plume from the bottom only;
-- plume angle follows ship rotation;
+- existing ship thrust frames communicate active firing;
 - moon pad has a warm landing glow;
 - rough landing gives a soft bounce or poof;
 - incident uses the existing gyoza incident language.

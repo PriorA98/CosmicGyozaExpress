@@ -16,7 +16,12 @@ import {
 } from "../systems/CollisionSystem";
 import { dockingHint, dockingStatusLabel, evaluateDocking } from "../systems/DockingSystem";
 import { applyPackageConditionEvent, packageConditionLabel } from "../systems/PackageConditionSystem";
-import { facingVector, integrateShipMovement } from "../systems/ShipMovementSystem";
+import {
+  bottomFacingRadians,
+  bottomVector,
+  directionVector,
+  integrateShipMovement,
+} from "../systems/ShipMovementSystem";
 import type { CollisionSeverity, DockingState, ShipControls, ShipKinematicState } from "../types/flight";
 import { clamp, radiansToCompassDegrees, vectorLength } from "../utils/math";
 
@@ -70,6 +75,7 @@ export class FlightScene extends Phaser.Scene {
   private dashboardText!: Phaser.GameObjects.Text;
   private controlsText!: Phaser.GameObjects.Text;
   private destinationGraphics!: Phaser.GameObjects.Graphics;
+  private destinationGuideText!: Phaser.GameObjects.Text;
   private debugGraphics!: Phaser.GameObjects.Graphics;
   private destinationArrow!: Phaser.GameObjects.Text;
   private touchControls: ShipControls = {
@@ -187,6 +193,15 @@ export class FlightScene extends Phaser.Scene {
 
   private createDestinationGraphics(): void {
     this.destinationGraphics = this.add.graphics().setDepth(8);
+    this.destinationGuideText = this.add
+      .text(0, 0, "ship bottom", {
+        color: colors.ember,
+        fontFamily: "monospace",
+        fontSize: "12px",
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5)
+      .setDepth(9);
     this.destinationArrow = this.add
       .text(0, 0, ">", {
         color: colors.ember,
@@ -488,7 +503,17 @@ export class FlightScene extends Phaser.Scene {
   }
 
   private handleBadDocking(docking: DockingState, time: number): void {
-    if (!docking.inDeliveryZone || docking.kind === "ready" || time < this.badDockCooldownUntilMs) return;
+    if (!docking.inDeliveryZone || docking.kind === "ready") return;
+
+    if (docking.kind === "align") {
+      if (time >= this.badDockCooldownUntilMs) {
+        this.setDashboardLine("point bottom at the landing guide", time);
+        this.badDockCooldownUntilMs = time + dockingTuning.badDockCooldownMs;
+      }
+      return;
+    }
+
+    if (docking.kind !== "slow-down" || time < this.badDockCooldownUntilMs) return;
 
     const dx = this.ship.kinematics.x - route.destination.x;
     const dy = this.ship.kinematics.y - route.destination.y;
@@ -505,10 +530,7 @@ export class FlightScene extends Phaser.Scene {
 
     this.ship.setKinematicState(next, false);
     this.badDockCooldownUntilMs = time + dockingTuning.badDockCooldownMs;
-    this.setDashboardLine(
-      docking.kind === "slow-down" ? "dock says: tiny brakes, please" : "dock says: rotate the snack",
-      time,
-    );
+    this.setDashboardLine("dock says: tiny brakes, please", time);
   }
 
   private applyBumpConsequence(severity: CollisionSeverity, line: string, time: number): void {
@@ -612,7 +634,7 @@ export class FlightScene extends Phaser.Scene {
     this.arrivalGate = gate.state;
 
     if (docking.kind === "ready" && !gate.complete) {
-      this.setDashboardLine(`landing window holding ${gate.readyElapsedMs.toFixed(0)}ms`, time, 120);
+      this.setDashboardLine(`bottom-side landing window ${gate.readyElapsedMs.toFixed(0)}ms`, time, 120);
     }
 
     if (!gate.complete) return;
@@ -630,20 +652,67 @@ export class FlightScene extends Phaser.Scene {
   private updateDestinationGraphics(docking: DockingState): void {
     const destination = route.destination;
     const color = this.dockingColor(docking.kind);
-    const facing = facingVector(destination.requiredFacingRadians);
+    const textColor = this.dockingTextColor(docking.kind);
+    const requiredBottom = directionVector(destination.requiredBottomFacingRadians);
+    const tangent = { x: -requiredBottom.y, y: requiredBottom.x };
+    const coneAngle = (dockingTuning.maxAngleDegrees * Math.PI) / 180;
+    const coneLeft = directionVector(destination.requiredBottomFacingRadians - coneAngle);
+    const coneRight = directionVector(destination.requiredBottomFacingRadians + coneAngle);
+    const coneRadius = destination.radius * 0.95;
+    const lineStartRadius = destination.radius * 0.22;
+    const lineEndRadius = destination.radius + 24;
+    const arrowTipRadius = destination.radius + 34;
+    const arrowBaseRadius = destination.radius + 12;
+    const arrowHalfWidth = 12;
 
     this.destinationGraphics.clear();
     this.destinationGraphics.lineStyle(1, this.colorNumber(colors.duskBlue), 0.22);
     this.destinationGraphics.strokeCircle(destination.x, destination.y, destination.approachRadius);
-    this.destinationGraphics.lineStyle(docking.kind === "ready" ? 5 : 3, color, docking.kind === "too-far" ? 0.45 : 0.9);
-    this.destinationGraphics.strokeCircle(destination.x, destination.y, destination.radius);
-    this.destinationGraphics.lineStyle(3, color, 0.86);
-    this.destinationGraphics.lineBetween(
+
+    this.destinationGraphics.fillStyle(color, docking.kind === "ready" ? 0.16 : 0.08);
+    this.destinationGraphics.fillTriangle(
       destination.x,
       destination.y,
-      destination.x + facing.x * destination.radius,
-      destination.y + facing.y * destination.radius,
+      destination.x + coneLeft.x * coneRadius,
+      destination.y + coneLeft.y * coneRadius,
+      destination.x + coneRight.x * coneRadius,
+      destination.y + coneRight.y * coneRadius,
     );
+
+    this.destinationGraphics.lineStyle(docking.kind === "ready" ? 5 : 3, color, docking.kind === "too-far" ? 0.45 : 0.9);
+    this.destinationGraphics.strokeCircle(destination.x, destination.y, destination.radius);
+
+    this.destinationGraphics.lineStyle(docking.kind === "ready" ? 5 : 4, color, 0.92);
+    this.destinationGraphics.lineBetween(
+      destination.x + requiredBottom.x * lineStartRadius,
+      destination.y + requiredBottom.y * lineStartRadius,
+      destination.x + requiredBottom.x * lineEndRadius,
+      destination.y + requiredBottom.y * lineEndRadius,
+    );
+    this.destinationGraphics.lineStyle(2, color, 0.72);
+    this.destinationGraphics.lineBetween(
+      destination.x + requiredBottom.x * destination.radius - tangent.x * 18,
+      destination.y + requiredBottom.y * destination.radius - tangent.y * 18,
+      destination.x + requiredBottom.x * destination.radius + tangent.x * 18,
+      destination.y + requiredBottom.y * destination.radius + tangent.y * 18,
+    );
+    this.destinationGraphics.fillStyle(color, 0.92);
+    this.destinationGraphics.fillTriangle(
+      destination.x + requiredBottom.x * arrowTipRadius,
+      destination.y + requiredBottom.y * arrowTipRadius,
+      destination.x + requiredBottom.x * arrowBaseRadius + tangent.x * arrowHalfWidth,
+      destination.y + requiredBottom.y * arrowBaseRadius + tangent.y * arrowHalfWidth,
+      destination.x + requiredBottom.x * arrowBaseRadius - tangent.x * arrowHalfWidth,
+      destination.y + requiredBottom.y * arrowBaseRadius - tangent.y * arrowHalfWidth,
+    );
+
+    this.destinationGuideText
+      .setPosition(
+        destination.x + requiredBottom.x * (destination.radius + 62),
+        destination.y + requiredBottom.y * (destination.radius + 62),
+      )
+      .setColor(textColor)
+      .setAlpha(docking.kind === "too-far" ? 0.48 : 0.86);
   }
 
   private updateDestinationArrow(docking: DockingState): void {
@@ -675,7 +744,9 @@ export class FlightScene extends Phaser.Scene {
   private updateDashboard(docking: DockingState, time: number): void {
     const status = dockingStatusLabel(docking);
     const condition = packageConditionLabel(this.packageCondition);
-    const heading = radiansToCompassDegrees(this.ship.kinematics.rotation).toString().padStart(3, "0");
+    const bottomHeading = radiansToCompassDegrees(bottomFacingRadians(this.ship.kinematics.rotation))
+      .toString()
+      .padStart(3, "0");
     const modeLine = this.flightMode.kind === "incident" ? "incident" : "flying";
     const note = time < this.dashboardLineUntilMs ? this.lastDashboardLine : dockingHint(docking);
 
@@ -684,7 +755,7 @@ export class FlightScene extends Phaser.Scene {
       `mode      ${modeLine}`,
       `speed     ${this.ship.speed().toFixed(0).padStart(3, " ")} px/s`,
       `distance  ${docking.distance.toFixed(0).padStart(4, " ")} px`,
-      `heading   ${heading} deg`,
+      `bottom    ${bottomHeading} deg`,
       `arrival   ${status}`,
       `package   ${condition}`,
       `note      ${note}`,
@@ -701,14 +772,14 @@ export class FlightScene extends Phaser.Scene {
     if (!this.debugVisible) return;
 
     const state = this.ship.kinematics;
-    const facing = facingVector(state.rotation);
+    const bottom = bottomVector(state.rotation);
     const velocityScale = 0.46;
 
     this.debugGraphics.lineStyle(1, 0xfbf7ec, 0.2);
     this.debugGraphics.strokeRect(0, 0, route.world.width, route.world.height);
 
     this.debugGraphics.lineStyle(2, this.colorNumber(colors.sage), 0.92);
-    this.debugGraphics.lineBetween(state.x, state.y, state.x + facing.x * 118, state.y + facing.y * 118);
+    this.debugGraphics.lineBetween(state.x, state.y, state.x + bottom.x * 118, state.y + bottom.y * 118);
 
     this.debugGraphics.lineStyle(2, this.colorNumber(colors.ember), 0.92);
     this.debugGraphics.lineBetween(
@@ -739,6 +810,21 @@ export class FlightScene extends Phaser.Scene {
         return this.colorNumber(colors.plum);
       case "ready":
         return this.colorNumber(colors.sage);
+    }
+  }
+
+  private dockingTextColor(kind: DockingState["kind"]): string {
+    switch (kind) {
+      case "too-far":
+        return colors.duskBlue;
+      case "approaching":
+        return colors.ember;
+      case "slow-down":
+        return colors.brick;
+      case "align":
+        return colors.plum;
+      case "ready":
+        return colors.sage;
     }
   }
 

@@ -28,7 +28,7 @@ export type FlightDestinationDefinition = Point & {
   readonly label: string;
   readonly radius: number;
   readonly approachRadius: number;
-  readonly requiredFacingRadians: number;
+  readonly requiredBottomFacingRadians: number;
 };
 
 export type StaticObstacleDefinition = Point & {

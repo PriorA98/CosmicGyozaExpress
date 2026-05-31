@@ -38,7 +38,7 @@ Route flight is top-down or near-top-down space movement.
 
 The ship:
 
-- accelerates in the direction it faces;
+- accelerates away from its bottom thruster;
 - continues drifting when thrust stops;
 - rotates directly;
 - brakes against current velocity;
@@ -55,7 +55,7 @@ For Tea Moon, it should require:
 
 - ship inside destination zone;
 - speed below a generous threshold;
-- facing within a broad cone;
+- bottom side within a broad cone;
 - short stable ready duration, around `0.4-0.6s`.
 
 When the gate is satisfied, the game transitions to the landing scene. It should not instantly complete the delivery.
@@ -64,8 +64,10 @@ Bad arrival attempts:
 
 - block transition;
 - explain speed or alignment problem;
-- gently bounce the ship away;
+- gently bounce the ship away only when it is still too fast;
 - avoid package loss unless there is an actual collision or crash.
+
+Alignment problems should let the player keep turning inside the ring, because the intended skill is rotating the ship's bottom toward the landing guide while inertia carries the ship through the approach.
 
 ## One-Bottom-Thruster Landing
 

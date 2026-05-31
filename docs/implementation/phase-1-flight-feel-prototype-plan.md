@@ -24,7 +24,7 @@ Canonical docs reviewed before this plan:
   - Use bounded 2D mission spaces with camera follow.
   - Use floaty velocity with direct rotation, not angular inertia yet.
   - Use no lives and no game-over screen.
-  - Add gentle docking readiness: zone entry, low speed, broad facing alignment.
+  - Add gentle docking readiness: zone entry, low speed, broad bottom-side alignment.
   - Add bad-docking bounce, static obstacles, collision severity, crash respawn, restart input, useful dashboard readouts, and debug vectors.
 - `docs/implementation/frontend-integration.md`
   - Phaser owns the flight scene.
@@ -79,7 +79,7 @@ Current Phase 1 gaps:
 - There are no static obstacles, collision severity tiers, crash state, incident animation, or respawn flow.
 - There is no package condition state, even as Phase 1 flavor.
 - The HUD is debug text only and does not yet communicate distance, docking readiness, package condition, or incident status.
-- There are no debug vectors for facing, velocity, docking cone, or obstacle radii.
+- There are no debug vectors for bottom side, velocity, docking cone, or obstacle radii.
 - Touch controls are currently tied to the single-screen scene; camera follow will require fixed screen-space HUD and input handling.
 - `PreloadScene` loads only the first incident frame.
 
@@ -126,8 +126,8 @@ Expected flow:
 2. Camera follows the ship smoothly.
 3. Destination indicator points toward a large delivery ring.
 4. Player accelerates with `W`/Up, rotates with `A`/`D` or arrows, brakes with `S`/Down.
-5. Player can drift sideways while facing another direction.
-6. Player can see velocity and facing debug vectors during tuning.
+5. Player can drift sideways while the ship bottom points another direction.
+6. Player can see velocity and bottom-side debug vectors during tuning.
 7. Player passes or bumps into simple static obstacles.
 8. Low-speed bumps nudge the ship and reduce package condition lightly.
 9. High-speed crashes trigger a short gyoza incident, input freeze, and quick respawn.
@@ -158,7 +158,7 @@ These values are starting targets, not final tuning locks:
 | Package condition | Internal `0-100`, displayed as friendly labels |
 | Debug vectors | Visible by default during Phase 1, toggleable before demo handoff |
 
-Docking angle should be data-driven. The destination should define an expected facing direction, and the docking check should compare ship facing against that direction with a pure angle-difference helper. The ring visual should make that expected direction readable with a notch, arrow, or highlighted arc.
+Docking angle should be data-driven. The destination should define an expected bottom-side direction, and the docking check should compare the ship bottom against that direction with a pure angle-difference helper. The ring visual should make that expected direction readable with a notch, arrow, or highlighted arc.
 
 ## 7. Architecture Plan
 
@@ -232,7 +232,7 @@ type FlightPrototypeRoute = {
     y: number;
     radius: number;
     approachRadius: number;
-    requiredFacingRadians: number;
+    requiredBottomFacingRadians: number;
   };
   obstacles: readonly StaticObstacleDefinition[];
 };
@@ -285,10 +285,10 @@ Tasks:
 - Clamp `dt` before applying simulation, with a reasonable maximum such as `1 / 20` seconds.
 - Replace vector clone allocation in braking with direct numeric math or reusable vectors.
 - Ensure rotation remains direct and does not add angular inertia.
-- Keep facing convention consistent: current code treats rotation `0` as ship facing up.
+- Keep thrust convention consistent: current code treats rotation `0` as thrusting upward from a downward-pointing bottom.
 - Preserve visible behavior while making tests possible.
 - Add tests for:
-  - thrust adds velocity along facing direction;
+  - thrust adds velocity away from the ship bottom;
   - release preserves drift except damping;
   - brake reduces speed without instantly stopping;
   - soft speed cap reduces overspeed gradually;
@@ -296,7 +296,7 @@ Tasks:
 
 Acceptance:
 
-- Ship can drift sideways while facing another direction.
+- Ship can drift sideways while the bottom points another direction.
 - Counter-thrust and braking feel different.
 - Movement results are stable enough across different frame rates.
 - Tests cover the movement rules that are most likely to regress.
@@ -332,12 +332,12 @@ Goal: make approach and controlled arrival readable.
 Tasks:
 
 - Render destination ring and approach radius.
-- Render expected facing direction on the ring.
+- Render expected bottom-side direction on the ring.
 - Add off-screen destination guidance, such as a screen-edge arrow or HUD bearing.
 - Implement pure docking readiness checks:
   - distance to destination;
   - speed;
-  - angle delta from destination expected facing;
+  - angle delta from destination expected bottom direction;
   - resulting docking state.
 - Display docking state in the HUD:
   - too far;
@@ -433,12 +433,12 @@ Tasks:
 - Keep essential readouts stable:
   - speed;
   - distance;
-  - heading;
+  - bottom-side heading;
   - docking state;
   - package condition;
   - last dashboard line.
 - Add debug graphics:
-  - facing vector;
+  - bottom-side vector;
   - velocity vector;
   - destination zone;
   - docking cone or expected direction;

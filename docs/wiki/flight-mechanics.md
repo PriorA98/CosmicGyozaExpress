@@ -8,8 +8,8 @@ Flight is the broad route-navigation part of the game. It should feel floaty, ph
 
 The player should learn:
 
-- facing and velocity are different;
-- thrust changes velocity in the facing direction;
+- bottom orientation, thrust, and velocity are different;
+- thrust changes velocity away from the ship's bottom thruster;
 - braking fights current velocity;
 - overshooting is normal;
 - recovery is part of the fun.
@@ -27,7 +27,7 @@ The current implementation uses:
 The movement model:
 
 - direct rotation;
-- thrust along ship facing;
+- thrust along the ship's local up direction, opposite its bottom thruster;
 - brake against velocity;
 - light damping;
 - soft speed cap;
@@ -72,9 +72,11 @@ Flight mode ends near a destination. The current approach model checks:
 
 - distance to destination;
 - speed;
-- facing alignment.
+- bottom-side alignment.
 
 In Phase 2, a valid approach becomes an arrival gate into the landing scene.
+
+The destination guide marks where the ship's bottom should point. For Tea Moon, that means the player can drift toward the moon while rotating the bottom/thruster side toward the guide, then use thrust in the opposite direction to bleed off speed.
 
 ## Dashboard
 
@@ -82,7 +84,7 @@ The flight dashboard should prioritize:
 
 - speed;
 - distance;
-- heading;
+- bottom-side heading;
 - arrival/landing status;
 - package condition;
 - short dashboard line.

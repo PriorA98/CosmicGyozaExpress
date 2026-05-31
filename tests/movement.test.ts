@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { shipTuning } from "../src/data/tuning";
-import { integrateShipMovement, shipSpeed } from "../src/systems/ShipMovementSystem";
+import { bottomVector, integrateShipMovement, shipSpeed, thrustVector } from "../src/systems/ShipMovementSystem";
 import type { ShipControls, ShipKinematicState } from "../src/types/flight";
 
 const idleControls: ShipControls = {
@@ -19,12 +19,21 @@ const originState: ShipKinematicState = {
 };
 
 describe("ship movement integration", () => {
-  it("adds thrust in the ship-facing direction", () => {
+  it("adds thrust away from the ship bottom", () => {
     const next = integrateShipMovement(originState, { ...idleControls, thrust: true }, 1 / 10);
 
     expect(next.velocityX).toBeCloseTo(0);
     expect(next.velocityY).toBeLessThan(0);
     expect(next.y).toBeLessThan(0);
+  });
+
+  it("keeps the bottom vector opposite the thrust vector", () => {
+    const rotation = Math.PI / 2;
+    const bottom = bottomVector(rotation);
+    const thrust = thrustVector(rotation);
+
+    expect(bottom.x).toBeCloseTo(-thrust.x);
+    expect(bottom.y).toBeCloseTo(-thrust.y);
   });
 
   it("keeps drifting when thrust is released", () => {

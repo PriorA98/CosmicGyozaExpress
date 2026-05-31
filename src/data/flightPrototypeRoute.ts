@@ -28,7 +28,7 @@ export const flightPrototypeRoute: FlightPrototypeRoute = {
     y: 850,
     radius: 132,
     approachRadius: 430,
-    requiredFacingRadians: Math.PI / 2,
+    requiredBottomFacingRadians: Math.PI / 2,
   },
   obstacles: [
     { id: "soft-asteroid-01", label: "sleepy rock", x: 780, y: 760, radius: 68 },

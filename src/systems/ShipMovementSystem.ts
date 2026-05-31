@@ -16,11 +16,23 @@ export function shipSpeed(state: ShipKinematicState): number {
   return vectorLength(state.velocityX, state.velocityY);
 }
 
-export function facingVector(rotation: number): { readonly x: number; readonly y: number } {
+export function directionVector(rotation: number): { readonly x: number; readonly y: number } {
   return {
     x: Math.sin(rotation),
     y: -Math.cos(rotation),
   };
+}
+
+export function thrustVector(rotation: number): { readonly x: number; readonly y: number } {
+  return directionVector(rotation);
+}
+
+export function bottomFacingRadians(rotation: number): number {
+  return rotation + Math.PI;
+}
+
+export function bottomVector(rotation: number): { readonly x: number; readonly y: number } {
+  return directionVector(bottomFacingRadians(rotation));
 }
 
 export function integrateShipMovement(
@@ -32,14 +44,14 @@ export function integrateShipMovement(
   const dt = clamp(deltaSeconds, 0, tuning.maxDeltaSeconds);
   const rotateDirection = Number(controls.rotateRight) - Number(controls.rotateLeft);
   const rotation = state.rotation + rotateDirection * tuning.rotationSpeed * dt;
-  const facing = facingVector(rotation);
+  const thrust = thrustVector(rotation);
 
   let velocityX = state.velocityX;
   let velocityY = state.velocityY;
 
   if (controls.thrust) {
-    velocityX += facing.x * tuning.thrustAcceleration * dt;
-    velocityY += facing.y * tuning.thrustAcceleration * dt;
+    velocityX += thrust.x * tuning.thrustAcceleration * dt;
+    velocityY += thrust.y * tuning.thrustAcceleration * dt;
   }
 
   if (controls.brake) {

@@ -307,9 +307,9 @@ The ship movement is the highest-risk and highest-value mechanic. It should be i
 Movement model:
 
 - Ship has position, velocity, rotation, angular velocity, and tuning constants.
-- Pressing thrust adds acceleration in the direction the ship is facing.
+- Pressing thrust adds acceleration away from the ship's bottom thruster.
 - Releasing thrust does not stop the ship.
-- Rotation changes facing direction, not velocity direction.
+- Rotation changes the bottom/thrust direction, not velocity direction.
 - Braking applies acceleration opposite current velocity, not simply a hard velocity clamp.
 - Stabilizer assist can gently reduce drift in Cozy Mode.
 - Max speed should be soft-capped, not abruptly clamped.
@@ -338,11 +338,11 @@ Implementation approach:
 - Use Phaser sprites for rendering.
 - Use Phaser overlap/collision checks against simple circular/rectangular zones.
 - Use delta time consistently so movement does not depend on frame rate.
-- Add debug overlays for velocity vector, facing vector, docking zone, and gravity zones.
+- Add debug overlays for velocity vector, bottom-side vector, docking zone, and gravity zones.
 
 Acceptance criteria:
 
-- The ship can drift sideways while facing another direction.
+- The ship can drift sideways while its bottom points another direction.
 - Counter-thrust and braking feel different.
 - Overshooting a target is common but recoverable.
 - The player can intentionally dock after 2-3 minutes of practice.
