@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { createDevSceneLauncherPanel, installDevSceneHotkeys } from "../dev/DevSceneLauncher";
 import { colors } from "../game/designTokens";
 
 export class TitleScene extends Phaser.Scene {
@@ -37,6 +38,9 @@ export class TitleScene extends Phaser.Scene {
         fontSize: "16px",
       })
       .setOrigin(0.5);
+
+    installDevSceneHotkeys(this);
+    createDevSceneLauncherPanel(this);
 
     this.input.keyboard?.once("keydown-ENTER", () => this.scene.start("FlightScene"));
     this.input.once("pointerdown", () => this.scene.start("FlightScene"));

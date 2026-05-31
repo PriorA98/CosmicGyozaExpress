@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { TEA_MOON_MISSION_ID } from "../data/missions";
+import { installDevSceneHotkeys } from "../dev/DevSceneLauncher";
 import { colors } from "../game/designTokens";
 import { createDeliveryResultContent, createMissionResultSummary } from "../systems/MissionResultSystem";
 import { SaveSystem } from "../systems/SaveSystem";
@@ -108,6 +109,8 @@ export class DeliveryResultScene extends Phaser.Scene {
         fontSize: "15px",
       })
       .setOrigin(0.5);
+
+    installDevSceneHotkeys(this);
 
     this.input.keyboard?.once("keydown-ENTER", () => this.scene.start("FlightScene"));
     this.input.once("pointerdown", () => this.scene.start("TitleScene"));

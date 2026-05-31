@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { TEA_MOON_MISSION_ID } from "../data/missions";
 import { landingTuning } from "../data/tuning";
+import { installDevSceneHotkeys } from "../dev/DevSceneLauncher";
 import { GyozaShip } from "../entities/GyozaShip";
 import { colors } from "../game/designTokens";
 import {
@@ -112,6 +113,7 @@ export class LandingScene extends Phaser.Scene {
       RIGHT: Phaser.Input.Keyboard.KeyCodes.RIGHT,
       R: Phaser.Input.Keyboard.KeyCodes.R,
     }) as LandingKeys;
+    installDevSceneHotkeys(this);
 
     this.createDashboard();
     this.createTouchControls(width, height);

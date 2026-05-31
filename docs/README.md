@@ -42,6 +42,8 @@ This folder contains the official project documentation derived from the origina
   - Clean code, architecture, TypeScript, Phaser, browser platform, asset, and testing standards.
 - `engineering/implementation-checklist.md`
   - Practical before/during/after checklist for implementation passes.
+- `engineering/dev-tools.md`
+  - Development-only scene launch shortcuts and guidance for adding future dev launch targets.
 - `engineering/online-reference-map.md`
   - Official online sources used to anchor stack-specific best practices.
 

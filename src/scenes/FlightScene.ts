@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { TEA_MOON_MISSION_ID } from "../data/missions";
 import { collisionTuning, dockingTuning, respawnTuning, shipTuning, cameraTuning } from "../data/tuning";
 import { flightPrototypeRoute } from "../data/flightPrototypeRoute";
+import { installDevSceneHotkeys } from "../dev/DevSceneLauncher";
 import { GyozaShip } from "../entities/GyozaShip";
 import { colors } from "../game/designTokens";
 import {
@@ -130,6 +131,7 @@ export class FlightScene extends Phaser.Scene {
       BACKTICK: Phaser.Input.Keyboard.KeyCodes.BACKTICK,
       ESC: Phaser.Input.Keyboard.KeyCodes.ESC,
     }) as FlightKeys;
+    installDevSceneHotkeys(this);
 
     this.createDashboard(width, height);
     this.createTouchControls(width, height);
