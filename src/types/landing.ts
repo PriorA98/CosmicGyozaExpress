@@ -23,23 +23,30 @@ export type LandingPadDefinition = {
 };
 
 export type LandingResultKind = "soft" | "bumpy" | "incident";
+export type LandingIncidentKind = "hard-drop" | "skid" | "tilt-tip" | "off-pad";
+
+export type LandingTouchdownMetrics = {
+  readonly onPad: boolean;
+  readonly verticalSpeed: number;
+  readonly horizontalSpeed: number;
+  readonly angleDegrees: number;
+};
+
+export type LandingIncidentTouchdownResult = LandingTouchdownMetrics & {
+  readonly kind: "incident";
+};
 
 export type LandingTouchdownResult =
   | { readonly kind: "none" }
-  | {
-      readonly kind: LandingResultKind;
-      readonly onPad: boolean;
-      readonly verticalSpeed: number;
-      readonly horizontalSpeed: number;
-      readonly angleDegrees: number;
-    };
+  | (LandingTouchdownMetrics & { readonly kind: Exclude<LandingResultKind, "incident"> })
+  | LandingIncidentTouchdownResult;
 
 export type LandingPhase =
   | { readonly kind: "intro" }
   | { readonly kind: "descending" }
   | { readonly kind: "settling"; readonly startedAtMs: number; readonly result: LandingResultKind }
   | { readonly kind: "delivered"; readonly result: LandingResultKind }
-  | { readonly kind: "incident"; readonly startedAtMs: number };
+  | { readonly kind: "incident"; readonly startedAtMs: number; readonly incidentKind: LandingIncidentKind };
 
 export type LandingSceneData = {
   readonly missionId: string;

@@ -262,7 +262,7 @@ type LandingPhase =
   | { readonly kind: "touching" }
   | { readonly kind: "settling"; readonly startedAtMs: number }
   | { readonly kind: "delivered" }
-  | { readonly kind: "incident"; readonly startedAtMs: number };
+  | { readonly kind: "incident"; readonly startedAtMs: number; readonly incidentKind: LandingIncidentKind };
 ```
 
 Pure functions:
@@ -270,6 +270,7 @@ Pure functions:
 - integrate landing movement;
 - apply one-bottom-thruster force;
 - apply stabilizer assist;
+- classify landing incident subtype;
 - detect pad contact;
 - classify touchdown;
 - compute landing result.
@@ -385,13 +386,14 @@ Tasks:
 - Implement rotation/stabilizer.
 - Implement pad contact detection.
 - Implement touchdown classification.
-- Add tests for thrust direction, tilt tradeoff, stabilizer, safe landing, bumpy landing, and incident landing.
+- Add tests for thrust direction, tilt tradeoff, stabilizer, safe landing, bumpy landing, incident landing, and incident subtype classification.
 
 Acceptance:
 
 - Landing physics are testable without Phaser.
 - Horizontal correction requires tilt plus thrust.
 - Safe/bumpy/incident rules are deterministic.
+- Failed landing animations can reflect hard drops, skids, tip-overs, and off-pad misses.
 
 ### Package D: Landing Scene
 
@@ -403,7 +405,7 @@ Tasks:
 - Add landing HUD.
 - Read controls.
 - Integrate landing state.
-- Handle incident retry.
+- Handle subtype-specific incident animation and retry.
 - Handle soft/bumpy delivery completion.
 
 Acceptance:
@@ -476,7 +478,8 @@ Add or update tests:
   - stabilizer reduces angle/rotation;
   - safe touchdown classification;
   - bumpy touchdown classification;
-  - incident touchdown classification.
+  - incident touchdown classification;
+  - incident subtype classification.
 - `tests/missionResult.test.ts`
   - result text/category from condition and landing result;
   - save summary shape.

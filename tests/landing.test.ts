@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { landingTuning } from "../src/data/tuning";
 import {
+  classifyLandingIncident,
   classifyLandingTouchdown,
   createLandingState,
   createTeaMoonLandingPad,
   integrateLandingMovement,
 } from "../src/systems/LandingSystem";
-import type { LandingControls, LandingKinematicState } from "../src/types/landing";
+import type { LandingControls, LandingIncidentTouchdownResult, LandingKinematicState } from "../src/types/landing";
 
 const idle: LandingControls = {
   thrust: false,
@@ -89,5 +90,20 @@ describe("landing system", () => {
     };
 
     expect(classifyLandingTouchdown(state, pad).kind).toBe("incident");
+  });
+
+  it("classifies landing incidents by failure shape", () => {
+    const base: LandingIncidentTouchdownResult = {
+      kind: "incident",
+      onPad: true,
+      verticalSpeed: landingTuning.bumpyVerticalSpeed + 40,
+      horizontalSpeed: 10,
+      angleDegrees: 0,
+    };
+
+    expect(classifyLandingIncident(base)).toBe("hard-drop");
+    expect(classifyLandingIncident({ ...base, horizontalSpeed: landingTuning.bumpyHorizontalSpeed + 40 })).toBe("skid");
+    expect(classifyLandingIncident({ ...base, angleDegrees: landingTuning.bumpyAngleDegrees + 12 })).toBe("tilt-tip");
+    expect(classifyLandingIncident({ ...base, onPad: false })).toBe("off-pad");
   });
 });

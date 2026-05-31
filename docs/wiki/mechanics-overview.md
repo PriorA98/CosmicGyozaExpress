@@ -109,6 +109,8 @@ Failures should:
 
 For landing, a crash should restart the landing attempt, not send the player back through the full route.
 
+Landing incidents should be short comic beats, not generic explosions. The first implementation distinguishes hard drops, sideways skids, tilted tip-overs, and off-pad dust sinks so the animation reflects what the player actually did.
+
 ## Result
 
 Delivery result should communicate:

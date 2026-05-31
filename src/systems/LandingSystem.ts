@@ -1,5 +1,7 @@
 import { landingTuning } from "../data/tuning";
 import type {
+  LandingIncidentKind,
+  LandingIncidentTouchdownResult,
   LandingControls,
   LandingKinematicState,
   LandingPadDefinition,
@@ -130,6 +132,22 @@ export function classifyLandingTouchdown(
     horizontalSpeed,
     angleDegrees,
   };
+}
+
+export function classifyLandingIncident(
+  touchdown: LandingIncidentTouchdownResult,
+  tuning = landingTuning,
+): LandingIncidentKind {
+  if (!touchdown.onPad) return "off-pad";
+  if (touchdown.angleDegrees > tuning.bumpyAngleDegrees) return "tilt-tip";
+
+  const isMostlySideways =
+    touchdown.horizontalSpeed > tuning.bumpyHorizontalSpeed &&
+    touchdown.horizontalSpeed >= touchdown.verticalSpeed * 0.58;
+
+  if (isMostlySideways) return "skid";
+
+  return "hard-drop";
 }
 
 export function pinStateToLandingPad(

@@ -155,6 +155,13 @@ For Tea Moon:
 - `bumpy` completes delivery with minor package condition loss.
 - `incident` triggers short retry from landing start or checkpoint.
 
+Landing incidents should classify the shape of the mistake:
+
+- `hard-drop`: vertical impact, squash, dust ring, and thruster cough.
+- `skid`: high horizontal drift, surface scrape, dust trail, and spin.
+- `tilt-tip`: ship touches down too tilted and tips onto its side.
+- `off-pad`: ship sinks into moon dust beside the landing blanket.
+
 Do not fail the whole mission.
 
 ## Dashboard Language
@@ -187,7 +194,7 @@ Visual priorities:
 - existing ship thrust frames communicate active firing;
 - moon pad has a warm landing glow;
 - rough landing gives a soft bounce or poof;
-- incident uses the existing gyoza incident language.
+- incident uses dust, steam, squash/skid/tip motion, and the existing gyoza incident frames.
 
 Audio priorities:
 

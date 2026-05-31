@@ -159,7 +159,8 @@ Tea Moon should be forgiving:
 
 Landing incidents should:
 
-- trigger a short gyoza incident or bounce;
+- trigger a short comic gyoza incident based on the mistake shape;
+- distinguish hard drops, sideways skids, tilted tip-overs, and off-pad dust sinks;
 - reduce package condition when appropriate;
 - restart the landing attempt quickly;
 - preserve route progress.

@@ -4,6 +4,7 @@ import { landingTuning } from "../data/tuning";
 import { GyozaShip } from "../entities/GyozaShip";
 import { colors } from "../game/designTokens";
 import {
+  classifyLandingIncident,
   classifyLandingTouchdown,
   createLandingState,
   createTeaMoonLandingPad,
@@ -11,9 +12,11 @@ import {
   pinStateToLandingPad,
 } from "../systems/LandingSystem";
 import { applyPackageConditionEvent, packageConditionLabel } from "../systems/PackageConditionSystem";
+import { bottomVector } from "../systems/ShipMovementSystem";
 import type {
   DeliveryResultSceneData,
   LandingControls,
+  LandingIncidentKind,
   LandingKinematicState,
   LandingPadDefinition,
   LandingPhase,
@@ -124,7 +127,6 @@ export class LandingScene extends Phaser.Scene {
 
     if (this.phase.kind === "incident") {
       this.updateIncident(time);
-      this.updateShipVisual(false);
       this.updateDashboard();
       return;
     }
@@ -310,11 +312,11 @@ export class LandingScene extends Phaser.Scene {
     if (touchdown.kind === "none") return;
 
     if (touchdown.kind === "incident") {
+      const incidentKind = classifyLandingIncident(touchdown);
       this.packageCondition = applyPackageConditionEvent(this.packageCondition, "landing-incident");
       this.landingIncidents += 1;
-      this.phase = { kind: "incident", startedAtMs: time };
-      this.ship.setIncidentFrame(1);
-      this.createIncidentParticles(this.landingState.x, this.landingState.y);
+      this.phase = { kind: "incident", startedAtMs: time, incidentKind };
+      this.startLandingIncidentAnimation(incidentKind);
       return;
     }
 
@@ -329,8 +331,12 @@ export class LandingScene extends Phaser.Scene {
     if (this.phase.kind !== "incident") return;
 
     const elapsed = time - this.phase.startedAtMs;
-    const frame = clamp(Math.floor(elapsed / 120) + 1, 1, 5);
-    this.ship.setIncidentFrame(frame);
+    const frameStartMs = this.incidentFrameStartMs(this.phase.incidentKind);
+
+    if (elapsed >= frameStartMs) {
+      const frame = clamp(Math.floor((elapsed - frameStartMs) / 115) + 1, 1, 5);
+      this.ship.setIncidentFrame(frame);
+    }
 
     if (elapsed >= landingTuning.incidentRestartMs) {
       this.restartLandingAttempt();
@@ -349,8 +355,10 @@ export class LandingScene extends Phaser.Scene {
   }
 
   private restartLandingAttempt(): void {
+    this.tweens.killTweensOf(this.ship);
     this.landingState = createLandingState();
     this.phase = { kind: "descending" };
+    this.ship.setVisible(true).setAlpha(1).setScale(0.72);
     this.ship.setKinematicState(this.toShipState(this.landingState), false);
   }
 
@@ -371,10 +379,11 @@ export class LandingScene extends Phaser.Scene {
     const altitude = Math.max(0, this.pad.surfaceY - (this.landingState.y + landingTuning.shipRadius));
     const angle = radiansToDegrees(absoluteAngleDifferenceRadians(this.landingState.rotation, 0));
     const note = this.dashboardNote();
+    const phaseLabel = this.phase.kind === "incident" ? `incident/${this.phase.incidentKind}` : this.phase.kind;
 
     this.dashboardText.setText([
       "tea moon landing",
-      `phase     ${this.phase.kind}`,
+      `phase     ${phaseLabel}`,
       `v-speed   ${this.landingState.velocityY.toFixed(0).padStart(4, " ")} px/s`,
       `h-drift   ${Math.abs(this.landingState.velocityX).toFixed(0).padStart(4, " ")} px/s`,
       `angle     ${angle.toFixed(0).padStart(3, " ")} deg`,
@@ -385,11 +394,24 @@ export class LandingScene extends Phaser.Scene {
   }
 
   private dashboardNote(): string {
-    if (this.phase.kind === "incident") return "dumpling bottom lost the argument";
+    if (this.phase.kind === "incident") return this.incidentNote(this.phase.incidentKind);
     if (this.phase.kind === "settling") return "landing blanket engaged";
     if (this.touchControls.thrust || this.keys?.W.isDown || this.keys?.UP.isDown) return "single-thruster confidence: moderate";
     if (Math.abs(this.landingState.rotation) > 0.45) return "bottom not pointed at problem";
     return "please apply soup-facing thrust";
+  }
+
+  private incidentNote(kind: LandingIncidentKind): string {
+    switch (kind) {
+      case "hard-drop":
+        return "moon blanket says: softer, please";
+      case "skid":
+        return "sideways soup maneuver detected";
+      case "tilt-tip":
+        return "bottom thruster argued with geometry";
+      case "off-pad":
+        return "landing blanket missed the snack";
+    }
   }
 
   private resultData(landingResult: LandingResultKind): DeliveryResultSceneData {
@@ -422,6 +444,260 @@ export class LandingScene extends Phaser.Scene {
         onComplete: () => dot.destroy(),
       });
     }
+  }
+
+  private startLandingIncidentAnimation(kind: LandingIncidentKind): void {
+    this.tweens.killTweensOf(this.ship);
+    this.ship.setVisible(true).setAlpha(1).setScale(0.72);
+    this.ship.setKinematicState(this.toShipState(this.landingState), false);
+
+    switch (kind) {
+      case "hard-drop":
+        this.animateHardDropIncident();
+        return;
+      case "skid":
+        this.animateSkidIncident();
+        return;
+      case "tilt-tip":
+        this.animateTiltTipIncident();
+        return;
+      case "off-pad":
+        this.animateOffPadIncident();
+        return;
+    }
+  }
+
+  private animateHardDropIncident(): void {
+    const impactX = this.landingState.x;
+    const impactY = this.pad.surfaceY - landingTuning.shipRadius + 8;
+    const direction = this.incidentTiltDirection();
+
+    this.ship.setPosition(impactX, impactY);
+    this.createImpactDust(impactX, this.pad.surfaceY, 22, 126);
+    this.createShockRing(impactX, this.pad.surfaceY - 4, colors.ember);
+
+    this.tweens.add({
+      targets: this.ship,
+      y: impactY + 12,
+      scaleX: 0.92,
+      scaleY: 0.54,
+      duration: 92,
+      ease: "Quad.easeIn",
+      onComplete: () => {
+        this.createImpactDust(impactX, this.pad.surfaceY, 16, 94);
+        this.createThrusterMisfire(impactX, impactY, this.landingState.rotation);
+        this.tweens.add({
+          targets: this.ship,
+          y: impactY - 18,
+          rotation: this.landingState.rotation + direction * 0.34,
+          scaleX: 0.74,
+          scaleY: 0.78,
+          duration: 230,
+          ease: "Back.easeOut",
+        });
+      },
+    });
+  }
+
+  private animateSkidIncident(): void {
+    const direction = this.incidentHorizontalDirection();
+    const startX = this.landingState.x;
+    const startY = this.pad.surfaceY - landingTuning.shipRadius + 10;
+    const endX = clamp(startX + direction * 164, landingTuning.shipRadius, this.scale.width - landingTuning.shipRadius);
+
+    this.ship.setPosition(startX, startY);
+    this.createImpactDust(startX, this.pad.surfaceY, 14, 82);
+    this.createShockRing(startX, this.pad.surfaceY - 3, colors.terracotta);
+
+    this.time.addEvent({
+      delay: 62,
+      repeat: 6,
+      callback: () => this.createSkidDust(this.ship.x - direction * 34, this.pad.surfaceY - 5, direction),
+    });
+
+    this.tweens.add({
+      targets: this.ship,
+      x: endX,
+      y: startY + 8,
+      rotation: this.landingState.rotation + direction * 1.18,
+      scaleX: 0.8,
+      scaleY: 0.62,
+      duration: 470,
+      ease: "Cubic.easeOut",
+      onComplete: () => {
+        this.createThrusterMisfire(this.ship.x, this.ship.y, this.ship.rotation);
+      },
+    });
+  }
+
+  private animateTiltTipIncident(): void {
+    const direction = this.incidentTiltDirection();
+    const startX = this.landingState.x;
+    const startY = this.pad.surfaceY - landingTuning.shipRadius + 12;
+
+    this.ship.setPosition(startX, startY);
+    this.createImpactDust(startX, this.pad.surfaceY, 12, 78);
+
+    this.tweens.add({
+      targets: this.ship,
+      x: clamp(startX + direction * 62, landingTuning.shipRadius, this.scale.width - landingTuning.shipRadius),
+      y: startY + 18,
+      rotation: direction * 1.38,
+      scaleX: 0.72,
+      scaleY: 0.72,
+      duration: 360,
+      ease: "Back.easeOut",
+      onComplete: () => {
+        this.createShockRing(this.ship.x, this.pad.surfaceY - 4, colors.plum);
+        this.createThrusterMisfire(this.ship.x, this.ship.y, this.ship.rotation);
+      },
+    });
+  }
+
+  private animateOffPadIncident(): void {
+    const direction = this.incidentHorizontalDirection();
+    const startX = clamp(this.landingState.x, landingTuning.shipRadius, this.scale.width - landingTuning.shipRadius);
+    const startY = this.pad.surfaceY - landingTuning.shipRadius + 12;
+
+    this.ship.setPosition(startX, startY);
+    this.createImpactDust(startX, this.pad.surfaceY, 26, 118);
+    this.createShockRing(startX, this.pad.surfaceY - 4, colors.duskBlue);
+
+    this.tweens.add({
+      targets: this.ship,
+      x: clamp(startX + direction * 28, landingTuning.shipRadius, this.scale.width - landingTuning.shipRadius),
+      y: startY + 58,
+      alpha: 0.42,
+      rotation: this.landingState.rotation + direction * 0.72,
+      scaleX: 0.58,
+      scaleY: 0.58,
+      duration: 520,
+      ease: "Quad.easeIn",
+      onComplete: () => {
+        this.createImpactDust(this.ship.x, this.pad.surfaceY + 8, 12, 76);
+      },
+    });
+  }
+
+  private createImpactDust(x: number, y: number, count: number, spread: number): void {
+    const palette = [colors.parchment, colors.duskBlue, colors.terracotta, colors.plaster];
+
+    for (let i = 0; i < count; i += 1) {
+      const angle = Phaser.Math.FloatBetween(Math.PI * 1.05, Math.PI * 1.95);
+      const distance = Phaser.Math.Between(24, spread);
+      const dot = this.add
+        .circle(x, y, Phaser.Math.Between(3, 8), this.colorNumber(palette[i % palette.length]), 0.76)
+        .setDepth(18);
+
+      this.tweens.add({
+        targets: dot,
+        x: x + Math.cos(angle) * distance,
+        y: y + Math.sin(angle) * distance,
+        alpha: 0,
+        scale: 0.36,
+        duration: Phaser.Math.Between(360, 620),
+        ease: "Quad.easeOut",
+        onComplete: () => dot.destroy(),
+      });
+    }
+  }
+
+  private createSkidDust(x: number, y: number, direction: number): void {
+    for (let i = 0; i < 5; i += 1) {
+      const dust = this.add
+        .circle(x, y + Phaser.Math.Between(-4, 6), Phaser.Math.Between(2, 5), this.colorNumber(colors.parchment), 0.58)
+        .setDepth(17);
+
+      this.tweens.add({
+        targets: dust,
+        x: x - direction * Phaser.Math.Between(18, 54),
+        y: y - Phaser.Math.Between(10, 36),
+        alpha: 0,
+        scale: 0.42,
+        duration: Phaser.Math.Between(260, 460),
+        ease: "Quad.easeOut",
+        onComplete: () => dust.destroy(),
+      });
+    }
+  }
+
+  private createShockRing(x: number, y: number, color: string): void {
+    const ring = this.add.circle(x, y, 10, 0xffffff, 0).setStrokeStyle(2, this.colorNumber(color), 0.66).setDepth(17);
+
+    this.tweens.add({
+      targets: ring,
+      scale: 5.4,
+      alpha: 0,
+      duration: 390,
+      ease: "Quad.easeOut",
+      onComplete: () => ring.destroy(),
+    });
+  }
+
+  private createThrusterMisfire(x: number, y: number, rotation: number): void {
+    const bottom = bottomVector(rotation);
+    const startX = x + bottom.x * 36;
+    const startY = y + bottom.y * 36;
+    const baseAngle = Math.atan2(bottom.y, bottom.x);
+    const palette = [colors.ember, colors.terracotta, colors.plaster];
+
+    for (let i = 0; i < 11; i += 1) {
+      const angle = baseAngle + Phaser.Math.FloatBetween(-0.58, 0.58);
+      const distance = Phaser.Math.Between(28, 88);
+      const spark = this.add
+        .rectangle(
+          startX,
+          startY,
+          Phaser.Math.Between(3, 6),
+          Phaser.Math.Between(8, 16),
+          this.colorNumber(palette[i % palette.length]),
+          0.82,
+        )
+        .setRotation(angle)
+        .setDepth(19);
+
+      this.tweens.add({
+        targets: spark,
+        x: startX + Math.cos(angle) * distance,
+        y: startY + Math.sin(angle) * distance,
+        alpha: 0,
+        scale: 0.28,
+        duration: Phaser.Math.Between(260, 500),
+        ease: "Quad.easeOut",
+        onComplete: () => spark.destroy(),
+      });
+    }
+  }
+
+  private incidentFrameStartMs(kind: LandingIncidentKind): number {
+    switch (kind) {
+      case "hard-drop":
+        return 360;
+      case "skid":
+        return 520;
+      case "tilt-tip":
+        return 470;
+      case "off-pad":
+        return 560;
+    }
+  }
+
+  private incidentHorizontalDirection(): number {
+    const velocityDirection = Math.sign(this.landingState.velocityX);
+    if (velocityDirection !== 0) return velocityDirection;
+
+    const positionDirection = Math.sign(this.landingState.x - this.pad.centerX);
+    return positionDirection === 0 ? 1 : positionDirection;
+  }
+
+  private incidentTiltDirection(): number {
+    const rotationDirection = Math.sign(this.landingState.rotation);
+    if (rotationDirection !== 0) return rotationDirection;
+
+    const angularDirection = Math.sign(this.landingState.angularVelocity);
+    if (angularDirection !== 0) return angularDirection;
+
+    return this.incidentHorizontalDirection();
   }
 
   private toShipState(state: LandingKinematicState): ShipKinematicState {
