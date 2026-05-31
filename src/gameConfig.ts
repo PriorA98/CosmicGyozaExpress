@@ -1,6 +1,8 @@
 import Phaser from "phaser";
+import { DeliveryResultScene } from "./scenes/DeliveryResultScene";
 import { BootScene } from "./scenes/BootScene";
 import { FlightScene } from "./scenes/FlightScene";
+import { LandingScene } from "./scenes/LandingScene";
 import { PreloadScene } from "./scenes/PreloadScene";
 import { TitleScene } from "./scenes/TitleScene";
 
@@ -22,5 +24,5 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [BootScene, PreloadScene, TitleScene, FlightScene],
+  scene: [BootScene, PreloadScene, TitleScene, FlightScene, LandingScene, DeliveryResultScene],
 };

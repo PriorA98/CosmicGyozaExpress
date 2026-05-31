@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { applyDamping, clamp, radiansToCompassDegrees } from "../src/utils/math";
+import {
+  absoluteAngleDifferenceRadians,
+  applyDamping,
+  clamp,
+  radiansToCompassDegrees,
+} from "../src/utils/math";
 
 describe("math helpers", () => {
   it("clamps values", () => {
@@ -16,5 +21,9 @@ describe("math helpers", () => {
 
   it("applies frame-rate-aware damping", () => {
     expect(applyDamping(100, 0.1, 1)).toBe(90);
+  });
+
+  it("finds the shortest absolute angle difference across wraparound", () => {
+    expect(absoluteAngleDifferenceRadians(0, Math.PI * 2 - 0.1)).toBeCloseTo(0.1);
   });
 });

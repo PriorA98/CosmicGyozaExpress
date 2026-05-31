@@ -1,6 +1,6 @@
 # Cosmic Gyoza Express - Implementation Plan
 
-Last updated: 2026-05-29 JST
+Last updated: 2026-05-30 JST
 
 Status: stack locked to Phaser + TypeScript + Vite + localStorage.
 
@@ -307,9 +307,9 @@ The ship movement is the highest-risk and highest-value mechanic. It should be i
 Movement model:
 
 - Ship has position, velocity, rotation, angular velocity, and tuning constants.
-- Pressing thrust adds acceleration in the direction the ship is facing.
+- Pressing thrust adds acceleration away from the ship's bottom thruster.
 - Releasing thrust does not stop the ship.
-- Rotation changes facing direction, not velocity direction.
+- Rotation changes the bottom/thrust direction, not velocity direction.
 - Braking applies acceleration opposite current velocity, not simply a hard velocity clamp.
 - Stabilizer assist can gently reduce drift in Cozy Mode.
 - Max speed should be soft-capped, not abruptly clamped.
@@ -338,11 +338,11 @@ Implementation approach:
 - Use Phaser sprites for rendering.
 - Use Phaser overlap/collision checks against simple circular/rectangular zones.
 - Use delta time consistently so movement does not depend on frame rate.
-- Add debug overlays for velocity vector, facing vector, docking zone, and gravity zones.
+- Add debug overlays for velocity vector, bottom-side vector, docking zone, and gravity zones.
 
 Acceptance criteria:
 
-- The ship can drift sideways while facing another direction.
+- The ship can drift sideways while its bottom points another direction.
 - Counter-thrust and braking feel different.
 - Overshooting a target is common but recoverable.
 - The player can intentionally dock after 2-3 minutes of practice.
@@ -409,10 +409,12 @@ Docking checks:
 
 - Ship is inside delivery zone.
 - Speed is under threshold.
-- Facing angle is within threshold if mission requires alignment.
+- Facing angle is within threshold.
 - Optional: hold confirm for 0.5 seconds to complete.
 
-Early missions should use only speed and zone checks. Later missions can add angle, gravity influence, or environmental currents.
+Early missions should use a generous angle threshold, defaulting to roughly 45 degrees for Tea Moon. Later missions can tighten angle requirements or add gravity influence, environmental currents, moving destinations, or hold-to-deliver timing.
+
+Bad docking attempts should block delivery and communicate the reason. In Tea Moon, a bad docking attempt should lightly bounce the ship away from the delivery zone without package condition loss unless the ship also collides or crashes.
 
 Docking states:
 
@@ -443,7 +445,7 @@ Condition changes:
 
 - Soft bump: minor condition loss.
 - Dramatic bump: bigger condition loss.
-- Overspeed docking: condition loss.
+- Collision or crash during bad docking: condition loss.
 - Gravity hazard: possible temperature wobble.
 - Cozy Mode: condition loss reduced.
 
@@ -547,9 +549,10 @@ Features:
 
 - Wide open space.
 - Large delivery zone.
+- Gentle angle docking with a broad tolerance.
 - A few static soft asteroids.
 - Very forgiving crash threshold.
-- Dashboard calls out speed and distance.
+- Dashboard calls out speed, distance, and alignment.
 
 Completion reaction:
 
@@ -995,7 +998,10 @@ Tasks:
 - Add keyboard input.
 - Add debug vectors.
 - Add camera follow.
-- Add speed/distance readout.
+- Add target marker and destination ring.
+- Add speed, distance, and alignment readout.
+- Add gentle docking readiness checks.
+- Add bad-docking bounce.
 - Add simple static obstacles.
 - Add collision speed detection.
 - Add respawn after crash.
@@ -1010,6 +1016,7 @@ Acceptance criteria:
 
 - Ship movement has clear inertia.
 - Braking and counter-thrust are meaningful.
+- Destination feedback clearly shows too far, slow down, align, and ready states.
 - Crashing is recoverable within 2 seconds.
 - Movement is stable across frame rates.
 
@@ -1021,10 +1028,12 @@ Tasks:
 
 - Create mission data schema.
 - Implement BriefingScene.
-- Implement delivery target and docking checks.
-- Add Tea Moon route.
-- Add package condition state.
-- Add result scene.
+- Convert Phase 1 docking readiness into an arrival gate with a short stable-ready timer.
+- Add Tea Moon route as the first mission.
+- Add `LandingScene` with the one-bottom-thruster lunar-lander landing model.
+- Add landing result classification: soft, bumpy, and incident.
+- Carry package condition from route flight into landing and result.
+- Add delivery result scene.
 - Save mission completion.
 - Add one memory reward.
 - Add initial audio placeholders.
@@ -1032,14 +1041,15 @@ Tasks:
 
 Deliverables:
 
-- Playable Tea Moon mission from title/map to result.
+- Playable Tea Moon mission from title/map to route flight, landing, and result.
 - Mission completion persists after reload.
-- Basic dashboard gives useful and funny feedback.
+- Route and landing dashboards give useful and funny feedback.
 
 Acceptance criteria:
 
 - A player can finish the first delivery without external explanation.
-- Delivery result changes based on rough/perfect delivery.
+- The landing sequence clearly uses the gyoza ship's single bottom thruster.
+- Delivery result changes based on bumpy/soft delivery.
 - Restarting the browser shows the mission as completed.
 
 ### Phase 3 - Systems Hardening

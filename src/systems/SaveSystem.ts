@@ -1,4 +1,4 @@
-import type { SaveDataV1 } from "../types/save";
+import type { MissionResultSummary, SaveDataV1 } from "../types/save";
 
 export const SAVE_KEY = "cosmic-gyoza-express.save.v1";
 
@@ -64,4 +64,32 @@ export class SaveSystem {
     globalThis.localStorage?.setItem(SAVE_KEY, JSON.stringify(next));
     return next;
   }
+
+  static completeMission(
+    missionId: string,
+    result: MissionResultSummary,
+    memoryRewardId: string,
+  ): SaveDataV1 {
+    const current = this.load();
+    const completedMissions = addUnique(current.completedMissions, missionId);
+    const collectedMemories = addUnique(current.collectedMemories, memoryRewardId);
+
+    return this.save({
+      ...current,
+      completedMissions,
+      collectedMemories,
+      stats: {
+        ...current.stats,
+        totalDeliveries: current.stats.totalDeliveries + 1,
+        bestMissionResults: {
+          ...current.stats.bestMissionResults,
+          [missionId]: result,
+        },
+      },
+    });
+  }
+}
+
+function addUnique(values: readonly string[], value: string): string[] {
+  return values.includes(value) ? [...values] : [...values, value];
 }
