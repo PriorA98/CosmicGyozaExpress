@@ -173,6 +173,7 @@ export function mapGameEventToAudio(event: GameEvent, state: AudioMapperState, n
       return same([{ kind: "reload-settings" }]);
     case "mission:start":
     case "mission:completed":
+    case "audio:mute":
       return same([]);
   }
 }

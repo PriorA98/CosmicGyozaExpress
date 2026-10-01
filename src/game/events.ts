@@ -42,6 +42,7 @@ export type GameEvent =
   | { readonly type: "landing:retry" }
   | { readonly type: "result:shown"; readonly landingResult: LandingResultKind }
   | { readonly type: "settings:changed" }
+  | { readonly type: "audio:mute"; readonly muted: boolean }
   | { readonly type: "mission:start"; readonly missionId: string }
   | { readonly type: "mission:completed"; readonly missionId: string };
 

@@ -19,6 +19,12 @@ export function isDevToolsEnabled(): boolean {
   return import.meta.env.DEV;
 }
 
+/** The clickable launcher panel is hidden in showcase captures so screenshots show the real composition. */
+export function isDevLauncherPanelEnabled(): boolean {
+  if (!import.meta.env.DEV) return false;
+  return typeof window === "undefined" || !new URLSearchParams(window.location.search).has("showcase");
+}
+
 export function createDevLandingSceneData(): LandingSceneData {
   return {
     missionId: TEA_MOON_MISSION_ID,

@@ -37,8 +37,5 @@ export const flightPrototypeRoute: FlightPrototypeRoute = {
     { id: "soft-asteroid-04", label: "mochi chunk", x: 2090, y: 1030, radius: 76 },
     { id: "soft-asteroid-05", label: "tiny moon crumb", x: 2460, y: 640, radius: 58 },
   ],
-  backgroundPlanets: [
-    { textureKey: "planet-im-fine", x: 620, y: 360, scale: 0.16, alpha: 0.5 },
-    { textureKey: "planet-tea-moon", x: 2900, y: 835, scale: 0.2, alpha: 0.78 },
-  ],
+  backgroundPlanets: [],
 } as const;

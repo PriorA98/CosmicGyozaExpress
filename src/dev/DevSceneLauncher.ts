@@ -3,6 +3,7 @@ import { colors } from "../game/designTokens";
 import {
   DEV_SCENE_LAUNCHES,
   findDevSceneLaunchForKeyEvent,
+  isDevLauncherPanelEnabled,
   isDevToolsEnabled,
   type DevSceneLaunchDefinition,
 } from "./devSceneLaunches";
@@ -42,7 +43,7 @@ export function createDevSceneLauncherPanel(
   scene: Phaser.Scene,
   options: DevSceneLauncherPanelOptions = {},
 ): Phaser.GameObjects.Container | undefined {
-  if (!isDevToolsEnabled()) return undefined;
+  if (!isDevLauncherPanelEnabled()) return undefined;
 
   const launches = options.launches ?? DEV_SCENE_LAUNCHES;
   const width = 276;

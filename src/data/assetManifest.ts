@@ -82,8 +82,6 @@ export const ASSET = {
   shipIncident4: "ship-incident-4",
   shipIncident5: "ship-incident-5",
   // Celestial
-  planetTeaMoon: "planet-tea-moon",
-  planetImFine: "planet-im-fine",
   celestialTeaMoon: "celestial-tea-moon",
   planetFarPlum: "planet-far-plum",
   celestialImFine: "celestial-im-fine",
@@ -156,22 +154,22 @@ export type UiIconName = keyof typeof UI_ICON_FRAME;
 /** Frame indices inside the `rabbit-portrait` strip. */
 export const RABBIT_PORTRAIT_FRAME = { idle: 0, blink: 1, happy: 2 } as const;
 
-const SHIP_W = 144;
-const SHIP_H = 160;
+/** Ship frames: 64x80 art canvas, saucer centre at art (32, 34), flame room below; displayed at 2x. */
+export const SHIP_ART = { width: 64, height: 80, artScale: 2, saucerCenterX: 32, saucerCenterY: 34 } as const;
+const SHIP_W = SHIP_ART.width;
+const SHIP_H = SHIP_ART.height;
 
 export const ASSET_MANIFEST: readonly AssetEntry[] = [
-  image(ASSET.shipIdle, "assets/ship/gyoza-idle.png", SHIP_W, SHIP_H, 1, "#D4A055", "circle"),
-  image(ASSET.shipFly1, "assets/ship/gyoza-fly-01.png", SHIP_W, SHIP_H, 1, "#D4A055", "circle"),
-  image(ASSET.shipFly2, "assets/ship/gyoza-fly-02.png", SHIP_W, SHIP_H, 1, "#D4A055", "circle"),
-  image(ASSET.shipFly3, "assets/ship/gyoza-fly-03.png", SHIP_W, SHIP_H, 1, "#D4A055", "circle"),
-  image(ASSET.shipIncident1, "assets/ship/gyoza-incident-01.png", SHIP_W, SHIP_H, 1, "#C26954", "circle"),
-  image(ASSET.shipIncident2, "assets/ship/gyoza-incident-02.png", SHIP_W, SHIP_H, 1, "#C26954", "circle"),
-  image(ASSET.shipIncident3, "assets/ship/gyoza-incident-03.png", SHIP_W, SHIP_H, 1, "#C26954", "circle"),
-  image(ASSET.shipIncident4, "assets/ship/gyoza-incident-04.png", SHIP_W, SHIP_H, 1, "#C26954", "circle"),
-  image(ASSET.shipIncident5, "assets/ship/gyoza-incident-05.png", SHIP_W, SHIP_H, 1, "#C26954", "circle"),
+  image(ASSET.shipIdle, "assets/ship/gyoza-idle.png", SHIP_W, SHIP_H, 2, "#D4A055", "circle"),
+  image(ASSET.shipFly1, "assets/ship/gyoza-fly-01.png", SHIP_W, SHIP_H, 2, "#D4A055", "circle"),
+  image(ASSET.shipFly2, "assets/ship/gyoza-fly-02.png", SHIP_W, SHIP_H, 2, "#D4A055", "circle"),
+  image(ASSET.shipFly3, "assets/ship/gyoza-fly-03.png", SHIP_W, SHIP_H, 2, "#D4A055", "circle"),
+  image(ASSET.shipIncident1, "assets/ship/gyoza-incident-01.png", SHIP_W, SHIP_H, 2, "#C26954", "circle"),
+  image(ASSET.shipIncident2, "assets/ship/gyoza-incident-02.png", SHIP_W, SHIP_H, 2, "#C26954", "circle"),
+  image(ASSET.shipIncident3, "assets/ship/gyoza-incident-03.png", SHIP_W, SHIP_H, 2, "#C26954", "circle"),
+  image(ASSET.shipIncident4, "assets/ship/gyoza-incident-04.png", SHIP_W, SHIP_H, 2, "#C26954", "circle"),
+  image(ASSET.shipIncident5, "assets/ship/gyoza-incident-05.png", SHIP_W, SHIP_H, 2, "#C26954", "circle"),
 
-  image(ASSET.planetTeaMoon, "assets/planets/planet00.png", 1280, 1280, 1, "#6FA39A", "circle"),
-  image(ASSET.planetImFine, "assets/planets/planet04.png", 1280, 1280, 1, "#9B8FB8", "circle"),
   image(ASSET.celestialTeaMoon, "assets/celestial/tea-moon.png", 192, 192, 2, "#C2CFAE", "circle"),
   image(ASSET.planetFarPlum, "assets/celestial/planet-far-plum.png", 96, 96, 2, "#9B8FB8", "circle"),
   image(ASSET.celestialImFine, "assets/celestial/planet-im-fine.png", 128, 128, 2, "#9B8FB8", "circle"),
@@ -180,11 +178,11 @@ export const ASSET_MANIFEST: readonly AssetEntry[] = [
   image(ASSET.spaceStarsNear, "assets/space/stars-near.png", 256, 256, 2, "#2F3149"),
   image(ASSET.spaceNebula, "assets/space/nebula.png", 640, 360, 2, "#2F3149"),
 
-  image(ASSET.asteroidSleepy, "assets/asteroids/asteroid-sleepy.png", 72, 72, 2, "#3D3E4D", "circle"),
-  image(ASSET.asteroidRice, "assets/asteroids/asteroid-rice.png", 72, 72, 2, "#3D3E4D", "circle"),
-  image(ASSET.asteroidTea, "assets/asteroids/asteroid-tea.png", 72, 72, 2, "#3D3E4D", "circle"),
-  image(ASSET.asteroidMochi, "assets/asteroids/asteroid-mochi.png", 72, 72, 2, "#3D3E4D", "circle"),
-  image(ASSET.asteroidCrumb, "assets/asteroids/asteroid-crumb.png", 72, 72, 2, "#3D3E4D", "circle"),
+  image(ASSET.asteroidSleepy, "assets/asteroids/asteroid-sleepy.png", 76, 76, 2, "#3D3E4D", "circle"),
+  image(ASSET.asteroidRice, "assets/asteroids/asteroid-rice.png", 92, 92, 2, "#3D3E4D", "circle"),
+  image(ASSET.asteroidTea, "assets/asteroids/asteroid-tea.png", 100, 100, 2, "#3D3E4D", "circle"),
+  image(ASSET.asteroidMochi, "assets/asteroids/asteroid-mochi.png", 84, 84, 2, "#3D3E4D", "circle"),
+  image(ASSET.asteroidCrumb, "assets/asteroids/asteroid-crumb.png", 66, 66, 2, "#3D3E4D", "circle"),
   sheet(ASSET.asteroidDebris, "assets/asteroids/asteroid-debris.png", 24, 24, 4, 2, "#3D3E4D", "circle"),
 
   image(ASSET.lunarSky, "assets/lunar/lunar-sky.png", 640, 360, 2, "#1A1B2E"),
