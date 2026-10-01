@@ -45,35 +45,39 @@ def glyph(img: Image.Image, fw: int, frame: int, x: int, y: int, pattern: str, a
 
 def cloud(img: Image.Image, fw: int, frame: int, lobes: list[Lobe], bands: str, alpha: int,
           core: list[Lobe] | None = None, core_band: str = "") -> None:
-    """Union of round lobes lit from top-left. bands = hi, mid, shade[, deep] glyphs."""
+    """Union of round lobes lit from top-left. bands = hi, mid, shade[, deep] glyphs.
+
+    v3 shading: each lobe gets a soft highlight disc offset toward the top-left; the shade band
+    is the 1-2px rim facing lower-right (pixels whose lower-right neighbours fall outside the
+    union), so clouds read as soft round puffs instead of faceted rocks.
+    """
     px = img.load()
-    for y in range(img.height):
+    h = img.height
+
+    def inside(x: int, y: int) -> bool:
+        cx, cy = x + 0.5, y + 0.5
+        return any(math.hypot(cx - lx, cy - ly) <= r for (lx, ly, r) in lobes)
+
+    for y in range(h):
         for x in range(fw):
-            cx, cy = x + 0.5, y + 0.5
-            best = None
-            for (lx, ly, r) in lobes:
-                d = math.hypot(cx - lx, cy - ly)
-                if d <= r and (best is None or r - d > best[0]):
-                    best = (r - d, lx, ly, r, d)
-            if best is None:
+            if not inside(x, y):
                 continue
-            _, lx, ly, r, d = best
-            # light term: -1 (lower-right rim) .. +1 (upper-left rim)
-            lt = -((cx - lx) + (cy - ly)) / (math.sqrt(2) * r)
-            # pixels whose lower-right neighbour is outside every lobe sit on the shaded rim
-            if lt > 0.38:
+            cx, cy = x + 0.5, y + 0.5
+            g = bands[1]
+            mx, my, mr = lobes[0]  # highlight only on the main (first) lobe -> one clear light source
+            if math.hypot(cx - (mx - 0.36 * mr), cy - (my - 0.36 * mr)) <= 0.52 * mr:
                 g = bands[0]
-            elif lt < -0.62 and len(bands) > 3:
-                g = bands[3]
-            elif lt < -0.28:
+            rim1 = not inside(x + 1, y + 1) or (not inside(x + 1, y) and not inside(x, y + 1))
+            rim2 = not inside(x + 2, y + 2) or (not inside(x, y + 2) and not inside(x + 2, y))
+            if rim1:
+                g = bands[3] if len(bands) > 3 else bands[2]
+            elif rim2:
                 g = bands[2]
-            else:
-                g = bands[1]
             if core and core_band:
                 for (kx, ky, kr) in core:
                     if math.hypot(cx - kx, cy - ky) <= kr:
                         g = core_band
-            assert 0 < x < fw - 1 and 0 < y < img.height - 1, ("gutter", frame, x, y)
+            assert 0 < x < fw - 1 and 0 < y < h - 1, ("gutter", frame, x, y)
             px[frame * fw + x, y] = (*COL[g], alpha)
 
 
@@ -88,12 +92,13 @@ def thrust() -> Image.Image:
                           ".AAYEEETT./..AEEEET../..AEEETT../...EETT.../...EETT.../...ETT..../....TT..../"
                           "....TT..../....RR....")
     # frames 4-8: round detached puff -> warm smoke -> fade (Claude v2)
-    cloud(s, fw, 3, [(8.0, 12.0, 4.9), (8.0, 15.5, 3.2)], "AETR", 255,
-          core=[(6.9, 10.6, 1.5)], core_band="Y")
-    cloud(s, fw, 4, [(8.0, 14.0, 5.3), (5.6, 16.8, 2.8), (10.6, 17.0, 2.6)], "ETRR", 255)
-    cloud(s, fw, 5, [(7.2, 15.6, 4.4), (10.4, 17.4, 3.6), (5.4, 18.6, 2.9)], "DKGM", 215)
-    cloud(s, fw, 6, [(6.4, 17.0, 4.0), (10.6, 17.6, 3.7), (8.4, 19.6, 3.0)], "DGMM", 150)
-    cloud(s, fw, 7, [(6.0, 18.6, 2.2), (10.2, 19.4, 2.0)], "GMMM", 80)
+    cloud(s, fw, 3, [(8.0, 12.2, 4.6)], "EETR", 255,
+          core=[(6.9, 10.9, 2.0)], core_band="A")
+    cloud(s, fw, 3, [(6.9, 10.9, 1.25)], "YYYY", 255)
+    cloud(s, fw, 4, [(8.0, 14.2, 4.3), (5.2, 15.2, 2.5), (10.9, 15.0, 2.5)], "ETRR", 255)
+    cloud(s, fw, 5, [(7.8, 16.0, 4.2), (4.9, 17.4, 2.7), (10.8, 17.4, 3.0)], "DKGM", 215)
+    cloud(s, fw, 6, [(7.6, 17.4, 4.3), (11.0, 18.4, 3.2), (4.4, 18.8, 2.6)], "KGMM", 150)
+    cloud(s, fw, 7, [(6.4, 19.0, 2.2), (10.0, 19.6, 2.0)], "GMMM", 80)
     return s
 
 
@@ -108,8 +113,8 @@ def dust() -> Image.Image:
     glyph(s, fw, 3, 1, 5, "..PPP........./.PPPPD......../PPPPPPD..PPP../PPPPPPDDPPPPD./PPPPPDDDPPDDDC/"
                           "PPDDDDDDDDDCCC/DDDDDDDDDDDCCC/.DDDDDDDDCCCC./..DDDDDDCCCC../...DDDCCCCC...", 235)
     # frames 5-6: puff splits into drifting round clumps and fades (Claude v2)
-    cloud(s, fw, 4, [(4.2, 9.4, 2.9), (11.6, 8.6, 3.0), (8.0, 12.2, 2.4)], "PDC", 175)
-    cloud(s, fw, 5, [(3.4, 7.6, 1.9), (12.6, 6.6, 2.0), (8.2, 11.6, 1.5)], "PDC", 95)
+    cloud(s, fw, 4, [(4.0, 10.0, 2.7), (11.8, 9.2, 2.8), (8.0, 13.2, 1.8)], "PPDC", 175)
+    cloud(s, fw, 5, [(4.0, 7.0, 2.0), (12.0, 6.0, 2.0), (8.0, 12.0, 1.5)], "PPDD", 95)
     return s
 
 
