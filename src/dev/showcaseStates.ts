@@ -36,6 +36,7 @@ const result = (data: Omit<DeliveryResultSceneData, "missionId">): (() => Delive
 });
 
 export const SHOWCASE_STATES: readonly ShowcaseStateDefinition[] = [
+  { id: "fx-gallery", sceneKey: "FxGalleryScene", description: "Dev gallery of src/fx effects", settleMs: 1200, save: "fresh" },
   { id: "ui-kit", sceneKey: "UiKitScene", description: "Dev gallery of src/ui components", settleMs: 900, save: "fresh" },
   { id: "title", sceneKey: "TitleScene", description: "Title, fresh save", settleMs: 1400, save: "fresh" },
   {

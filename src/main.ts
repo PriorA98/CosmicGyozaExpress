@@ -16,7 +16,7 @@ if (import.meta.env.DEV) {
 
 // Dev-only scenes load through a DEV-gated dynamic import so production bundles never include them.
 const devScenes: Phaser.Types.Scenes.SceneType[] = import.meta.env.DEV
-  ? [(await import("./dev/UiKitScene")).UiKitScene]
+  ? [(await import("./dev/UiKitScene")).UiKitScene, (await import("./dev/FxGalleryScene")).FxGalleryScene]
   : [];
 const baseScenes = Array.isArray(gameConfig.scene) ? gameConfig.scene : [];
 const game = new Phaser.Game({ ...gameConfig, scene: [...baseScenes, ...devScenes] });
