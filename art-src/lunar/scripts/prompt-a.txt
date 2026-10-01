@@ -1,0 +1,24 @@
+You are generating production pixel art for the cozy game "Cosmic Gyoza Express" (Tea Moon landing site, side view).
+
+FIRST use view_image on these style references and match their rendering, outline weight and warmth:
+- D:/code/CosmicGyozaExpress/public/assets/ship/gyoza-idle.png (hero ship)
+- D:/code/CosmicGyozaExpress/public/assets/ship/gyoza-fly-02.png
+- D:/code/CosmicGyozaExpress/art-src/_probe/asteroid-probe.png (approved style: cozy sleepy asteroid, chunky pixels, soft top-left light, warm dark outlines)
+
+Art direction: cozy handcrafted pixel art, warm, soft, slightly silly, never cold sci-fi. Chunky readable pixels (it will be downscaled to small art resolution, so use big clear pixel clusters and simple shapes, no fine noise, no dithering noise). Soft light from top-left. Palette: ink #1D1F33, cosmos #1A1B2E, ink-soft #2F3149, cosmos-deep #0E0F1C, slate #3D3E4D, parchment #F4ECDC, parchment-deep #ECDFC5, terracotta #C97B5A, ember #E08A4B, amber #D4A055, sage #8DA17A, dusk-blue #9EB6C4, plum #9B8FB8, teal #6FA39A, brick #C26954.
+
+Use your image generation tool to create THREE separate images (one subject per image, no text, no UI, no signature):
+
+1) lunar-sky: a wide 16:9 landscape night sky seen from the surface of a cozy moon. Fully opaque, NO magenta. Deep cosmos navy (#1A1B2E / #0E0F1C) at the top easing smoothly in broad horizontal pixel bands down to a warm muted plum and soft dusk glow near the bottom edge (warm amber/terracotta tint just at the horizon). Soft sparse small stars (a few 1-2 pixel twinkles, a couple of tiny 4-point sparkles), mostly in the upper half. One big gentle distant planet low on the RIGHT side, partly cut by the bottom edge: cozy, striped in soft terracotta/amber/parchment bands with a thin tilted ring, soft top-left light. Keep the centre and left calm and empty for gameplay. No ground, no hills, no moon surface in this image: sky only, down to the bottom edge.
+
+2) lunar-hills-far: a very wide panoramic strip (about 4:1 or wider) of soft rolling distant lunar hill silhouettes, side view, on a SOLID FLAT MAGENTA #FF00FF background. Hills in dusk-blue and slate blues (#9EB6C4 muted toward #5A5C70 and #3D3E4D) with gentle lighter highlights on the top-left slopes, a few soft shallow crater dimples. The hills fill the bottom 70 percent of the image and reach the bottom edge solidly across the FULL width; the top of the image is magenta. The left and right edges should be at the same height so it can tile horizontally. Low contrast, calm, background layer. No outlines darker than slate.
+
+3) lunar-ground: a very wide panoramic strip (about 8:1 or wider) of pale cozy moon regolith ground seen from the side (a cross-section slab), on a SOLID FLAT MAGENTA #FF00FF background. The top edge is a nearly flat walkable surface line running perfectly horizontal across the full width (only tiny bumps of 1-2 pixels). Below it: solid ground in parchment-deep (#ECDFC5), pale dusk-blue grey and slate shades, getting slightly darker toward the bottom, with small shallow craters (seen from the side as little dips and ovals on the face), embedded pebbles and soft speckles. A thin lighter highlight row along the top surface. The ground fills from the surface line down to the bottom edge across the FULL width; magenta only above the surface line. Left and right edges must match for horizontal tiling.
+
+Use a solid flat magenta #FF00FF background where stated (true transparency also acceptable for 2 and 3), the strip spanning the full width, no drop shadows on the background.
+
+Copy each resulting PNG to exactly:
+- D:/code/CosmicGyozaExpress/art-src/lunar/raw/lunar-sky-v1.png
+- D:/code/CosmicGyozaExpress/art-src/lunar/raw/lunar-hills-far-v1.png
+- D:/code/CosmicGyozaExpress/art-src/lunar/raw/lunar-ground-v1.png
+(use PowerShell Copy-Item). Do NOT modify, create or delete any other files in the repository. Report the final file paths.

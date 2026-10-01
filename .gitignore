@@ -14,3 +14,8 @@ pnpm-debug.log*
 playwright-report/
 test-results/
 e2e/out/
+
+# raw Codex generations stay local (prompts + commands are recorded in art-src/*/PROVENANCE.md)
+art-src/**/raw/
+art-src/**/*.preview.png
+art-src/**/previews/

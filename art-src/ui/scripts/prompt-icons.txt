@@ -1,0 +1,27 @@
+You are producing tiny pixel-art UI icons for the cozy game "Cosmic Gyoza Express". FIRST, use view_image on these style references: D:/code/CosmicGyozaExpress/public/assets/ship/gyoza-idle.png, D:/code/CosmicGyozaExpress/public/assets/ship/gyoza-fly-02.png, D:/code/CosmicGyozaExpress/art-src/_probe/asteroid-probe.png, D:/code/CosmicGyozaExpress/assets/reference/screenshots/delivery-v2.png. Style: cozy handcrafted chunky pixel art, warm, soft, slightly silly, never cold sci-fi; soft light from top-left.
+
+Because these are tiny (16x16 per icon) do NOT use image generation. Author the pixels exactly and programmatically with Windows PowerShell + System.Drawing (Add-Type -AssemblyName System.Drawing; New-Object System.Drawing.Bitmap 256,16 with Format32bppArgb; SetPixel per pixel; Save as PNG). There is NO node/python on PATH. Define each icon as a 16-row character map (16 chars per row) where each character maps to a palette colour and '.' is fully transparent. Write the script to D:/code/CosmicGyozaExpress/art-src/ui/raw/make-icons.ps1 and run it so it saves D:/code/CosmicGyozaExpress/art-src/ui/raw/icons-v1.png (256x16 strip, 16 frames of 16x16, fully transparent background, alpha only 0 or 255, no anti-aliasing). Also save an 8x nearest-neighbour upscale preview as D:/code/CosmicGyozaExpress/art-src/ui/raw/icons-v1-x8.png drawn over a half dark (#1A1B2E) / half parchment (#F4ECDC) background, and view_image that preview to self-check and fix any glyph that does not read clearly, then re-save.
+
+Palette (use only these plus at most a couple of in-between shades): ink #1D1F33 (outline), parchment #F4ECDC, parchment-warm #F9F3E5, plaster #FBF7EC, parchment-deep #ECDFC5, terracotta #C97B5A, terracotta-deep #A6614A, ember #E08A4B, amber #D4A055, light amber highlight #EBC27A, sage #8DA17A, sage-deep #6B7E5A, dusk-blue #9EB6C4, plum #9B8FB8, teal #6FA39A, brick #C26954, slate #3D3E4D.
+
+Rules for every glyph: about 12x12 px centred in its 16x16 cell (2px transparent margin on each side, keep the glyph inside x=2..13, y=2..13), a continuous 1px ink #1D1F33 outline around the whole silhouette (so it reads on dark AND on parchment backgrounds), warm fills (parchment/amber/ember/sage/terracotta), one 1-2px lighter highlight on the top-left of the fill and a slightly darker shade on the bottom-right. Chunky, simple, bold, readable at 2x. Avoid single stray pixels and 1px gaps that close up. No text/letters.
+
+Frames, in this EXACT left-to-right order:
+0 thrust: a rocket flame / teardrop flame pointing UP, ember outer, amber middle, plaster-yellow core.
+1 package: a furoshiki-wrapped bundle: rounded square terracotta cloth parcel with a bunny-ear knot (two little cloth ears) on top, a few cream dots.
+2 radar: round radar dish screen: circle filled sage-deep/teal with two concentric lighter rings and a plaster sweep line from centre to the upper-right, a tiny amber blip.
+3 speed: a speedometer / gauge: semicircle dial (parchment face) with amber/ember arc ticks and an ink needle pointing upper-right.
+4 drift: three soft horizontal wavy wind lines (dusk-blue fill with ink outline) curling at the ends like a cozy breeze swirl.
+5 incident: a cute puff/star burst ("bonk" cloud): a rounded spiky burst, brick/ember outside, amber centre, playful not scary.
+6 memory: a chunky five-point star, amber fill with light amber highlight, slightly rounded tips.
+7 moon: a crescent moon facing right (opening to the right), parchment/plaster fill with a parchment-deep shade, one tiny crater.
+8 tea: a little teacup with a handle on the right, teal glaze body, parchment rim, tiny steam curl above (plaster, still outlined or 2px thick so it reads).
+9 pause: two chunky rounded vertical bars (parchment fill, ink outline).
+10 settings: a gear/cog with 8 chunky teeth and a hollow centre hole (amber fill, transparent or ink centre).
+11 home: a cozy little house: terracotta roof (triangle with slight eaves), parchment walls, amber door.
+12 sound-on: a speaker (parchment body) on the left with two curved sound-wave arcs on the right (amber).
+13 sound-off: the same speaker with a small brick/ember X on the right instead of the arcs.
+14 keyboard: a small keyboard: wide rounded rectangle (parchment-deep/plaster) with a 3-row grid of tiny key dots and a longer space bar.
+15 touch: a pointing hand / finger tapping: plaster/parchment hand with index finger up, ink outline, a small amber tap ring near the fingertip.
+
+Do not modify any other files in the repository; only write inside D:/code/CosmicGyozaExpress/art-src/ui/raw/. When finished, report the file paths.

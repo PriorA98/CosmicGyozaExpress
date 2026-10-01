@@ -1,0 +1,22 @@
+You are generating production pixel art for the cozy game "Cosmic Gyoza Express" (Tea Moon landing site, side view props).
+
+FIRST use view_image on these style references and match their rendering, outline weight and warmth:
+- D:/code/CosmicGyozaExpress/public/assets/ship/gyoza-idle.png (hero ship)
+- D:/code/CosmicGyozaExpress/public/assets/ship/gyoza-fly-02.png
+- D:/code/CosmicGyozaExpress/art-src/_probe/asteroid-probe.png (approved style: chunky pixels, soft top-left light, warm dark outlines)
+
+Art direction: cozy handcrafted pixel art, warm, soft, slightly silly, never cold sci-fi. Chunky readable pixel clusters (the art will be downscaled to small sizes, so use simple bold shapes and few details). Soft light from top-left. Selective dark outlines in ink #1D1F33 or a darker shade of the local colour. Palette: ink #1D1F33, slate #3D3E4D, parchment #F4ECDC, parchment-deep #ECDFC5, terracotta #C97B5A, terracotta-deep #A6614A, ember #E08A4B, amber #D4A055, sage #8DA17A, sage-deep #6B7E5A, dusk-blue #9EB6C4, plum #9B8FB8, brick #C26954, warm wood browns.
+
+Use your image generation tool to create THREE separate images, each on a SOLID FLAT MAGENTA #FF00FF background, one subject per image, centred, generous margin, no text, no drop shadow or ground shadow on the background:
+
+1) lunar-pad: a cozy landing pad seen exactly from the side, very wide and flat (about 7:1 width to height). A woven tea-mat / landing blanket with bold vertical stripes of terracotta and sage (and a little parchment) repeating along its length, its top surface perfectly flat and horizontal, little tassels hanging from both short ends, resting on a low wooden platform (warm brown planks, two or three short stubby legs). Two tiny wooden corner posts with a small round knob stick up slightly above the mat at the far left and far right ends. Nothing else.
+
+2) lunar-teahouse: a tiny round moon tea house, side view, roughly square composition (slightly wider than tall). A plump rounded dome building in parchment plaster with a terracotta tiled roof cap, two round warm-lit paper windows glowing amber and ember, a small arched wooden door at the bottom centre, and a little chimney on the roof shaped like a kettle spout with a small curl of steam. The base sits flat on an imaginary ground line (flat bottom edge, small stone foundation). Cute and inviting.
+
+3) lunar-lantern: TWO paper lanterns on short wooden posts, side by side in one row, evenly spaced, identical shape and size. LEFT one unlit and dim (muted parchment paper, dull terracotta caps, no glow). RIGHT one lit with a warm ember and amber glow inside (bright warm paper, only a few warm halo pixels hugging the paper). Each is a tall narrow composition (about 3:7): a round paper lantern hanging from a small hook at the top of a short wooden post with a little flat base foot. Flat bottoms aligned on the same line.
+
+Copy each resulting PNG to exactly:
+- D:/code/CosmicGyozaExpress/art-src/lunar/raw/lunar-pad-v1.png
+- D:/code/CosmicGyozaExpress/art-src/lunar/raw/lunar-teahouse-v1.png
+- D:/code/CosmicGyozaExpress/art-src/lunar/raw/lunar-lantern-v1.png
+(use PowerShell Copy-Item). Do NOT modify, create or delete any other files in the repository. Report the final file paths.

@@ -1,0 +1,12 @@
+You are generating production pixel art for the cozy game "Cosmic Gyoza Express" (Tea Moon landing site, side view props).
+
+FIRST use view_image on these style references and match their rendering, outline weight and warmth:
+- D:/code/CosmicGyozaExpress/public/assets/ship/gyoza-idle.png (hero ship)
+- D:/code/CosmicGyozaExpress/art-src/_probe/asteroid-probe.png (approved style: cozy moon rock, chunky pixels, soft top-left light, warm dark outlines, warm greys with a plum/mauve tint)
+
+Art direction: cozy handcrafted pixel art, warm, soft, never cold sci-fi. Chunky readable pixel clusters, simple bold shapes (each cluster will be downscaled to 32x16 pixels). Soft light from top-left. Selective dark outlines in ink #1D1F33 or a darker shade of the local colour. Palette: slate #3D3E4D, ink-soft #2F3149, dusk-blue #9EB6C4, parchment-deep #ECDFC5, plum #9B8FB8, a tiny touch of sage #8DA17A moss.
+
+Use your image generation tool to create ONE image on a SOLID FLAT MAGENTA #FF00FF background, no text, no drop shadow on the background:
+lunar-rocks: THREE different small foreground moon rock clusters seen from the side, in ONE horizontal row, evenly spaced in three equal columns with clear magenta gaps between them. Each cluster is wide and low (about 2:1 width to height), all bottoms flat and aligned on the same baseline. Cluster 1: one rounded boulder with a smaller pebble beside it. Cluster 2: three stacked, leaning stones with a tiny crater dimple. Cluster 3: a flat low slab with two pebbles and a tiny tuft of sage moss. Pale warm-grey and dusk-blue stone with slate shadows, small pale highlights at the top-left.
+
+Copy the resulting PNG to exactly D:/code/CosmicGyozaExpress/art-src/lunar/raw/lunar-rocks-v1.png (use PowerShell Copy-Item). Do NOT modify, create or delete any other files in the repository. Report the final file path.

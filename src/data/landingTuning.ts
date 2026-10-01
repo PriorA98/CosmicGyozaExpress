@@ -1,3 +1,8 @@
+/**
+ * Tea Moon landing rules and feel. Units: px, px/s, px/s², rad/s, degrees for angle thresholds, ms for durations.
+ * The e2e pilot (e2e/playtest.mjs) assumes `shipRadius` 52 and a soft target near 38 px/s, so keep the
+ * classification thresholds generous and the radius stable when tuning feel.
+ */
 export const landingTuning = {
   maxDeltaSeconds: 1 / 30,
   gravityAcceleration: 138,
@@ -7,6 +12,10 @@ export const landingTuning = {
   linearDamping: 0.018,
   stabilizerAngularDamping: 5.8,
   stabilizerUprightStrength: 3.2,
+  /** Below this altitude (px above the surface) the Tea Moon pad gently nudges the ship upright, no input needed. */
+  uprightAssistAltitude: 150,
+  /** Strength of that hands-free upright nudge; deliberately much weaker than the S stabilizer. */
+  uprightAssistStrength: 1.1,
   shipRadius: 52,
   padWidth: 320,
   surfaceY: 612,
@@ -19,6 +28,14 @@ export const landingTuning = {
   bumpyVerticalSpeed: 145,
   bumpyHorizontalSpeed: 122,
   bumpyAngleDegrees: 36,
-  settleDurationMs: 880,
+  /** Incident shape: a rough touchdown counts as a skid when sideways speed is at least this share of the drop speed. */
+  skidHorizontalToVerticalRatio: 0.58,
+  /** Top of the descent gauge (px/s); faster descents pin the needle at the bottom of the brick band. */
+  descentGaugeMaxSpeed: 200,
+  /** Time on the pad before the result card: long enough for the lanterns and the rabbit's wave to read. */
+  settleDurationMs: 1650,
+  /** Comedic incident beat before the landing-only retry begins. */
   incidentRestartMs: 1220,
 } as const;
+
+export type LandingTuning = { readonly [K in keyof typeof landingTuning]: number };

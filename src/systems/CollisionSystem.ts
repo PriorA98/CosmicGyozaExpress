@@ -75,7 +75,7 @@ export function resolveCircleCollision(
     velocityX = state.velocityX - (1 + restitution) * dot * contact.normalX;
     velocityY = state.velocityY - (1 + restitution) * dot * contact.normalY;
   } else {
-    const nudgeSpeed = severity === "soft-bump" ? 24 : 54;
+    const nudgeSpeed = severity === "soft-bump" ? tuning.softNudgeSpeed : tuning.dramaticNudgeSpeed;
     velocityX += contact.normalX * nudgeSpeed;
     velocityY += contact.normalY * nudgeSpeed;
   }
