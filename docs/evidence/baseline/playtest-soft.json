@@ -1,0 +1,469 @@
+{
+  "label": "baseline-playtest",
+  "landingProfile": "soft",
+  "incidentFirst": true,
+  "startedAt": "2026-10-01T05:14:46.458Z",
+  "checks": [
+    {
+      "name": "title -> flight via Enter",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "flight reached arrival gate and entered LandingScene",
+      "pass": true,
+      "detail": {
+        "reachedLanding": true,
+        "seconds": 14.095,
+        "finalPhase": "dock"
+      }
+    },
+    {
+      "name": "landing incident triggers quick landing-only retry (no route replay)",
+      "pass": true,
+      "detail": {
+        "ok": true,
+        "retrySeconds": 1.594,
+        "incidents": 1
+      }
+    },
+    {
+      "name": "landing completes as soft",
+      "pass": true,
+      "detail": {
+        "ok": true,
+        "seconds": 6.677
+      }
+    },
+    {
+      "name": "save records tea-moon completion",
+      "pass": true,
+      "detail": {
+        "completedMissions": [
+          "tea-moon"
+        ],
+        "totalDeliveries": 1
+      }
+    },
+    {
+      "name": "completion persists across reload",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "title reflects saved completion (title dev state not registered)",
+      "pass": false,
+      "detail": "TitleScene should registerDevState('title', ...)"
+    },
+    {
+      "name": "zero runtime errors during playtest",
+      "pass": true,
+      "detail": {
+        "runtimeErrorCount": 0,
+        "failedAssetCount": 35,
+        "fontFailureCount": 0
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "01-title",
+      "file": "01-title.png",
+      "at": "2026-10-01T05:14:48.593Z"
+    },
+    {
+      "name": "02-flight-start",
+      "file": "02-flight-start.png",
+      "at": "2026-10-01T05:14:49.156Z"
+    },
+    {
+      "name": "03-flight-approach",
+      "file": "03-flight-approach.png",
+      "at": "2026-10-01T05:15:00.293Z"
+    },
+    {
+      "name": "04-landing-start",
+      "file": "04-landing-start.png",
+      "at": "2026-10-01T05:15:05.176Z"
+    },
+    {
+      "name": "05-landing-incident",
+      "file": "05-landing-incident.png",
+      "at": "2026-10-01T05:15:07.356Z"
+    },
+    {
+      "name": "06-landing-settling",
+      "file": "06-landing-settling.png",
+      "at": "2026-10-01T05:15:14.099Z"
+    },
+    {
+      "name": "07-result",
+      "file": "07-result.png",
+      "at": "2026-10-01T05:15:16.602Z"
+    },
+    {
+      "name": "08-title-after-reload",
+      "file": "08-title-after-reload.png",
+      "at": "2026-10-01T05:15:18.273Z"
+    }
+  ],
+  "perf": {
+    "flight": {
+      "frames": 90,
+      "durationMs": 1499.8999999999996,
+      "avgFps": 60.00400026668446,
+      "p95FrameMs": 16.700000000000273,
+      "maxFrameMs": 16.800000000000182
+    },
+    "landing": {
+      "frames": 91,
+      "durationMs": 1516.5,
+      "avgFps": 60.00659413122321,
+      "p95FrameMs": 16.700000000000728,
+      "maxFrameMs": 16.799999999999272
+    }
+  },
+  "titleStateAfterReload": null,
+  "probe": {
+    "activeShowcase": null,
+    "activeScenes": [
+      "TitleScene"
+    ],
+    "assetFailures": [
+      "celestial-tea-moon",
+      "planet-far-plum",
+      "space-stars-far",
+      "space-stars-near",
+      "space-nebula",
+      "asteroid-sleepy",
+      "asteroid-rice",
+      "asteroid-tea",
+      "asteroid-mochi",
+      "asteroid-crumb",
+      "asteroid-debris",
+      "lunar-sky",
+      "lunar-hills-far",
+      "lunar-ground",
+      "lunar-pad",
+      "lunar-lantern",
+      "lunar-teahouse",
+      "lunar-rocks",
+      "rabbit-portrait",
+      "rabbit-sprite",
+      "item-tea",
+      "item-mochi",
+      "item-package",
+      "item-steam",
+      "memory-postcard",
+      "fx-thrust",
+      "fx-dust",
+      "fx-sparkle",
+      "fx-steam",
+      "fx-star",
+      "ui-icons",
+      "ui-panel-parchment",
+      "ui-panel-dark",
+      "ui-button",
+      "ui-keycap"
+    ],
+    "fontFailures": [],
+    "actualFps": 59.75,
+    "eventCount": 0,
+    "recentEvents": []
+  },
+  "log": {
+    "consoleErrors": [
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image celestial-tea-moon"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image planet-far-plum"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image space-stars-near"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image space-stars-far"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image space-nebula"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image asteroid-sleepy"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image asteroid-rice"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image asteroid-tea"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image asteroid-crumb"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image asteroid-mochi"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image lunar-sky"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet asteroid-debris"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image lunar-hills-far"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image lunar-ground"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image lunar-pad"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet lunar-lantern"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image lunar-teahouse"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet lunar-rocks"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet rabbit-portrait"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet rabbit-sprite"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image item-tea"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image item-mochi"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet fx-thrust"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet fx-dust"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet fx-sparkle"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image item-package"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet item-steam"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image memory-postcard"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet fx-steam"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet fx-star"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet ui-icons"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image ui-panel-dark"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image ui-panel-parchment"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet ui-button"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet ui-keycap"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image celestial-tea-moon"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image space-stars-far"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image planet-far-plum"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image space-nebula"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image asteroid-sleepy"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image space-stars-near"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image asteroid-tea"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image asteroid-mochi"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image asteroid-rice"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet asteroid-debris"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image asteroid-crumb"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image lunar-sky"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image lunar-hills-far"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image lunar-ground"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image lunar-pad"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet lunar-lantern"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image lunar-teahouse"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet lunar-rocks"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet rabbit-portrait"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet rabbit-sprite"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image item-tea"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image item-mochi"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image item-package"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet item-steam"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image memory-postcard"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet fx-thrust"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet fx-dust"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet fx-sparkle"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet fx-steam"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet fx-star"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet ui-icons"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image ui-panel-parchment"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" image ui-panel-dark"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet ui-keycap"
+      },
+      {
+        "type": "error",
+        "text": "Failed to process file: %s \"%s\" spritesheet ui-button"
+      }
+    ],
+    "consoleWarnings": [],
+    "pageErrors": [],
+    "failedRequests": [],
+    "badResponses": []
+  },
+  "errors": {
+    "runtimeErrorCount": 0,
+    "failedAssetCount": 35,
+    "fontFailureCount": 0
+  },
+  "finishedAt": "2026-10-01T05:15:18.278Z",
+  "passed": false
+}

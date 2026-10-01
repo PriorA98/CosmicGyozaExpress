@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { landingTuning } from "../src/data/tuning";
+import { landingTuning } from "../src/data/landingTuning";
 import {
   classifyLandingIncident,
   classifyLandingTouchdown,

@@ -1,0 +1,36 @@
+{
+  "project": "Cosmic Gyoza Express — Tea Moon vertical slice polish",
+  "updatedAt": "2026-10-01T14:20:00+09:00",
+  "passBar": {
+    "score": 8.5,
+    "runtimeErrors": 0,
+    "scale": "10 exceptional shipped | 8.5 cohesive & polished with nits | 7 promising but unfinished | 5 programmer art",
+    "maxRounds": 4
+  },
+  "baseline": {
+    "capturedAt": "2026-10-01T14:05:00+09:00",
+    "evidence": "docs/evidence/baseline/",
+    "captures": 60,
+    "runtimeErrors": 0,
+    "minAvgFps": 59.3,
+    "playtest": {
+      "soft": "flight 14.1s, incident->retry 1.6s, soft landing, save + reload persistence PASS; title does not reflect completion FAIL",
+      "bumpy": "bumpy landing PASS; title does not reflect completion FAIL"
+    },
+    "integratorAssessment": "programmer-art tier (~5): fallback serif fonts, debug vectors on by default, flat circles for asteroids, touch pads always visible on desktop, flat rectangles for lunar surface and pad, painted 1280px planets mismatched with pixel ship, no audio."
+  },
+  "phase": "phase-0-complete",
+  "modules": {
+    "flight-environment": { "status": "pending", "rounds": [], "openIssues": [] },
+    "landing": { "status": "pending", "rounds": [], "openIssues": [] },
+    "ui": { "status": "pending", "rounds": [], "openIssues": ["title does not reflect saved Tea Moon completion"] },
+    "audio-fx": { "status": "pending", "rounds": [], "openIssues": ["no audio exists"] },
+    "save-results": { "status": "pending", "rounds": [], "openIssues": ["SaveSystem.load trusts parsed JSON shape; writes are not wrapped in try/catch"] },
+    "assets": { "status": "pending", "rounds": [], "openIssues": ["35 manifest textures not yet produced (fallbacks in use)"] }
+  },
+  "capabilities": {
+    "screenshots": "Playwright headless Chromium with ANGLE/D3D11 GPU; 60 fps measurable",
+    "codexImageGeneration": "Codex CLI 0.159.3 reports image_gen__imagegen + view_image; no node/python on Codex PATH, so normalization runs Claude-side via tools/art/pixelize.py (Pillow)",
+    "audioJudgement": "critics cannot listen; audio verified through event log, Web Audio graph inspection, and offline-render loudness stats only"
+  }
+}

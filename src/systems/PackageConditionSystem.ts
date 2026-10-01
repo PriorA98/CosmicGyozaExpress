@@ -1,4 +1,4 @@
-import { packageConditionTuning } from "../data/tuning";
+import { packageConditionTuning } from "../data/packageConditionTuning";
 import type { PackageConditionEvent, PackageConditionLabel } from "../types/flight";
 import { clamp } from "../utils/math";
 

@@ -1,7 +1,8 @@
 import Phaser from "phaser";
 import { TEA_MOON_MISSION_ID } from "../data/missions";
-import { landingTuning } from "../data/tuning";
+import { landingTuning } from "../data/landingTuning";
 import { installDevSceneHotkeys } from "../dev/DevSceneLauncher";
+import { registerDevState } from "../dev/devProbe";
 import { GyozaShip } from "../entities/GyozaShip";
 import { colors } from "../game/designTokens";
 import {
@@ -23,6 +24,7 @@ import type {
   LandingPhase,
   LandingResultKind,
   LandingSceneData,
+  LandingSceneInit,
 } from "../types/landing";
 import type { ShipKinematicState } from "../types/flight";
 import { absoluteAngleDifferenceRadians, clamp, radiansToDegrees } from "../utils/math";
@@ -74,12 +76,14 @@ export class LandingScene extends Phaser.Scene {
   private packageCondition = 100;
   private landingIncidents = 0;
   private delivered = false;
+  private startOverride: LandingKinematicState | undefined;
 
   constructor() {
     super("LandingScene");
   }
 
-  init(data: Partial<LandingSceneData>): void {
+  init(data: Partial<LandingSceneInit>): void {
+    this.startOverride = data.start;
     this.sceneData = {
       missionId: data.missionId ?? TEA_MOON_MISSION_ID,
       packageCondition: data.packageCondition ?? 100,
@@ -93,7 +97,7 @@ export class LandingScene extends Phaser.Scene {
 
     this.packageCondition = this.sceneData.packageCondition;
     this.pad = createTeaMoonLandingPad();
-    this.landingState = createLandingState();
+    this.landingState = this.startOverride ?? createLandingState();
     this.phase = { kind: "descending" };
     this.delivered = false;
     this.landingIncidents = 0;
@@ -118,6 +122,13 @@ export class LandingScene extends Phaser.Scene {
     this.createDashboard();
     this.createTouchControls(width, height);
     this.input.addPointer(5);
+    registerDevState("landing", () => ({
+      state: this.landingState,
+      phase: this.phase,
+      pad: this.pad,
+      packageCondition: this.packageCondition,
+      landingIncidents: this.landingIncidents,
+    }));
   }
 
   override update(time: number, delta: number): void {

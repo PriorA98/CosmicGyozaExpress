@@ -95,3 +95,11 @@ export type PackageConditionLabel =
   | "Still delicious"
   | "Dramatically rearranged"
   | "Basically fine";
+
+/** Init data for FlightScene. Optional overrides exist for retries and reproducible dev showcase states. */
+export type FlightSceneData = {
+  readonly missionId?: string;
+  readonly start?: ShipKinematicState;
+  readonly packageCondition?: number;
+  readonly routeCrashes?: number;
+};

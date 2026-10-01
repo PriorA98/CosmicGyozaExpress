@@ -73,3 +73,8 @@ export type DeliveryResultContent = {
   readonly totalCrashes: number;
   readonly durationMs: number;
 };
+
+/** Init data accepted by LandingScene: the handoff plus an optional start override for dev showcase states. */
+export type LandingSceneInit = LandingSceneData & {
+  readonly start?: LandingKinematicState;
+};

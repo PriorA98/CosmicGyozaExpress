@@ -3,6 +3,7 @@ import { TEA_MOON_MISSION_ID } from "../data/missions";
 import { collisionTuning, dockingTuning, respawnTuning, shipTuning, cameraTuning } from "../data/tuning";
 import { flightPrototypeRoute } from "../data/flightPrototypeRoute";
 import { installDevSceneHotkeys } from "../dev/DevSceneLauncher";
+import { registerDevState } from "../dev/devProbe";
 import { GyozaShip } from "../entities/GyozaShip";
 import { colors } from "../game/designTokens";
 import {
@@ -23,7 +24,7 @@ import {
   directionVector,
   integrateShipMovement,
 } from "../systems/ShipMovementSystem";
-import type { CollisionSeverity, DockingState, ShipControls, ShipKinematicState } from "../types/flight";
+import type { CollisionSeverity, DockingState, FlightSceneData, ShipControls, ShipKinematicState } from "../types/flight";
 import { clamp, radiansToCompassDegrees, vectorLength } from "../utils/math";
 
 type FlightKeys = {
@@ -98,9 +99,14 @@ export class FlightScene extends Phaser.Scene {
   private hasStartedLanding = false;
   private routeStartedAtMs = 0;
   private routeCrashes = 0;
+  private sceneData: FlightSceneData = {};
 
   constructor() {
     super("FlightScene");
+  }
+
+  init(data: FlightSceneData | undefined): void {
+    this.sceneData = data ?? {};
   }
 
   create(): void {
@@ -111,10 +117,11 @@ export class FlightScene extends Phaser.Scene {
     this.createDestinationGraphics();
     this.createObstacles();
 
-    this.ship = new GyozaShip(this, route.start);
+    const initialStart = this.sceneData.start ?? route.start;
+    this.ship = new GyozaShip(this, initialStart);
 
     this.cameras.main.setBounds(0, 0, route.world.width, route.world.height);
-    this.cameras.main.centerOn(route.start.x, route.start.y);
+    this.cameras.main.centerOn(initialStart.x, initialStart.y);
     this.cameras.main.startFollow(this.ship, true, cameraTuning.followLerpX, cameraTuning.followLerpY);
 
     this.keys = this.input.keyboard?.addKeys({
@@ -137,7 +144,16 @@ export class FlightScene extends Phaser.Scene {
     this.createTouchControls(width, height);
     this.debugGraphics = this.add.graphics().setDepth(25);
 
-    this.restartFlight(this.time.now);
+    this.restartFlight(this.time.now, initialStart);
+    this.packageCondition = this.sceneData.packageCondition ?? 100;
+    this.routeCrashes = this.sceneData.routeCrashes ?? 0;
+    registerDevState("flight", () => ({
+      ship: this.ship.kinematics,
+      mode: this.flightMode.kind,
+      packageCondition: this.packageCondition,
+      routeCrashes: this.routeCrashes,
+      docking: evaluateDocking(this.ship.kinematics, route.destination).kind,
+    }));
   }
 
   override update(time: number, delta: number): void {
@@ -610,7 +626,7 @@ export class FlightScene extends Phaser.Scene {
     }
   }
 
-  private restartFlight(time: number): void {
+  private restartFlight(time: number, start: ShipKinematicState = route.start): void {
     this.flightMode = { kind: "flying" };
     this.packageCondition = 100;
     this.routeCrashes = 0;
@@ -624,8 +640,8 @@ export class FlightScene extends Phaser.Scene {
     this.clearTouchControls();
 
     if (this.ship) {
-      this.ship.setKinematicState(route.start, false);
-      this.cameras.main.centerOn(route.start.x, route.start.y);
+      this.ship.setKinematicState(start, false);
+      this.cameras.main.centerOn(start.x, start.y);
     }
   }
 

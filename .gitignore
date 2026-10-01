@@ -13,3 +13,4 @@ yarn-error.log*
 pnpm-debug.log*
 playwright-report/
 test-results/
+e2e/out/

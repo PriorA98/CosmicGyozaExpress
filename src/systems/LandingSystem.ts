@@ -1,4 +1,4 @@
-import { landingTuning } from "../data/tuning";
+import { landingTuning } from "../data/landingTuning";
 import type {
   LandingIncidentKind,
   LandingIncidentTouchdownResult,
