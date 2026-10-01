@@ -1,12 +1,34 @@
 .app-shell {
-  min-height: 100vh;
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
   display: grid;
   place-items: center;
+  overflow: hidden;
 }
 
 .game-root {
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   touch-action: none;
+}
+
+.game-root:focus {
+  outline: none;
+}
+
+/*
+ * Letterboxed canvas sits in a thin warm frame: an ink keyline, a faint parchment rim, and a deep
+ * drop so the game reads as a lit window in the cosmos. When the canvas fills the viewport the
+ * frame falls outside it and nothing is lost.
+ */
+.game-root canvas {
+  box-shadow:
+    0 0 0 2px var(--color-ink),
+    0 0 0 4px rgb(236 223 197 / 22%),
+    0 0 0 6px var(--color-ink),
+    0 18px 60px rgb(0 0 0 / 55%),
+    0 0 120px rgb(224 138 75 / 10%);
 }

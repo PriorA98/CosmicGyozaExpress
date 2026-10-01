@@ -2,10 +2,11 @@ import Phaser from "phaser";
 import { LANDING_ART_SCALE, landingScenery } from "../../data/landingScenery";
 import { colorNumber, colors, depth, motion } from "../../game/designTokens";
 import type { LandingPadDefinition } from "../../types/landing";
+import { createSoftGlow } from "./softGlow";
 
 type Lantern = {
   readonly sprite: Phaser.GameObjects.Sprite;
-  readonly glow: Phaser.GameObjects.Arc;
+  readonly glow: Phaser.GameObjects.Graphics;
 };
 
 /**
@@ -41,10 +42,9 @@ export class LandingPadSite {
     for (const side of [-1, 1] as const) {
       const x = pad.centerX + side * (halfPadArt + lanternConfig.outsetFromPadEnd);
       const baseY = pad.surfaceY + lanternConfig.baseSinkPx;
-      const glow = scene.add
-        .circle(x, baseY - lanternConfig.lampHeightPx, lanternConfig.glowRadius, colorNumber(colors.ember), 1)
+      const glow = createSoftGlow(scene, lanternConfig.glowRadius, colors.ember, lanternConfig.glowRings)
+        .setPosition(x, baseY - lanternConfig.lampHeightPx)
         .setAlpha(lanternConfig.glowDimAlpha)
-        .setBlendMode(Phaser.BlendModes.ADD)
         .setDepth(depth.world + 3);
       const sprite = scene.add
         .sprite(x, baseY, lanternConfig.key, lanternConfig.dimFrame)
@@ -183,3 +183,4 @@ export class LandingPadSite {
     this.brackets.strokePath();
   }
 }
+

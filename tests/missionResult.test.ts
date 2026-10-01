@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TEA_MOON_MISSION_ID, teaMoonMission } from "../src/data/missions";
-import { resultCopy, resultCopyBannedWords } from "../src/data/resultCopy";
+import { resultCopy, resultCopyBannedWords, resultRevealTiming } from "../src/data/resultCopy";
 import {
   createDeliveryResultContent,
   createDeliveryResultPresentation,
@@ -205,6 +205,18 @@ describe("result copy tone", () => {
   it("has a reaction line for every landing result", () => {
     for (const lines of Object.values(resultCopy.reactionLines)) {
       expect(lines.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("result reveal timing", () => {
+  it("finishes the staged reveal within 1.6s and starts every step before it completes", () => {
+    const { complete, card, portrait, headline, reaction, items, report, landingStamp, conditionStamp, stats, postcard, footer } =
+      resultRevealTiming;
+    expect(complete).toBeLessThanOrEqual(1600);
+    for (const at of [card, portrait, headline, reaction, items, report, landingStamp, conditionStamp, stats, postcard, footer]) {
+      expect(at).toBeGreaterThanOrEqual(0);
+      expect(at).toBeLessThan(complete);
     }
   });
 });

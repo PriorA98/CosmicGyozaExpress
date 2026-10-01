@@ -1,6 +1,6 @@
 {
   "project": "Cosmic Gyoza Express — Tea Moon vertical slice polish",
-  "updatedAt": "2026-10-01T14:20:00+09:00",
+  "updatedAt": "2026-10-01T17:30:00+09:00",
   "passBar": {
     "score": 8.5,
     "runtimeErrors": 0,
@@ -19,18 +19,103 @@
     },
     "integratorAssessment": "programmer-art tier (~5): fallback serif fonts, debug vectors on by default, flat circles for asteroids, touch pads always visible on desktop, flat rectangles for lunar surface and pad, painted 1280px planets mismatched with pixel ship, no audio."
   },
-  "phase": "phase-0-complete",
+  "phase": "wave-1-integrated-awaiting-critics",
   "modules": {
-    "flight-environment": { "status": "pending", "rounds": [], "openIssues": [] },
-    "landing": { "status": "pending", "rounds": [], "openIssues": [] },
-    "ui": { "status": "pending", "rounds": [], "openIssues": ["title does not reflect saved Tea Moon completion"] },
-    "audio-fx": { "status": "pending", "rounds": [], "openIssues": ["no audio exists"] },
-    "save-results": { "status": "pending", "rounds": [], "openIssues": ["SaveSystem.load trusts parsed JSON shape; writes are not wrapped in try/catch"] },
-    "assets": { "status": "pending", "rounds": [], "openIssues": ["35 manifest textures not yet produced (fallbacks in use)"] }
+    "flight-environment": {
+      "status": "built",
+      "rounds": [],
+      "builderSelfScore": 7.5,
+      "openIssues": [
+        "delivery ring overlaps the Tea Moon art by about 60-75px; the chevron plate sits on the moon's left limb",
+        "beacon ghost-ship silhouette is a flat pale fill (an outline style would read better)",
+        "soft-bump white flash has never been seen in a capture",
+        "HUD is still a scene-local panel; it moves to the src/ui kit in wave 2"
+      ]
+    },
+    "landing": {
+      "status": "built",
+      "rounds": [],
+      "builderSelfScore": 7.5,
+      "openIssues": [
+        "NozzleFlame is partly covered by the flame pixels in the ship fly frames; the soft glow shows faint rings",
+        "on phoneLandscape the scaled dashboard covers about a third of the canvas; HUD scale is measured only at create",
+        "guide-light band edges are faintly visible",
+        "touch-pad layout can now be captured via the phoneLandscapeTouch viewport (pads render); not yet critiqued"
+      ]
+    },
+    "ui": {
+      "status": "built",
+      "rounds": [],
+      "builderSelfScore": 8,
+      "openIssues": [
+        "title thrust puffs read as a grey-brown arrowhead (fx THRUST_TUNING.color ramp stacks on a stationary emitter); deferred to audio-fx in wave 2",
+        "phoneLandscape logical text 13-15px displays at about 7-8 physical px",
+        "title ship at integer scale 1 is small for a hero object; its ragged alpha edges show under rotation"
+      ]
+    },
+    "audio-fx": {
+      "status": "built",
+      "rounds": [],
+      "builderSelfScore": 7.5,
+      "openIssues": [
+        "audio verified numerically only (peaks <= -3.6 dBFS); no human listening pass",
+        "dust late frames read as grey smoke on dark space",
+        "transitions.ts not captured mid-transition",
+        "M mute is not persisted"
+      ]
+    },
+    "save-results": {
+      "status": "built",
+      "rounds": [],
+      "builderSelfScore": 7.5,
+      "openIssues": [
+        "stamp wrap path still not exercised: result-incident stamps fit on one row",
+        "phonePortrait: canvas is about 0.3x, so text is unreadable (the CSS 'turn sideways' note is the current mitigation)",
+        "about 60px of empty parchment above the footer in the right column"
+      ]
+    },
+    "assets": {
+      "status": "built",
+      "rounds": [],
+      "openIssues": [
+        "0 fallbacks in use; all 47 manifest entries match their PNG sizes",
+        "celestial bodies and ui icons are programmatic (Codex hit its usage limit); regenerating them is optional",
+        "legacy planet00/planet04 (614 KB) are preloaded but not rendered; candidate for removal",
+        "weak: asteroid-mochi dither, gyoza-incident-05 smoke, ship dome ring, lunar-ground blotches"
+      ]
+    }
   },
   "capabilities": {
     "screenshots": "Playwright headless Chromium with ANGLE/D3D11 GPU; 60 fps measurable",
     "codexImageGeneration": "Codex CLI 0.159.3 reports image_gen__imagegen + view_image; no node/python on Codex PATH, so normalization runs Claude-side via tools/art/pixelize.py (Pillow)",
     "audioJudgement": "critics cannot listen; audio verified through event log, Web Audio graph inspection, and offline-render loudness stats only"
-  }
+  },
+  "history": [
+    {
+      "at": "2026-10-01T14:40:00+09:00",
+      "event": "wave-1 launched (wf_1a07f93e-577): 5 builders, 8 Codex asset producers, integrator, 6 critics"
+    },
+    {
+      "at": "2026-10-01T14:53:00+09:00",
+      "event": "wave-1 interrupted by account usage limit after ~13 min: 18 of 20 agents failed mid-task (only asset:space and asset:items completed). No integrator or critic ran, so there are NO round-1 scores yet.",
+      "evidence": "e2e/out/w1-interrupted (local)"
+    },
+    {
+      "at": "2026-10-01T16:15:00+09:00",
+      "event": "state after interruption: typecheck clean, 94 tests pass, 17/17 showcase states load with 0 runtime errors at >=58.8 fps; 10 textures still on fallbacks (celestial x3, rabbit-sprite, fx x5, ui-icons). Partial work checkpointed in commit 79b70e8 (raw Codex generations kept local, gitignored)."
+    },
+    {
+      "at": "2026-10-01T16:20:00+09:00",
+      "event": "wave-1 continuation launched (wf_bbd21e80-cb9): builders + 6 unfinished asset producers resume from partial work, then integrator; critics will run as a separate workflow"
+    },
+    {
+      "at": "2026-10-01T16:35:00+09:00",
+      "event": "continuation wf_bbd21e80-cb9 hit the weekly usage limit after ~4.5 min: only asset:particles completed (5 strips, committed). 11 agents failed. Relaunched as wf_e0286d54-063 after subagents became available again."
+    },
+    {
+      "at": "2026-10-01T17:30:00+09:00",
+      "event": "wave-1 integrated (wf_e0286d54-063 integrator): typecheck clean, 144/144 tests, build ok; capture w1-integration 19/19 states ok, 0 runtime errors, 0 fallbacks, min avg fps 59.0, worst p95 16.8 ms; playtest soft (incident first) PASS 8/8, bumpy PASS 7/7. Added showcase states landing-stabilizer + result-incident, fixed flight-arrival-ready timing, wired installFxSettings, added the phoneLandscapeTouch viewport and the reload retry to the harness.",
+      "evidence": "e2e/out/w1-integration, e2e/out/w1-integration-playtest (local)"
+    }
+  ]
 }

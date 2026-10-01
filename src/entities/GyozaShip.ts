@@ -35,6 +35,7 @@ export class GyozaShip extends Phaser.GameObjects.Sprite {
   private visualOffsetY = 0;
   private visualTilt = 0;
   private squashTween: Phaser.Tweens.Tween | undefined;
+  private baseScale = 1;
 
   constructor(scene: Phaser.Scene, state: ShipKinematicState) {
     super(scene, state.x, state.y, ASSET.shipIdle);
@@ -42,7 +43,6 @@ export class GyozaShip extends Phaser.GameObjects.Sprite {
 
     this.kinematicState = state;
     this.setOrigin(0.5, 0.5);
-    this.setScale(0.65);
     this.applyStateToSprite();
   }
 
@@ -87,11 +87,18 @@ export class GyozaShip extends Phaser.GameObjects.Sprite {
     return this.kinematicState.y + this.visualOffsetY;
   }
 
-  /** Brief squash-and-stretch (e.g. after a bump). Restores the current scale when done. */
+  /** Resting display scale; squash always returns here, even if interrupted mid-tween. */
+  setBaseScale(scale: number): this {
+    this.baseScale = scale;
+    this.setScale(scale);
+    return this;
+  }
+
+  /** Brief squash-and-stretch (e.g. after a bump). Returns to the base scale when done. */
   playSquash(amount: number, durationMs: number): void {
     this.squashTween?.stop();
-    const baseX = this.scaleX;
-    const baseY = this.scaleY;
+    const baseX = this.baseScale;
+    const baseY = this.baseScale;
     const proxy = { t: 1 };
     this.squashTween = this.scene.tweens.add({
       targets: proxy,

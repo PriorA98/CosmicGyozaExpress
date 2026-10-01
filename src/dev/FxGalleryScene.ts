@@ -37,11 +37,12 @@ const GRID = { cols: 4, rows: 2, cellW: 296, cellH: 236, gap: 16, top: 70 } as c
 const SHIP_SCALE = 0.65;
 const SHIP_NOZZLE_OFFSET = 38;
 const ORBIT = { radius: 62, periodMs: 3600 } as const;
+// Intervals are shorter than each burst's lifespan so any single capture shows live particles.
 const BURST_LOOPS = [
-  { cell: 2, everyMs: 900, label: "dust" },
-  { cell: 3, everyMs: 1000, label: "sparkle" },
-  { cell: 4, everyMs: 1500, label: "incident" },
-  { cell: 5, everyMs: 1200, label: "stars" },
+  { cell: 2, everyMs: 650, label: "dust" },
+  { cell: 3, everyMs: 700, label: "sparkle" },
+  { cell: 4, everyMs: 950, label: "incident" },
+  { cell: 5, everyMs: 800, label: "stars" },
 ] as const;
 
 const AUDIO_CHIPS: readonly { readonly label: string; readonly event: GameEvent }[] = [
@@ -59,6 +60,17 @@ const AUDIO_CHIPS: readonly { readonly label: string; readonly event: GameEvent 
   { label: "retry", event: { type: "landing:retry" } },
   { label: "jingle", event: { type: "result:shown", landingResult: "soft" } },
 ];
+
+type ParticleSample = { readonly alpha: number; readonly tint: number; readonly frame: string | number; readonly lifeT: number };
+
+/** First live particle of an emitter, summarised for the dev probe (tuning checks without eyes). */
+function sampleParticle(emitter: Phaser.GameObjects.Particles.ParticleEmitter): ParticleSample | null {
+  const samples: ParticleSample[] = [];
+  emitter.forEachAlive((particle) => {
+    if (samples.length === 0) samples.push({ alpha: particle.alpha, tint: particle.tint, frame: particle.frame.name, lifeT: particle.lifeT });
+  }, undefined);
+  return samples[0] ?? null;
+}
 
 export class FxGalleryScene extends Phaser.Scene {
   private readonly cells: Cell[] = [];
@@ -105,15 +117,25 @@ export class FxGalleryScene extends Phaser.Scene {
       .text(24, height - 14, "", { color: colors.borderStrong, fontFamily: fontStacks.mono, fontSize: `${typeScale.xs}px` })
       .setOrigin(0, 1);
 
-    // First bursts fire immediately and staggered so a single capture shows each effect mid-flight.
-    for (const loop of BURST_LOOPS) this.burstClock.set(loop.cell, loop.everyMs * 0.55);
+    // Every loop fires on the first frame, then keeps overlapping bursts alive.
+    for (const loop of BURST_LOOPS) this.burstClock.set(loop.cell, loop.everyMs);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       for (const trail of this.trails) trail.destroy();
       for (const stop of this.stopSteam) stop();
     });
 
-    registerDevState("fx", () => ({ liveParticles: liveParticleCount(this), reducedMotion: isReducedMotion() }));
+    registerDevState("fx", () => ({
+      liveParticles: liveParticleCount(this),
+      reducedMotion: isReducedMotion(),
+      emitters: this.children.list
+        .filter((child): child is Phaser.GameObjects.Particles.ParticleEmitter => child instanceof Phaser.GameObjects.Particles.ParticleEmitter)
+        .map((emitter) => ({
+          texture: emitter.texture.key,
+          alive: emitter.getAliveParticleCount(),
+          sample: sampleParticle(emitter),
+        })),
+    }));
     emitGameEvent(this, { type: "scene:enter", scene: "FxGalleryScene" });
     if (data.enter) void playEnterTransition(this, data.enter);
   }
@@ -191,7 +213,7 @@ export class FxGalleryScene extends Phaser.Scene {
       const x = orbit.cx + Math.cos(phase) * ORBIT.radius * 1.3;
       const y = orbit.cy + Math.sin(phase) * ORBIT.radius * 0.8;
       // Nose follows the orbit tangent (ship convention: 0 = up, clockwise).
-      const rotation = Math.atan2(Math.cos(phase) * 0.8, -Math.sin(phase) * 1.3) ;
+      const rotation = Math.atan2(Math.cos(phase) * 0.8, -Math.sin(phase) * 1.3);
       this.orbitShip.setPosition(x, y).setRotation(rotation);
       orbitTrail.update(x, y, rotation, true, 0.6 + 0.4 * Math.sin(phase * 2));
     }

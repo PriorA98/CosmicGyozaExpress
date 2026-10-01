@@ -9,7 +9,7 @@ import {
   type ParallaxLayerDefinition,
 } from "../../data/flightScenery";
 import { colorNumber, colors, depth } from "../../game/designTokens";
-import { ensureStandInStarTile, isFallbackTexture } from "./textureFallbacks";
+import { ensureStandInStarTile, isFallbackTexture, planetTextureOrStandIn } from "./textureFallbacks";
 
 type ParallaxLayer = {
   readonly definition: ParallaxLayerDefinition;
@@ -97,7 +97,7 @@ export class SpaceBackdrop {
   private createCelestialBodies(): void {
     flightCelestialBodies.forEach((body, index) => {
       const image = this.scene.add
-        .image(body.x, body.y, body.textureKey)
+        .image(body.x, body.y, planetTextureOrStandIn(this.scene, body.textureKey, body.standIn))
         .setScale(body.scale)
         .setScrollFactor(body.scrollFactor)
         .setAlpha(body.alpha)

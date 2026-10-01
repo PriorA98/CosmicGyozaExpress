@@ -117,7 +117,11 @@ export class Button extends Phaser.GameObjects.Container {
     this.focusRing = scene.add.graphics();
     this.graphics = scene.add.graphics();
     this.face = scene.add.container(0, 0);
-    this.art = addNineSlicePanel(scene, ASSET.uiButton, this.buttonWidth, this.buttonHeight, NINE_SLICE.button, BUTTON_FRAME.idle);
+    // The authored button strip is terracotta, so only the primary variant uses it; others stay drawn.
+    this.art =
+      this.variant === "primary"
+        ? addNineSlicePanel(scene, ASSET.uiButton, this.buttonWidth, this.buttonHeight, NINE_SLICE.button, BUTTON_FRAME.idle)
+        : undefined;
 
     const contentWidth = label.width + iconWidth;
     const startX = Math.round((this.buttonWidth - contentWidth) / 2);

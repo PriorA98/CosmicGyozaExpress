@@ -8,6 +8,14 @@
       content="A tiny gyoza ship delivering warm things across a soft galaxy."
     />
     <title>Cosmic Gyoza Express</title>
+    <!-- First-paint guard: shell CSS arrives with the JS bundle; keep the page cosmos-dark until then (matches --color-cosmos-deep). -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #0e0f1c;
+      }
+    </style>
   </head>
   <body>
     <main class="app-shell" aria-label="Cosmic Gyoza Express">

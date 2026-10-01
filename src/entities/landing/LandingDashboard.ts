@@ -43,56 +43,58 @@ export class LandingDashboard {
     const contentWidth = config.width - config.padX * 2;
     const noteTop = config.padY + config.titleGap + ROW_ORDER.length * config.rowHeight + config.noteGap;
     const height = noteTop + typeScale.base + 10 + config.padY;
-    const panel = scene.add.graphics().setDepth(depth.hud);
+    // Everything is laid out in panel-local space so the whole dashboard can scale up on small screens.
+    const container = scene.add.container(config.x, config.y).setDepth(depth.hud).setScale(landingHudScale(scene));
+    const panel = scene.add.graphics();
+    panel.fillStyle(colorNumber(colors.cosmosDeep), 0.35);
+    panel.fillRoundedRect(0, 3, config.width, height, config.radius);
     panel.fillStyle(colorNumber(colors.cosmosPanel), config.alpha);
-    panel.fillRoundedRect(config.x, config.y, config.width, height, config.radius);
+    panel.fillRoundedRect(0, 0, config.width, height, config.radius);
     panel.lineStyle(1, colorNumber(colors.plaster), 0.18);
-    panel.strokeRoundedRect(config.x + 0.5, config.y + 0.5, config.width - 1, height - 1, config.radius);
+    panel.strokeRoundedRect(0.5, 0.5, config.width - 1, height - 1, config.radius);
+    panel.fillStyle(colorNumber(colors.ember), 0.9);
+    panel.fillRect(config.padX, config.padY + typeScale.sm + 7, 28, 2);
     panel.lineStyle(1, colorNumber(colors.plaster), 0.12);
-    panel.lineBetween(config.x + config.padX, config.y + noteTop - config.noteGap / 2, config.x + config.padX + contentWidth, config.y + noteTop - config.noteGap / 2);
+    panel.lineBetween(config.padX, noteTop - config.noteGap / 2, config.padX + contentWidth, noteTop - config.noteGap / 2);
+    container.add(panel);
 
-    const left = config.x + config.padX;
-    scene.add
-      .text(left, config.y + config.padY, landingCopy.dashboardTitle, {
+    const left = config.padX;
+    container.add(
+      scene.add.text(left, config.padY, landingCopy.dashboardTitle, {
         color: colors.ember,
         fontFamily: fontStacks.pixel,
         fontSize: `${typeScale.sm}px`,
-      })
-      .setDepth(depth.hud + 1);
+      }),
+    );
 
     ROW_ORDER.forEach((key, index) => {
-      const y = config.y + config.padY + config.titleGap + index * config.rowHeight;
-      scene.add
-        .text(left, y, landingCopy.rows[key], {
-          color: "rgba(251,247,236,0.62)",
-          fontFamily: fontStacks.mono,
-          fontSize: `${typeScale.base}px`,
-        })
-        .setDepth(depth.hud + 1);
-      const value = scene.add
-        .text(left + config.labelWidth, y - 1, "", {
-          color: colors.plaster,
-          fontFamily: fontStacks.mono,
-          fontSize: `${typeScale.md}px`,
-          fontStyle: "bold",
-        })
-        .setDepth(depth.hud + 1);
+      const y = config.padY + config.titleGap + index * config.rowHeight;
+      const label = scene.add.text(left, y, landingCopy.rows[key], {
+        color: "rgba(251,247,236,0.62)",
+        fontFamily: fontStacks.mono,
+        fontSize: `${typeScale.base}px`,
+      });
+      const value = scene.add.text(left + config.labelWidth, y - 1, "", {
+        color: colors.plaster,
+        fontFamily: fontStacks.mono,
+        fontSize: `${typeScale.md}px`,
+        fontStyle: "bold",
+      });
       const dot = scene.add
         .circle(left + contentWidth - config.dotRadius, y + typeScale.md / 2 + 1, config.dotRadius, colorNumber(colors.sage))
-        .setDepth(depth.hud + 1)
         .setVisible(false);
+      container.add([label, value, dot]);
       this.rows.set(key, { value, dot, shownValue: "", shownZone: undefined });
     });
 
-    this.note = scene.add
-      .text(left, config.y + noteTop, "", {
-        color: colors.parchmentDeep,
-        fontFamily: fontStacks.mono,
-        fontSize: `${typeScale.sm}px`,
-        fontStyle: "italic",
-        wordWrap: { width: contentWidth },
-      })
-      .setDepth(depth.hud + 1);
+    this.note = scene.add.text(left, noteTop, "", {
+      color: colors.parchmentDeep,
+      fontFamily: fontStacks.mono,
+      fontSize: `${typeScale.sm}px`,
+      fontStyle: "italic",
+      wordWrap: { width: contentWidth },
+    });
+    container.add(this.note);
   }
 
   update(view: LandingDashboardView): void {
@@ -120,6 +122,15 @@ export class LandingDashboard {
       this.note.setText(note);
     }
   }
+}
+
+/**
+ * HUD scale for the landing overlays: 1 on desktop, larger when the 1280x720 canvas is shown small
+ * (phone landscape) so readouts stay legible. Measured once at scene create.
+ */
+export function landingHudScale(scene: Phaser.Scene): number {
+  const compact = landingScenery.compactHud;
+  return scene.scale.displaySize.width > 0 && scene.scale.displaySize.width < compact.belowDisplayWidthPx ? compact.scale : 1;
 }
 
 /** Keycap hint strip along the bottom edge (keyboard devices only). */
@@ -164,9 +175,11 @@ export function createLandingControlsHint(scene: Phaser.Scene): Phaser.GameObjec
   backing.fillStyle(colorNumber(colors.cosmosPanel), 0.72);
   backing.fillRoundedRect(-padX, -padY, totalWidth + padX * 2, config.keySize + padY * 2, 8);
   container.addAt(backing, 0);
+  const hudScale = landingHudScale(scene);
+  container.setScale(hudScale);
   container.setPosition(
-    Math.round((scene.scale.width - totalWidth) / 2),
-    scene.scale.height - config.bottomMargin - config.keySize,
+    Math.round((scene.scale.width - totalWidth * hudScale) / 2),
+    scene.scale.height - (config.bottomMargin + config.keySize) * hudScale,
   );
   return container;
 }

@@ -123,7 +123,7 @@ export class ArrivalBeacon {
 
     if (this.lastKind !== docking.kind) {
       this.lastKind = docking.kind;
-      this.ghost.setTint(color).setVisible(!ready);
+      this.ghost.setTint(colorNumber(colors.parchment)).setVisible(!ready);
       this.label.setColor(dockingStateColors[docking.kind]);
     }
     this.label.setAlpha(ready ? 0 : baseAlpha);

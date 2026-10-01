@@ -3,13 +3,17 @@
 // Usage (dev server must be running: npm run dev):
 //   node e2e/capture.mjs [--states=all|id,id] [--viewports=desktop,phoneLandscape] [--label=name]
 //                        [--seed=7] [--url=http://127.0.0.1:5173/] [--fps-ms=2000]
+// Viewports: desktop, wide, laptop, tablet, phoneLandscape, phonePortrait, phoneLandscapeTouch (touch emulation).
+// A capture interrupted by a page reload (Vite HMR) is retried once; the JSON records `attempts`.
 //
 // Output: e2e/out/<label>/<state>@<viewport>.png + .json, and e2e/out/<label>/summary.json
 import {
   DEFAULT_URL,
   VIEWPORTS,
   attachPageLogs,
+  contextOptions,
   ensureDir,
+  isReloadInterruption,
   launchBrowser,
   parseArgs,
   probeSnapshot,
@@ -50,7 +54,12 @@ try {
   for (const id of wanted) {
     const showcase = showcases.find((s) => s.id === id);
     for (const viewportName of viewportNames) {
-      results.push(await capture(showcase, viewportName));
+      let record = await capture(showcase, viewportName);
+      if (record.status !== "ok" && isReloadInterruption(record.error)) {
+        console.log(`retry  ${showcase.id}@${viewportName} (page reloaded under the harness)`);
+        record = await capture(showcase, viewportName, 2);
+      }
+      results.push(record);
     }
   }
 } finally {
@@ -65,6 +74,7 @@ const summary = {
   totals: {
     captures: results.length,
     failedCaptures: results.filter((r) => r.status !== "ok").length,
+    retriedCaptures: results.filter((r) => r.attempts > 1).length,
     runtimeErrors: results.reduce((sum, r) => sum + (r.errors?.runtimeErrorCount ?? 0), 0),
     failedAssets: [...new Set(results.flatMap((r) => r.probe?.assetFailures ?? []))],
     minAvgFps: Math.min(...results.map((r) => r.perf?.avgFps ?? Infinity)),
@@ -98,14 +108,14 @@ async function listShowcases() {
   }
 }
 
-async function capture(showcase, viewportName) {
+async function capture(showcase, viewportName, attempt = 1) {
   const viewport = VIEWPORTS[viewportName];
   const stem = `${showcase.id}@${viewportName}`;
-  const context = await browser.newContext({ viewport, deviceScaleFactor: 1 });
+  const context = await browser.newContext(contextOptions(viewportName));
   await context.addInitScript(seededRandomInitScript(seed));
   const page = await context.newPage();
   const log = attachPageLogs(page);
-  const record = { id: showcase.id, viewport: viewportName, size: viewport, description: showcase.description };
+  const record = { id: showcase.id, viewport: viewportName, size: viewport, description: showcase.description, attempts: attempt };
   const held = showcase.hold ?? [];
 
   try {

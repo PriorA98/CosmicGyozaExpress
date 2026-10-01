@@ -53,8 +53,11 @@ type Emitter = Phaser.GameObjects.Particles.ParticleEmitter;
 
 let reducedMotionOverride: boolean | null = null;
 
-/** Scenes/settings call this with `save.settings.reducedMotion`. */
-export function setReducedMotion(value: boolean): void {
+/**
+ * Scenes/settings call this with `save.settings.reducedMotion` (see `installFxSettings`).
+ * `null` clears the explicit setting and follows the OS preference again.
+ */
+export function setReducedMotion(value: boolean | null): void {
   reducedMotionOverride = value;
 }
 
@@ -163,7 +166,7 @@ export function createThrustTrail(scene: Phaser.Scene, options: { readonly depth
       lifespan: { min: tuning.lifespanMs.min, max: tuning.lifespanMs.max },
       speed: 0,
       scale: sheet.artScale,
-      alpha: { start: tuning.alpha.start, end: tuning.alpha.end, ease: "Quad.easeIn" },
+      alpha: { start: tuning.alpha.start, end: tuning.alpha.end, ease: "Cubic.easeIn" },
       color: [...tuning.color],
       colorEase: "Linear",
       maxAliveParticles: FX_BUDGET.thrustMaxAlive,
@@ -266,13 +269,15 @@ function burstEmitter(scene: Phaser.Scene, kind: BurstKind, layer: number): Emit
   const anim = particleAnimKey(scene, textureKey, sheet.frameCount, tuning.anim.durationMs, tuning.anim.loop);
   const emitter = scene.add.particles(0, 0, textureKey, {
     emitting: false,
-    anim,
+    // Looping twinkles start on a random frame so one burst never blinks in lockstep.
+    anim: tuning.anim.loop ? { anims: [{ key: anim, randomFrame: true }] } : anim,
     lifespan: { min: tuning.lifespanMs.min, max: tuning.lifespanMs.max },
     speed: { min: tuning.speed.min, max: tuning.speed.max },
     angle: BURST_ANGLES[kind],
     gravityY: tuning.gravityY,
     scale: sheet.artScale,
-    alpha: { start: tuning.alpha.start, end: tuning.alpha.end, ease: "Quad.easeIn" },
+    // The art already fades in its last frames, so hold opacity and only drop it late.
+    alpha: { start: tuning.alpha.start, end: tuning.alpha.end, ease: "Cubic.easeIn" },
     tint: [...tuning.tints],
     maxAliveParticles: FX_BUDGET.burstMaxCount * 2,
   });
@@ -292,7 +297,13 @@ function burst(scene: Phaser.Scene, kind: BurstKind, x: number, y: number, optio
     const scale = Math.max(0.2, (options.spread ?? DEFAULT_SPREAD) / DEFAULT_SPREAD);
     emitter.speed = { min: tuning.speed.min * scale, max: tuning.speed.max * scale };
     emitter.setParticleTint(options.tint !== undefined ? options.tint : [...tuning.tints]);
-    emitter.explode(count, x, y);
+    // Emit one by one so each particle gets an upward lift: bursts bloom instead of spraying flat.
+    const lift = tuning.lift * scale;
+    for (let i = 0; i < count; i += 1) {
+      const particle = emitter.emitParticleAt(x, y, 1);
+      if (!particle) break;
+      particle.velocityY -= lift * (0.6 + Math.random() * 0.4);
+    }
   } catch {
     // Feedback is optional.
   }
@@ -335,6 +346,8 @@ export function createSteam(scene: Phaser.Scene, x: number, y: number, options: 
       anim,
       frequency: reduced ? tuning.intervalMs * 2 : tuning.intervalMs,
       quantity: 1,
+      // Pre-warm so a teapot is already steaming when the scene opens.
+      advance: tuning.lifespanMs.max,
       lifespan: { min: tuning.lifespanMs.min, max: tuning.lifespanMs.max },
       speedX: { min: tuning.sway.min, max: tuning.sway.max },
       speedY: { min: -tuning.riseSpeed.max, max: -tuning.riseSpeed.min },

@@ -1,5 +1,6 @@
 import { ASSET } from "./assetManifest";
 import { colors } from "../game/designTokens";
+import type { LandingLimitingFactor } from "../systems/LandingSystem";
 import type { LandingIncidentKind, LandingResultKind } from "../types/landing";
 
 /**
@@ -54,9 +55,11 @@ export const landingScenery = {
     baseSinkPx: 2,
     /** Stagger between left and right lantern lighting on touchdown. */
     lightStaggerMs: 160,
-    glowRadius: 26,
-    glowLitAlpha: 0.32,
-    glowDimAlpha: 0.08,
+    glowRadius: 40,
+    /** Concentric additive discs that make up the soft lantern glow. */
+    glowRings: 12,
+    glowLitAlpha: 0.75,
+    glowDimAlpha: 0.12,
     /** Lamp centre measured from the lantern base, upward (screen px). */
     lampHeightPx: 38,
   },
@@ -99,8 +102,8 @@ export const landingScenery = {
     height: 470,
     baseWidthRatio: 0.92,
     topWidthRatio: 1.45,
-    bands: 7,
-    bandAlpha: 0.026,
+    bands: 14,
+    bandAlpha: 0.014,
     color: "#F9F3E5",
     /** Alpha multiplier while the ship is off the pad vs aligned over it. */
     idleIntensity: 0.55,
@@ -176,6 +179,24 @@ export const landingScenery = {
     fadePerSecond: 6,
     levelLineHalfWidth: 26,
   },
+  /** Nozzle flame tongue drawn at the thruster so a held W reads instantly (on top of the shared thrust trail). */
+  flame: {
+    lengthPx: 68,
+    halfWidthPx: 13,
+    glowRadius: 46,
+    glowRings: 14,
+    glowAlpha: 0.5,
+    ignitePerSecond: 9,
+    fadePerSecond: 7,
+    popMs: 140,
+    popScale: 0.35,
+    flickerSlowMs: 70,
+    flickerSlowPx: 5,
+    flickerFastMs: 23,
+    flickerFastPx: 3,
+    /** The shared particle trail starts this far beyond the nozzle so it puffs out of the flame tip. */
+    trailLeadPx: 14,
+  },
   ship: {
     /** Close-up side view. The ship art is authored for artScale 1; keep integer scale. */
     scale: 1,
@@ -205,6 +226,13 @@ export const landingScenery = {
     bumpy: { count: 18, spread: 78 },
     footSpreadPx: 34,
   },
+  /** Phone-landscape readability: HUD overlays scale up when the canvas is displayed narrower than this (CSS px). */
+  compactHud: {
+    belowDisplayWidthPx: 1000,
+    scale: 1.4,
+    /** The in-world descent gauge grows a little less so it never crowds the ship. */
+    instrumentScale: 1.3,
+  },
   dashboard: {
     x: 20,
     y: 20,
@@ -217,7 +245,7 @@ export const landingScenery = {
     valueWidth: 120,
     dotRadius: 5,
     noteGap: 10,
-    alpha: 0.82,
+    alpha: 0.97,
     radius: 8,
   },
   controlsHint: {
@@ -266,6 +294,13 @@ export const landingCopy = {
     bumpy: "bumpy",
     rough: "too fast",
   } satisfies Record<LandingZoneCopyKey, string>,
+  /** Chip label for a too-rough reading, naming whichever reading is furthest past its limit. */
+  roughBecause: {
+    descent: "too fast",
+    drift: "too drifty",
+    tilt: "too tilted",
+    pad: "find the pad",
+  } satisfies Record<LandingLimitingFactor, string>,
   /** Zone label when the ship is not over the pad. */
   offPad: "find the pad",
   limitingHint: {

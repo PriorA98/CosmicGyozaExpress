@@ -1,0 +1,83 @@
+{
+ "gyoza-idle": {
+  "size": [
+   143,
+   128
+  ],
+  "dx": 0,
+  "dy": 0,
+  "overlap": 1.0
+ },
+ "gyoza-fly-01": {
+  "size": [
+   144,
+   127
+  ],
+  "dx": -2,
+  "dy": -2,
+  "overlap": 0.996
+ },
+ "gyoza-fly-02": {
+  "size": [
+   144,
+   141
+  ],
+  "dx": -2,
+  "dy": -2,
+  "overlap": 0.996
+ },
+ "gyoza-fly-03": {
+  "size": [
+   144,
+   157
+  ],
+  "dx": -2,
+  "dy": -2,
+  "overlap": 0.996
+ },
+ "gyoza-incident-01": {
+  "size": [
+   158,
+   135
+  ],
+  "dx": 2,
+  "dy": 5,
+  "overlap": 0.931
+ },
+ "gyoza-incident-02": {
+  "size": [
+   158,
+   135
+  ],
+  "dx": 0,
+  "dy": 5,
+  "overlap": 0.914
+ },
+ "gyoza-incident-03": {
+  "size": [
+   158,
+   135
+  ],
+  "dx": 12,
+  "dy": 1,
+  "overlap": 0.887
+ },
+ "gyoza-incident-04": {
+  "size": [
+   170,
+   149
+  ],
+  "dx": 8,
+  "dy": -4,
+  "overlap": 0.987
+ },
+ "gyoza-incident-05": {
+  "size": [
+   144,
+   127
+  ],
+  "dx": -22,
+  "dy": -1,
+  "overlap": 0.09
+ }
+}

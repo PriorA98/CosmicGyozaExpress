@@ -7,8 +7,8 @@ import { clamp } from "../../utils/math";
 const TAU = Math.PI * 2;
 
 /**
- * Screen-edge beacon pointing to the destination while it is off screen: a small dark disc with
- * a drawn chevron and a compact distance readout. Hidden when the destination is in view.
+ * Screen-edge beacon pointing to the destination while it is off screen: a pin-shaped marker with
+ * a tea-moon glyph, a drawn chevron, and a compact distance readout. Hidden when in view.
  */
 export class DestinationIndicator {
   private readonly container: Phaser.GameObjects.Container;
@@ -83,32 +83,69 @@ export class DestinationIndicator {
     }
   }
 
+  /**
+   * Map-pin beacon: a dark disc that tapers to a point toward the destination, a tiny tea-moon
+   * glyph inside, and a small chevron just beyond the tip that breathes outward.
+   */
   private drawBeacon(color: number, angle: number, pulse: number): void {
     const style = destinationIndicatorStyle;
     const g = this.graphics;
+    const r = style.discRadius;
+    const tipDistance = r + style.pinTipLength;
+    const spread = Math.acos(r / tipDistance);
     const dir = { x: Math.cos(angle), y: Math.sin(angle) };
     const side = { x: -dir.y, y: dir.x };
-    const tip = style.chevronLength * 0.75 + pulse * 2;
-    const back = tip - style.chevronLength;
-    const thick = style.chevronThickness;
 
     g.clear();
-    g.fillStyle(color, 0.12 + pulse * 0.1);
-    g.fillCircle(0, 0, style.discRadius + 6);
-    g.fillStyle(colorNumber(colors.cosmosPanel), 0.88);
-    g.fillCircle(0, 0, style.discRadius);
-    g.lineStyle(2, color, 0.9);
-    g.strokeCircle(0, 0, style.discRadius);
 
-    g.fillStyle(color, 1);
+    // Soft breathing glow behind the pin.
+    g.fillStyle(color, 0.1 + pulse * 0.1);
+    g.fillCircle(0, 0, r + 7 + pulse * 2);
+
+    // Pin body (disc + tangent point).
+    g.fillStyle(colorNumber(colors.cosmosPanel), 0.92);
+    g.lineStyle(2, color, 0.95);
     g.beginPath();
-    g.moveTo(dir.x * tip, dir.y * tip);
-    g.lineTo(dir.x * back + side.x * style.chevronHalfWidth, dir.y * back + side.y * style.chevronHalfWidth);
-    g.lineTo(dir.x * (back + thick) + side.x * (style.chevronHalfWidth - thick * 0.4), dir.y * (back + thick) + side.y * (style.chevronHalfWidth - thick * 0.4));
-    g.lineTo(dir.x * (tip - thick * 1.6), dir.y * (tip - thick * 1.6));
-    g.lineTo(dir.x * (back + thick) - side.x * (style.chevronHalfWidth - thick * 0.4), dir.y * (back + thick) - side.y * (style.chevronHalfWidth - thick * 0.4));
-    g.lineTo(dir.x * back - side.x * style.chevronHalfWidth, dir.y * back - side.y * style.chevronHalfWidth);
+    g.moveTo(dir.x * tipDistance, dir.y * tipDistance);
+    g.arc(0, 0, r, angle + spread, angle - spread + TAU, false);
     g.closePath();
     g.fillPath();
+    g.strokePath();
+
+    // Tea-moon glyph: lit disc, two craters, warm rim highlight.
+    const moonR = style.moonGlyphRadius;
+    g.fillStyle(colorNumber(colors.sage), 1);
+    g.fillCircle(0, 0, moonR);
+    g.fillStyle(colorNumber(colors.sageDeep), 1);
+    g.fillCircle(moonR * 0.35, moonR * 0.25, moonR * 0.3);
+    g.fillCircle(-moonR * 0.3, -moonR * 0.4, moonR * 0.18);
+    g.lineStyle(2, colorNumber(colors.parchment), 0.7);
+    g.beginPath();
+    g.arc(0, 0, moonR - 1, Math.PI * 1.05, Math.PI * 1.45, false);
+    g.strokePath();
+
+    // Chevron beyond the tip, nudging outward with the pulse.
+    const base = tipDistance + style.chevronGap + pulse * style.chevronTravel;
+    const half = style.chevronHalfWidth;
+    const len = style.chevronLength;
+    g.lineStyle(style.chevronThickness + 3, colorNumber(colors.cosmosDeep), 0.6);
+    this.strokeChevron(base, len, half, dir, side);
+    g.lineStyle(style.chevronThickness, color, 0.6 + pulse * 0.4);
+    this.strokeChevron(base, len, half, dir, side);
+  }
+
+  private strokeChevron(
+    base: number,
+    length: number,
+    half: number,
+    dir: { readonly x: number; readonly y: number },
+    side: { readonly x: number; readonly y: number },
+  ): void {
+    const g = this.graphics;
+    g.beginPath();
+    g.moveTo(dir.x * base + side.x * half, dir.y * base + side.y * half);
+    g.lineTo(dir.x * (base + length), dir.y * (base + length));
+    g.lineTo(dir.x * base - side.x * half, dir.y * base - side.y * half);
+    g.strokePath();
   }
 }

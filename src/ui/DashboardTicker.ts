@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { colorNumber, colors, motion } from "../game/designTokens";
 import { isReducedMotion } from "../fx/feedback";
-import { typewriterVisibleChars } from "./layout";
+import { monoCharsThatFit, truncateToChars, typewriterVisibleChars } from "./layout";
 import { monoStyle } from "./textStyles";
 
 export type DashboardTickerOptions = {
@@ -21,6 +21,11 @@ export type DashboardTickerOptions = {
 export const TICKER_HEIGHT = 34;
 const PROMPT = "›";
 const PADDING_X = 12;
+const TEXT_X = PADDING_X + 16;
+const CARET_GAP = 3;
+const CARET_WIDTH = 8;
+/** Sample used to measure one monospaced character (averaged over several for sub-pixel widths). */
+const MEASURE_SAMPLE = "0000000000";
 
 /**
  * Mono dashboard chatter line with a gentle typewriter reveal and a soft caret. Cycles through
@@ -32,6 +37,8 @@ export class DashboardTicker extends Phaser.GameObjects.Container {
   private readonly caret: Phaser.GameObjects.Rectangle;
   private readonly charsPerSecond: number;
   private readonly holdMs: number;
+  /** Characters that fit beside the prompt and caret; longer lines end in an ellipsis. */
+  private readonly maxChars: number;
   private lines: readonly string[];
   private lineIndex = 0;
   private current = "";
@@ -58,10 +65,13 @@ export class DashboardTicker extends Phaser.GameObjects.Container {
       .text(PADDING_X, TICKER_HEIGHT / 2, PROMPT, monoStyle({ size: 15, bold: true, color: colors.ember }))
       .setOrigin(0, 0.5);
     this.lineText = scene.add
-      .text(PADDING_X + 16, TICKER_HEIGHT / 2, "", monoStyle({ size: 14, color: colors.plaster }))
+      .text(TEXT_X, TICKER_HEIGHT / 2, MEASURE_SAMPLE, monoStyle({ size: 14, color: colors.plaster }))
       .setOrigin(0, 0.5)
       .setAlpha(0.88);
-    this.caret = scene.add.rectangle(0, TICKER_HEIGHT / 2, 8, 14, colorNumber(colors.ember)).setOrigin(0, 0.5);
+    const charWidth = this.lineText.width / MEASURE_SAMPLE.length;
+    this.maxChars = monoCharsThatFit(options.width - TEXT_X - PADDING_X - CARET_GAP - CARET_WIDTH, charWidth);
+    this.lineText.setText("");
+    this.caret = scene.add.rectangle(0, TICKER_HEIGHT / 2, CARET_WIDTH, 14, colorNumber(colors.ember)).setOrigin(0, 0.5);
     this.add([prompt, this.lineText, this.caret]);
     this.setSize(options.width, TICKER_HEIGHT);
     if (options.fixed) this.setScrollFactor(0, 0, true);
@@ -111,7 +121,7 @@ export class DashboardTicker extends Phaser.GameObjects.Container {
   }
 
   private show(line: string): void {
-    this.current = line;
+    this.current = truncateToChars(line, this.maxChars);
     this.elapsedMs = 0;
     this.shownChars = -1;
     this.render(isReducedMotion() ? line.length : 0);
@@ -137,6 +147,6 @@ export class DashboardTicker extends Phaser.GameObjects.Container {
     if (visibleChars === this.shownChars) return;
     this.shownChars = visibleChars;
     this.lineText.setText(this.current.slice(0, visibleChars));
-    this.caret.setX(this.lineText.x + this.lineText.width + 3);
+    this.caret.setX(this.lineText.x + this.lineText.width + CARET_GAP);
   }
 }

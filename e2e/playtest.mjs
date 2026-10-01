@@ -6,11 +6,16 @@
 //   node e2e/playtest.mjs [--landing=soft|bumpy] [--incident-first=true] [--label=name] [--viewport=desktop]
 //
 // Writes e2e/out/<label>/playtest-<landing>.json plus step screenshots. Exit code 1 on any failed check.
+// A run killed by a page reload under the harness (Vite HMR "Execution context was destroyed") is
+// re-run once in a fresh process (`--attempt=2`); the report records `attempt`.
+import { spawnSync } from "node:child_process";
 import {
   DEFAULT_URL,
   VIEWPORTS,
   attachPageLogs,
+  contextOptions,
   ensureDir,
+  isReloadInterruption,
   launchBrowser,
   parseArgs,
   probeSnapshot,
@@ -28,7 +33,8 @@ const landingProfile = args.landing === "bumpy" ? "bumpy" : "soft";
 const incidentFirst = args["incident-first"] !== "false";
 const label = args.label ?? `playtest-${timestampLabel()}`;
 const outDir = `e2e/out/${label}`;
-const viewport = VIEWPORTS[args.viewport ?? "desktop"];
+const viewportName = VIEWPORTS[args.viewport] ? args.viewport : "desktop";
+const attempt = Number(args.attempt ?? 1);
 const SAVE_KEY = "cosmic-gyoza-express.save.v1";
 const DOCK_HOLD = { x: 2775, y: 850 };
 ensureDir(outDir);
@@ -37,6 +43,7 @@ const report = {
   label,
   landingProfile,
   incidentFirst,
+  attempt,
   startedAt: new Date().toISOString(),
   checks: [],
   steps: [],
@@ -48,7 +55,7 @@ const check = (name, pass, detail = null) => {
 };
 
 const browser = await launchBrowser();
-const context = await browser.newContext({ viewport });
+const context = await browser.newContext(contextOptions(viewportName));
 await context.addInitScript(seededRandomInitScript(11));
 const page = await context.newPage();
 const log = attachPageLogs(page);
@@ -75,6 +82,7 @@ const state = (name) => page.evaluate((n) => window.__CGE__.getState(n), name);
 const activeScenes = () => page.evaluate(() => window.__CGE__.activeScenes());
 const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
+let harnessError = null;
 try {
   // 1. Fresh boot to title
   await page.goto(DEFAULT_URL, { waitUntil: "domcontentloaded" });
@@ -142,7 +150,8 @@ try {
     check("title reflects saved completion (title dev state not registered)", false, "TitleScene should registerDevState('title', ...)");
   }
 } catch (error) {
-  check("playtest ran without harness exception", false, error instanceof Error ? error.message : String(error));
+  harnessError = error instanceof Error ? error.message : String(error);
+  check("playtest ran without harness exception", false, harnessError);
   try {
     await shot("99-failure");
   } catch {
@@ -160,6 +169,11 @@ try {
   writeJson(`${outDir}/playtest-${landingProfile}.json`, report);
   await browser.close();
   console.log(`playtest ${report.passed ? "PASSED" : "FAILED"} -> ${outDir}`);
+  if (!report.passed && attempt < 2 && isReloadInterruption(harnessError)) {
+    console.log("retrying once: the page reloaded under the harness");
+    const rerun = spawnSync(process.execPath, [...process.argv.slice(1), "--attempt=2"], { stdio: "inherit" });
+    process.exit(rerun.status ?? 1);
+  }
   process.exit(report.passed ? 0 : 1);
 }
 

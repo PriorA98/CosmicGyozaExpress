@@ -26,20 +26,29 @@ const LAYOUT = {
   cardHeight: 556,
   cardRadius: 8,
   pad: 30,
-  leftColumnX: -325,
-  rightColumnX: -138,
-  rightColumnWidth: 590,
-  leftBandWidth: 336,
+  leftColumnX: -326,
+  rightColumnX: -146,
+  rightColumnWidth: 600,
+  leftBandWidth: 304,
   portraitY: -122,
   portraitFrame: 172,
-  trayY: 82,
+  trayY: 84,
   trayWidth: 236,
-  trayHeight: 92,
-  stampsY: -14,
-  statsY: 54,
-  statsGap: 37,
-  postcardX: 362,
-  postcardY: 86,
+  trayHeight: 62,
+  /** Space between the report line and the stamp row; stamps flow (and wrap) beneath the copy. */
+  stampsGapAbove: 18,
+  stampHeight: 36,
+  stampGapX: 14,
+  stampGapY: 10,
+  /** Dashed divider sits this far below the last stamp row; the first stat this far below the divider. */
+  statsDividerGap: 18,
+  statsFirstGap: 30,
+  statsGap: 36,
+  statsMinGap: 28,
+  postcardX: 346,
+  postcardY: 76,
+  /** Clearance kept between the stamp rows and the postcard (tape + tilt included). */
+  postcardClearance: 14,
   footerY: 186,
   buttonY: 230,
   buttonHeight: 50,
@@ -52,7 +61,30 @@ const LAYOUT = {
 /** Display scale for pixel art (manifest artScale). */
 const ART_SCALE = 2;
 const STEAM_ANIM_KEY = "result-item-steam";
+/** memory-postcard art size in art pixels (assetManifest). */
+const POSTCARD_SIZE = { width: 96, height: 64 } as const;
+/** Stamps settle slightly askew, like they were pressed by hand. */
+const STAMP_REST_ANGLE = { landing: -1.5, condition: 1 } as const;
 const STEAM_FRAME_RATE = 6;
+/** Dust puff when a stamp lands. */
+const STAMP_PUFF = { count: 5, spread: 40, offsetY: 4 } as const;
+/** Backdrop moon glow, plus the shape of the placeholder moon used until the art lands (radius-relative). */
+const MOON_GLOW = {
+  /** celestial-tea-moon is 192x192 art pixels. */
+  artRadius: 96,
+  rings: [
+    { radius: 260, alpha: 0.05 },
+    { radius: 228, alpha: 0.07 },
+    { radius: 204, alpha: 0.09 },
+  ],
+  fallbackAlpha: 0.55,
+  craters: [
+    { x: -0.42, y: 0.18, r: 0.16 },
+    { x: 0.12, y: 0.46, r: 0.11 },
+    { x: -0.05, y: -0.4, r: 0.09 },
+    { x: 0.38, y: 0.02, r: 0.07 },
+  ],
+} as const;
 
 type StageProps = {
   alpha?: number;
@@ -213,9 +245,24 @@ export class DeliveryResultScene extends Phaser.Scene {
       .setAlpha(this.isFallback(ASSET.spaceNebula) ? 0.18 : 0.55)
       .setDepth(depth.parallax);
 
-    this.add.image(LAYOUT.plumX, LAYOUT.plumY, ASSET.planetFarPlum).setScale(ART_SCALE).setAlpha(0.9).setDepth(depth.parallax);
+    const plumFallback = this.isFallback(ASSET.planetFarPlum);
+    this.add
+      .image(LAYOUT.plumX, LAYOUT.plumY, ASSET.planetFarPlum)
+      .setScale(ART_SCALE)
+      .setAlpha(plumFallback ? MOON_GLOW.fallbackAlpha : 0.9)
+      .setDepth(depth.parallax);
 
-    const moon = this.add.image(LAYOUT.moonX, LAYOUT.moonY, ASSET.celestialTeaMoon).setScale(ART_SCALE).setDepth(depth.parallax);
+    // Warm halo so the tea moon glows into the dusk, with or without its final art.
+    const halo = this.add.graphics().setDepth(depth.parallax);
+    MOON_GLOW.rings.forEach(({ radius, alpha }) => {
+      halo.fillStyle(colorNumber(colors.amber), alpha);
+      halo.fillCircle(LAYOUT.moonX, LAYOUT.moonY, radius);
+    });
+
+    const moonFallback = this.isFallback(ASSET.celestialTeaMoon);
+    const moon = moonFallback
+      ? this.createPlaceholderMoon()
+      : this.add.image(LAYOUT.moonX, LAYOUT.moonY, ASSET.celestialTeaMoon).setScale(ART_SCALE).setDepth(depth.parallax);
     if (!this.reducedMotion) {
       this.tweens.add({
         targets: moon,
@@ -233,6 +280,28 @@ export class DeliveryResultScene extends Phaser.Scene {
     wash.fillRect(0, 0, width, height);
   }
 
+  /**
+   * Stand-in while `celestial-tea-moon` art is still in production: a shaded sage disc with a few
+   * soft craters instead of PreloadScene's flat circle. Same footprint as the final sprite.
+   */
+  private createPlaceholderMoon(): Phaser.GameObjects.Graphics {
+    const radius = MOON_GLOW.artRadius * ART_SCALE;
+    const moon = this.add.graphics({ x: LAYOUT.moonX, y: LAYOUT.moonY }).setDepth(depth.parallax);
+    moon.fillStyle(colorNumber(colors.sageDeep), 1);
+    moon.fillCircle(0, 0, radius);
+    moon.fillStyle(colorNumber(colors.sage), 1);
+    moon.fillCircle(-radius * 0.08, -radius * 0.06, radius * 0.9);
+    moon.fillStyle(colorNumber(colors.plaster), 0.12);
+    moon.fillCircle(-radius * 0.22, -radius * 0.22, radius * 0.55);
+    MOON_GLOW.craters.forEach(({ x, y, r }) => {
+      moon.fillStyle(colorNumber(colors.sageDeep), 0.45);
+      moon.fillCircle(x * radius, y * radius, r * radius);
+      moon.fillStyle(colorNumber(colors.plaster), 0.18);
+      moon.fillCircle(x * radius - r * radius * 0.2, y * radius - r * radius * 0.2, r * radius * 0.55);
+    });
+    return moon;
+  }
+
   // ---------------------------------------------------------------- card
 
   private createCard(view: DeliveryResultPresentation): void {
@@ -243,9 +312,9 @@ export class DeliveryResultScene extends Phaser.Scene {
 
     this.createPortrait(card);
     this.createItems(card, view);
-    this.createHeadline(card, view);
-    this.createStamps(card, view);
-    this.createStats(card, view);
+    const copyBottom = this.createHeadline(card, view);
+    const stampsBottom = this.createStamps(card, view, copyBottom + LAYOUT.stampsGapAbove);
+    this.createStats(card, view, stampsBottom);
     this.createPostcard(card, view);
     this.createFooter(card, view);
   }
@@ -320,7 +389,7 @@ export class DeliveryResultScene extends Phaser.Scene {
       .text(x, y + size / 2, resultCopy.recipientCaption, {
         color: colors.plaster,
         fontFamily: fontStacks.mono,
-        fontSize: `${typeScale.base}px`,
+        fontSize: `${typeScale.md}px`,
         fontStyle: "700",
       })
       .setOrigin(0.5);
@@ -340,22 +409,34 @@ export class DeliveryResultScene extends Phaser.Scene {
     const x = LAYOUT.leftColumnX;
     const y = LAYOUT.trayY;
 
+    // A low wooden serving tray: items rest on its top third so they read as "set down", not floating.
+    const trayLeft = x - LAYOUT.trayWidth / 2;
+    const trayTop = y - LAYOUT.trayHeight / 2;
+    const restLine = trayTop + LAYOUT.trayHeight * 0.62;
     const tray = this.add.graphics();
+    tray.fillStyle(colorNumber(colors.borderStrong), 1);
+    tray.fillRoundedRect(trayLeft + 2, trayTop + 4, LAYOUT.trayWidth, LAYOUT.trayHeight, 10);
     tray.fillStyle(colorNumber(colors.wallpaper), 1);
-    tray.fillRoundedRect(x - LAYOUT.trayWidth / 2, y - LAYOUT.trayHeight / 2 + 18, LAYOUT.trayWidth, LAYOUT.trayHeight - 18, 8);
+    tray.fillRoundedRect(trayLeft, trayTop, LAYOUT.trayWidth, LAYOUT.trayHeight, 10);
     tray.lineStyle(2, colorNumber(colors.borderStrong), 1);
-    tray.strokeRoundedRect(x - LAYOUT.trayWidth / 2, y - LAYOUT.trayHeight / 2 + 18, LAYOUT.trayWidth, LAYOUT.trayHeight - 18, 8);
+    tray.strokeRoundedRect(trayLeft, trayTop, LAYOUT.trayWidth, LAYOUT.trayHeight, 10);
+    // Soft contact shadows under each item.
+    tray.fillStyle(colorNumber(colors.borderStrong), 0.45);
+    tray.fillEllipse(x - 46, restLine, 64, 10);
+    tray.fillEllipse(x + 48, restLine, 60, 10);
 
-    const tea = this.add.image(x - 46, y + 8, ASSET.itemTea).setOrigin(0.5, 1).setScale(ART_SCALE);
-    const mochi = this.add.image(x + 48, y + 10, ASSET.itemMochi).setOrigin(0.5, 1).setScale(ART_SCALE);
-    const steamA = this.add.sprite(x - 54, y - 50, ASSET.itemSteam, 0).setOrigin(0.5, 1).setScale(ART_SCALE).setAlpha(0);
-    const steamB = this.add.sprite(x - 36, y - 46, ASSET.itemSteam, 2).setOrigin(0.5, 1).setScale(ART_SCALE).setAlpha(0);
+    const tea = this.add.image(x - 46, restLine + 2, ASSET.itemTea).setOrigin(0.5, 1).setScale(ART_SCALE);
+    const mochi = this.add.image(x + 48, restLine + 2, ASSET.itemMochi).setOrigin(0.5, 1).setScale(ART_SCALE);
+    const steamTop = restLine - 32 * ART_SCALE + 10;
+    const steamA = this.add.sprite(x - 50, steamTop, ASSET.itemSteam, 0).setOrigin(0.5, 1).setScale(ART_SCALE).setAlpha(0);
+    const steamB = this.add.sprite(x - 34, steamTop + 4, ASSET.itemSteam, 2).setOrigin(0.5, 1).setScale(ART_SCALE).setAlpha(0);
 
     const caption = this.add
-      .text(x, y + 52, view.content.deliveryItemName, {
+      .text(x, trayTop + LAYOUT.trayHeight + 22, view.content.deliveryItemName, {
         color: colors.inkSoft,
         fontFamily: fontStacks.ui,
-        fontSize: `${typeScale.base + 1}px`,
+        fontSize: `${typeScale.md + 1}px`,
+        fontStyle: "600",
       })
       .setOrigin(0.5);
 
@@ -385,7 +466,8 @@ export class DeliveryResultScene extends Phaser.Scene {
     });
   }
 
-  private createHeadline(card: Phaser.GameObjects.Container, view: DeliveryResultPresentation): void {
+  /** Returns the local y of the bottom of the copy block. */
+  private createHeadline(card: Phaser.GameObjects.Container, view: DeliveryResultPresentation): number {
     const x = LAYOUT.rightColumnX;
     const top = -LAYOUT.cardHeight / 2 + LAYOUT.pad;
 
@@ -428,22 +510,45 @@ export class DeliveryResultScene extends Phaser.Scene {
     ]);
     this.stage(resultRevealTiming.reaction, motion.slow, "Cubic.easeOut", [this.part(reaction, { alpha: 0, dy: 8 })]);
     this.stage(resultRevealTiming.report, motion.slow, "Cubic.easeOut", [this.part(report, { alpha: 0 })]);
+    return report.y + report.height;
   }
 
-  private createStamps(card: Phaser.GameObjects.Container, view: DeliveryResultPresentation): void {
-    const y = LAYOUT.stampsY;
+  /**
+   * Lays the stamps out left to right beneath the copy, wrapping to a new row when a stamp would
+   * run into the postcard (or the card edge). Returns the local y of the bottom of the last row.
+   */
+  private createStamps(card: Phaser.GameObjects.Container, view: DeliveryResultPresentation, top: number): number {
     const landing = this.createStamp(view.landingStamp);
     const condition = this.createStamp({ label: `package · ${view.conditionStamp.label}`, tone: view.conditionStamp.tone });
 
-    const landingWidth = landing.getData("stampWidth") as number;
-    const conditionWidth = condition.getData("stampWidth") as number;
-    landing.setPosition(LAYOUT.rightColumnX + landingWidth / 2, y);
-    condition.setPosition(LAYOUT.rightColumnX + landingWidth + 14 + conditionWidth / 2, y);
+    const innerRight = LAYOUT.cardWidth / 2 - LAYOUT.pad;
+    const postcardLeft = LAYOUT.postcardX - (POSTCARD_SIZE.width * ART_SCALE) / 2 - LAYOUT.postcardClearance;
+    const postcardTop = LAYOUT.postcardY - (POSTCARD_SIZE.height * ART_SCALE) / 2 - LAYOUT.postcardClearance;
+    const rowLimit = (rowTop: number): number =>
+      rowTop + LAYOUT.stampHeight > postcardTop ? postcardLeft : innerRight;
+
+    let rowTop = top;
+    let cursor = LAYOUT.rightColumnX;
+    const placed: [Phaser.GameObjects.Container, number][] = [
+      [landing, STAMP_REST_ANGLE.landing],
+      [condition, STAMP_REST_ANGLE.condition],
+    ];
+    placed.forEach(([stamp, angle], index) => {
+      const width = stamp.getData("stampWidth") as number;
+      if (index > 0 && cursor + width > rowLimit(rowTop)) {
+        rowTop += LAYOUT.stampHeight + LAYOUT.stampGapY;
+        cursor = LAYOUT.rightColumnX;
+      }
+      stamp.setPosition(cursor + width / 2, rowTop + LAYOUT.stampHeight / 2).setAngle(angle);
+      cursor += width + LAYOUT.stampGapX;
+    });
 
     card.add([landing, condition]);
     const thump = (stamp: Phaser.GameObjects.Container) => (instant: boolean) => {
       if (instant || this.reducedMotion) return;
-      burstDust(this, LAYOUT.cardX + stamp.x, LAYOUT.cardY + stamp.y + 14, { count: 8, spread: 34, depth: depth.hudFx });
+      // A small puff from under the stamp's lower edge, so it never smudges the label.
+      const puffY = LAYOUT.cardY + stamp.y + LAYOUT.stampHeight / 2 + STAMP_PUFF.offsetY;
+      burstDust(this, LAYOUT.cardX + stamp.x, puffY, { count: STAMP_PUFF.count, spread: STAMP_PUFF.spread, depth: depth.hudFx });
     };
     this.stage(resultRevealTiming.landingStamp, motion.base, "Back.easeOut", [
       this.part(landing, { alpha: 0, scale: 1.35, angle: -4 }),
@@ -451,11 +556,13 @@ export class DeliveryResultScene extends Phaser.Scene {
     this.stage(resultRevealTiming.conditionStamp, motion.base, "Back.easeOut", [
       this.part(condition, { alpha: 0, scale: 1.35, angle: 4 }),
     ], thump(condition));
+
+    return rowTop + LAYOUT.stampHeight;
   }
 
   private createStamp(stamp: ResultStamp): Phaser.GameObjects.Container {
     const palette = resultStampPalette[stamp.tone];
-    const height = 36;
+    const height = LAYOUT.stampHeight;
     const label = this.add
       .text(0, 0, stamp.label, {
         color: palette.foreground,
@@ -484,15 +591,23 @@ export class DeliveryResultScene extends Phaser.Scene {
     return container;
   }
 
-  private createStats(card: Phaser.GameObjects.Container, view: DeliveryResultPresentation): void {
+  private createStats(card: Phaser.GameObjects.Container, view: DeliveryResultPresentation, stampsBottom: number): void {
     const x = LAYOUT.rightColumnX;
+    const dividerY = stampsBottom + LAYOUT.statsDividerGap;
+    const firstY = dividerY + LAYOUT.statsFirstGap;
+    // Tighten the rows (never below statsMinGap) if wrapped stamps pushed the list toward the footer.
+    const lastAllowedY = LAYOUT.footerY - LAYOUT.statsFirstGap;
+    const roomPerGap = view.stats.length > 1 ? (lastAllowedY - firstY) / (view.stats.length - 1) : LAYOUT.statsGap;
+    const gap = Math.max(LAYOUT.statsMinGap, Math.min(LAYOUT.statsGap, roomPerGap));
+
     const divider = this.add.graphics();
-    this.drawDashedLine(divider, x, LAYOUT.statsY - 30, x + LAYOUT.rightColumnWidth, LAYOUT.statsY - 30, colors.borderStrong);
+    const dividerEnd = LAYOUT.postcardX - (POSTCARD_SIZE.width * ART_SCALE) / 2 - LAYOUT.postcardClearance;
+    this.drawDashedLine(divider, x, dividerY, dividerEnd, dividerY, colors.borderStrong);
 
     const iconFallback = this.isFallback(ASSET.uiIcons);
     const parts: StagedPart[] = [this.part(divider, { alpha: 0 })];
     view.stats.forEach((stat, index) => {
-      const y = LAYOUT.statsY + index * LAYOUT.statsGap;
+      const y = firstY + index * gap;
       const icon: Phaser.GameObjects.GameObject & Stageable = iconFallback
         ? this.add.circle(x + 10, y, 5, colorNumber(colors.amber))
         : this.add.image(x + 12, y, ASSET.uiIcons, UI_ICON_FRAME[stat.icon]).setScale(ART_SCALE / 2 + 0.5);
@@ -500,7 +615,7 @@ export class DeliveryResultScene extends Phaser.Scene {
         .text(x + 34, y, stat.text, {
           color: colors.inkSoft,
           fontFamily: fontStacks.mono,
-          fontSize: `${typeScale.md}px`,
+          fontSize: `${typeScale.md + 1}px`,
         })
         .setOrigin(0, 0.5);
       card.add([icon, text]);
@@ -514,8 +629,8 @@ export class DeliveryResultScene extends Phaser.Scene {
   private createPostcard(card: Phaser.GameObjects.Container, view: DeliveryResultPresentation): void {
     const x = LAYOUT.postcardX;
     const y = LAYOUT.postcardY;
-    const w = 96 * ART_SCALE;
-    const h = 64 * ART_SCALE;
+    const w = POSTCARD_SIZE.width * ART_SCALE;
+    const h = POSTCARD_SIZE.height * ART_SCALE;
 
     const holder = this.add.container(x, y);
     const shadow = this.add.rectangle(4, 6, w, h, colorNumber(colors.ink), 0.25);
@@ -526,18 +641,26 @@ export class DeliveryResultScene extends Phaser.Scene {
     holder.setAngle(-2);
 
     const label = this.add
-      .text(x, y + h / 2 + 18, `${view.postcardLabel}  ·  ${view.postcardTitle}`, {
+      .text(x, y + h / 2 + 16, `✦ ${view.postcardLabel} ✦`, {
         color: colors.terracottaDeep,
         fontFamily: fontStacks.mono,
-        fontSize: `${typeScale.base}px`,
+        fontSize: `${typeScale.md}px`,
         fontStyle: "700",
       })
       .setOrigin(0.5);
+    const title = this.add
+      .text(x, label.y + 18, view.postcardTitle, {
+        color: colors.inkSoft,
+        fontFamily: fontStacks.ui,
+        fontSize: `${typeScale.base}px`,
+      })
+      .setOrigin(0.5);
 
-    card.add([holder, label]);
+    card.add([holder, label, title]);
     this.stage(resultRevealTiming.postcard, motion.slow, "Back.easeOut", [
       this.part(holder, { alpha: 0, scaleX: 0, angle: -10 }),
       this.part(label, { alpha: 0, dy: 6 }),
+      this.part(title, { alpha: 0, dy: 6 }),
     ], () => {
       burstSparkles(this, LAYOUT.cardX + x, LAYOUT.cardY + y, { count: 18, spread: 120, depth: depth.hudFx });
       this.cheerRabbit();

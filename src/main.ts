@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { installDevProbe } from "./dev/devProbe";
 import { applyShowcaseSaveFixture } from "./dev/saveFixtures";
 import { readRequestedShowcase } from "./dev/showcaseStates";
+import { installFxSettings } from "./fx/fxSettings";
 import { gameConfig } from "./gameConfig";
 import { installAudioSystem } from "./systems/AudioSystem";
 import "./styles/tokens.css";
@@ -21,6 +22,8 @@ const devScenes: Phaser.Types.Scenes.SceneType[] = import.meta.env.DEV
 const baseScenes = Array.isArray(gameConfig.scene) ? gameConfig.scene : [];
 const game = new Phaser.Game({ ...gameConfig, scene: [...baseScenes, ...devScenes] });
 installAudioSystem(game);
+// Syncs save.settings.reducedMotion (and the OS preference) into src/fx; re-syncs on settings:changed.
+installFxSettings(game);
 
 if (import.meta.env.DEV) {
   installDevProbe(game);

@@ -14,6 +14,30 @@ export const VIEWPORTS = {
   phonePortrait: { width: 390, height: 844 },
 };
 
+/**
+ * Viewports that emulate a touch phone (hasTouch + isMobile), so Phaser's device.input.touch is
+ * true and touch-pad HUD layouts render. Plain `phoneLandscape` stays keyboard-first.
+ */
+export const TOUCH_VIEWPORTS = new Set(["phoneLandscapeTouch"]);
+VIEWPORTS.phoneLandscapeTouch = { width: 844, height: 390 };
+
+/** Playwright context options for a named viewport. */
+export function contextOptions(viewportName) {
+  const viewport = VIEWPORTS[viewportName];
+  const touch = TOUCH_VIEWPORTS.has(viewportName);
+  return { viewport, deviceScaleFactor: 1, hasTouch: touch, isMobile: touch };
+}
+
+/**
+ * True when a failure came from the page navigating/reloading under the harness (e.g. Vite HMR
+ * full reload while files are being edited), not from the game itself. Such runs are retried once.
+ */
+export function isReloadInterruption(message) {
+  return /Execution context was destroyed|__CGE__|Target (page, context or browser )?closed|frame was detached|because of a navigation/i.test(
+    String(message ?? ""),
+  );
+}
+
 export function parseArgs(argv) {
   const args = {};
   for (const raw of argv.slice(2)) {

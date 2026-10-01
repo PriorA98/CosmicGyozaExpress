@@ -30,12 +30,21 @@ const LAYOUT = {
   buttonWidth: 392,
   buttonHeight: 60,
   hintsY: 436,
-  ship: { x: 616, y: 472, scale: 1.25, rotation: 0.26, bobPx: 9, swayRad: 0.035, thrustOffset: 64 },
+  ship: { x: 624, y: 468, scale: 1, rotation: 0.16, bobPx: 9, swayRad: 0.035, thrustOffset: 50 },
   moon: { x: 1030, y: 214 },
   farPlanet: { x: 512, y: 728 },
   card: { x: 760, y: 420, width: 456, height: 268 },
   devPanelX: 18,
 } as const;
+
+/**
+ * Idle thrust puffs: the burner only breathes while the ship sinks through the low half of its
+ * bob, like a little hop to hold altitude. `sinkThreshold` is sin(phase) above which it fires.
+ */
+const PUFFS = { sinkThreshold: 0.45, baseIntensity: 0.12, peakIntensity: 0.22 } as const;
+
+/** Stepped glow behind the tea moon (screen px; moon art is 192 art px at scale 2). */
+const MOON_GLOW = { rings: 6, innerRadius: 200, step: 18, alpha: 0.035 } as const;
 
 /** Slow parallax drift for backdrop layers (texture px per second). */
 const DRIFT = { far: 3, nebula: 1.2, near: 7 } as const;
@@ -100,8 +109,11 @@ export class TitleScene extends Phaser.Scene {
     const phase = (this.elapsedMs / motion.breath) * Math.PI * 2;
     ship.y = LAYOUT.ship.y + Math.sin(phase) * LAYOUT.ship.bobPx * calm;
     ship.rotation = LAYOUT.ship.rotation + Math.sin(phase * 0.5) * LAYOUT.ship.swayRad * calm;
-    // Soft puffs: thrust breathes with the bob so the ship looks like it is gently holding altitude.
-    this.trail?.update(ship.x, ship.y, ship.rotation, Math.sin(phase) < 0.35, 0.3 + 0.2 * Math.max(0, -Math.sin(phase)));
+    // Soft puffs: the burner breathes with the bob so the ship looks like it is gently holding altitude.
+    const sink = Math.sin(phase);
+    const puffing = sink > PUFFS.sinkThreshold;
+    const intensity = PUFFS.baseIntensity + (PUFFS.peakIntensity - PUFFS.baseIntensity) * Math.max(0, sink);
+    this.trail?.update(ship.x, ship.y, ship.rotation, puffing, intensity);
   }
 
   private createBackdrop(): void {
@@ -158,9 +170,10 @@ export class TitleScene extends Phaser.Scene {
 
     const halo = this.add.graphics().setDepth(depth.parallax);
     halo.setPosition(LAYOUT.moon.x, LAYOUT.moon.y);
-    for (let ring = 0; ring < 5; ring += 1) {
-      halo.fillStyle(colorNumber(colors.amber), 0.05);
-      halo.fillCircle(0, 0, 196 + ring * 22);
+    // Moonlight: stacked translucent discs read as a stepped pixel glow, warm at the rim.
+    for (let ring = 0; ring < MOON_GLOW.rings; ring += 1) {
+      halo.fillStyle(colorNumber(ring < 2 ? colors.amber : colors.parchmentDeep), MOON_GLOW.alpha);
+      halo.fillCircle(0, 0, MOON_GLOW.innerRadius + ring * MOON_GLOW.step);
     }
     if (!isReducedMotion()) {
       this.tweens.add({ targets: halo, scale: { from: 0.97, to: 1.03 }, alpha: { from: 0.75, to: 1 }, duration: motion.breath * 1.5, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });

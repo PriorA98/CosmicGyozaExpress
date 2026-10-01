@@ -146,7 +146,7 @@ export class FlightScene extends Phaser.Scene {
     const initialStart = this.sceneData.start ?? route.start;
     this.engine = new ShipEngine(this);
     this.ship = new GyozaShip(this, initialStart);
-    this.ship.setScale(shipVisualStyle.flightScale).setDepth(depth.ship);
+    this.ship.setBaseScale(shipVisualStyle.flightScale).setDepth(depth.ship);
 
     const camera = this.cameras.main;
     camera.setBounds(0, 0, route.world.width, route.world.height);

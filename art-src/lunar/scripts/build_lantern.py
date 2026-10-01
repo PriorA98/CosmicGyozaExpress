@@ -1,6 +1,8 @@
 """Hand-placed pixel redraw of the lunar lantern (12x28 x 2 frames), traced from the
 Codex lantern raw (art-src/lunar/raw/lunar-lantern-v1.png) because a straight box
-downscale to 12 px wide turned mushy. Run from repo root:
+downscale to 12 px wide turned mushy. v2: shorter hook arm, small foot. v3 (resume pass):
+the hanging-from-an-arm design still read as a gallows/bracket at 2x, so the lantern now sits
+on top of a short centred post (toro-style); lamp centre ~19 art px above the base. Run from repo root:
     python art-src/lunar/scripts/build_lantern.py
 """
 from __future__ import annotations
@@ -15,32 +17,32 @@ OUT = ROOT / "public" / "assets" / "lunar" / "lunar-lantern.png"
 MAP = [
     "............",
     "............",
-    "KKKKKKKKKKKK",
-    "KhhhhhhhhhhK",
-    "KhwwwwwwwwwK",
-    "KhwKKKKKKKKK",
-    "KhwK....c...",
-    "KhwK...OOO..",
-    "KhwK..OTTTO.",
-    "KhwK.OHHPPpO",
-    "KhwK.OHPLLpO",
-    "KhwK.OrrrrRO",
-    "KhwK.OPPLLpO",
-    "KhwK.OrrrrRO",
-    "KhwK.OPPPppO",
-    "KhwK.OpppppO",
-    "KhwK..OTTTO.",
-    "KhwK...OOO..",
-    "KqqK....t...",
-    "KqqK....t...",
-    "KhwK........",
-    "KhwK........",
-    "KhwK........",
-    "KhwK........",
-    "KhwK........",
-    "KhwKKKKKKK..",
-    "KhhhhhhhwwK.",
-    "KKKKKKKKKKK.",
+    ".....KK.....",
+    "...KKTTKK...",
+    "..KTTTTTTK..",
+    "..KKKKKKKK..",
+    "..OHPPPPpO..",
+    ".OHHPPPPPpO.",
+    ".OrrrrrrrRO.",
+    "OHHPLLLPPPpO",
+    "OHPLLLLPPPpO",
+    ".OrrrrrrrRO.",
+    ".OHPPPPPPpO.",
+    "..OPPPPPpO..",
+    "..KTTTTTTK..",
+    "...KKKKKK...",
+    "....KhwK....",
+    "....KhwK....",
+    "....KqqK....",
+    "....KhwK....",
+    "....KhwK....",
+    "....KhwK....",
+    "....KhwK....",
+    "....KhwK....",
+    "....KhwK....",
+    "...KhhwwK...",
+    "..KhhhwwwK..",
+    "..KKKKKKKK..",
 ]
 
 COMMON = {
@@ -72,10 +74,26 @@ LIT = {
     "r": "F2C49A",
     "R": "D4A055",
 }
-# soft ember halo pixels (x, y, alpha) for the lit frame, kept inside the 12x28 frame
-HALO = [(4, 9, 110), (4, 10, 170), (4, 11, 190), (4, 12, 190), (4, 13, 170), (4, 14, 110), (4, 15, 70),
-        (6, 7, 110), (10, 7, 110), (5, 8, 120), (11, 8, 100), (6, 17, 110), (10, 17, 110), (5, 16, 120), (11, 16, 100),
-        (7, 6, 70), (9, 6, 70), (7, 18, 80), (9, 18, 80), (8, 19, 50), (5, 7, 50), (5, 17, 50)]
+# soft ember halo for the lit frame: transparent cells hugging the paper body get ember pixels,
+# alpha falling off with distance (computed from MAP so it always fits inside the 12x28 frame)
+BODY = set("OHPLprR")
+HALO_ALPHA = {1: 130, 2: 55}
+
+
+def halo_cells() -> list[tuple[int, int, int]]:
+    body = [(x, y) for y, row in enumerate(MAP) for x, ch in enumerate(row) if ch in BODY]
+    cells = []
+    for y, row in enumerate(MAP):
+        for x, ch in enumerate(row):
+            if ch != ".":
+                continue
+            d = min(max(abs(x - bx), abs(y - by)) for bx, by in body)
+            if d in HALO_ALPHA:
+                cells.append((x, y, HALO_ALPHA[d]))
+    return cells
+
+
+HALO = halo_cells()
 
 
 def rgb(hex_: str) -> tuple[int, int, int]:

@@ -89,11 +89,16 @@ export const SHOWCASE_STATES: readonly ShowcaseStateDefinition[] = [
     id: "flight-arrival-ready",
     sceneKey: "FlightScene",
     description: "Inside delivery ring, bottom aligned, landing window holding",
-    settleMs: 260,
+    // Starts just above dockingMaxSpeed (70) drifting toward the dock, so the window cannot open
+    // until the harness holds the brake (S); it then opens ~50 ms later and the capture lands
+    // mid-progress (~0.5) instead of on the fade-out to LandingScene. Load latency only adds drift
+    // (<= ~100 px), which stays inside the 132 px delivery ring.
+    settleMs: 320,
     save: "fresh",
+    hold: ["KeyS"],
     data: flight({
       missionId: TEA_MOON_MISSION_ID,
-      start: { x: 2765, y: 850, rotation: -Math.PI / 2, velocityX: 0, velocityY: 0 },
+      start: { x: 2735, y: 850, rotation: -Math.PI / 2, velocityX: 95, velocityY: 0 },
     }),
   },
   {
@@ -125,6 +130,18 @@ export const SHOWCASE_STATES: readonly ShowcaseStateDefinition[] = [
     data: landing({
       packageCondition: 88,
       start: { x: 600, y: 430, rotation: 0.14, velocityX: 10, velocityY: 60, angularVelocity: 0 },
+    }),
+  },
+  {
+    id: "landing-stabilizer",
+    sceneKey: "LandingScene",
+    description: "Tilted mid-descent with the stabilizer (S) held: gyro ring and level line",
+    settleMs: 400,
+    save: "fresh",
+    hold: ["KeyS"],
+    data: landing({
+      packageCondition: 100,
+      start: { x: 640, y: 300, rotation: 0.45, velocityX: 0, velocityY: 60, angularVelocity: 0 },
     }),
   },
   {
@@ -186,6 +203,20 @@ export const SHOWCASE_STATES: readonly ShowcaseStateDefinition[] = [
       routeDurationMs: 131000,
       landingResult: "bumpy",
       landingIncidents: 1,
+    }),
+  },
+  {
+    id: "result-incident",
+    sceneKey: "DeliveryResultScene",
+    description: "Result card after a landing incident; long stamps exercise the wrap layout",
+    settleMs: 1600,
+    save: "fresh",
+    data: result({
+      packageCondition: 20,
+      routeCrashes: 4,
+      routeDurationMs: 168000,
+      landingResult: "incident",
+      landingIncidents: 3,
     }),
   },
 ];

@@ -1,3 +1,47 @@
-.game-root:focus {
-  outline: none;
+/*
+ * Narrow portrait phones letterbox the 16:9 canvas into a thin strip. A small pixel note under it
+ * suggests turning the phone; the game remains fully playable either way.
+ */
+@media (orientation: portrait) and (max-width: 720px) {
+  .app-shell::after {
+    content: "turn sideways for a roomier cockpit";
+    position: absolute;
+    left: 50%;
+    /* just below the letterboxed canvas: its half-height is 100vw * 9 / 16 / 2 = 28.125vw */
+    top: calc(50% + 28.125vw + 36px);
+    transform: translateX(-50%) rotate(-1deg);
+    width: max-content;
+    max-width: calc(100% - 48px);
+    padding: 8px 14px;
+    border: 2px solid var(--color-ink);
+    border-radius: var(--radius-sm);
+    background: var(--color-parchment-warm);
+    box-shadow: var(--shadow-pixel);
+    color: var(--color-ink-soft);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.35;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  .app-shell::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    /* centred in the band above the canvas */
+    top: max(16px, calc((50% - 28.125vw) / 2 - 36px));
+    width: 72px;
+    height: 72px;
+    transform: translateX(-50%);
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 38% 36%, rgb(251 247 236 / 55%) 0 6px, transparent 7px),
+      radial-gradient(circle at 62% 64%, rgb(141 161 122 / 45%) 0 9px, transparent 10px),
+      #c2cfae;
+    box-shadow:
+      0 0 0 10px rgb(212 160 85 / 8%),
+      0 0 0 22px rgb(236 223 197 / 5%);
+    pointer-events: none;
+  }
 }

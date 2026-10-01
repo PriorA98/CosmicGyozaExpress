@@ -13,6 +13,7 @@ import { LandingPadSite } from "../entities/landing/LandingPadSite";
 import { LandingTouchPads } from "../entities/landing/LandingTouchPads";
 import { LunarScenery } from "../entities/landing/LunarScenery";
 import { MoonRabbit } from "../entities/landing/MoonRabbit";
+import { NozzleFlame } from "../entities/landing/NozzleFlame";
 import { measureFootOffset } from "../entities/landing/shipFootprint";
 import {
   burstDust,
@@ -91,6 +92,7 @@ export class LandingScene extends Phaser.Scene {
   private dashboard!: LandingDashboard;
   private touchPads: LandingTouchPads | undefined;
   private thrustTrail!: ThrustTrail;
+  private nozzleFlame!: NozzleFlame;
   private caption: Phaser.GameObjects.Container | undefined;
   private pad: LandingPadDefinition = createTeaMoonLandingPad();
   private landingState: LandingKinematicState = createLandingState();
@@ -151,8 +153,9 @@ export class LandingScene extends Phaser.Scene {
     this.footOffset = measureFootOffset(this, ASSET.shipIdle, landingScenery.ship.fallbackFootRatio);
     this.thrustTrail = createThrustTrail(this, {
       depth: depth.ship - 1,
-      offset: this.footOffset * landingScenery.ship.scale - landingScenery.ship.nozzleInsetPx,
+      offset: this.footOffset * landingScenery.ship.scale - landingScenery.ship.nozzleInsetPx + landingScenery.flame.trailLeadPx,
     });
+    this.nozzleFlame = new NozzleFlame(this, depth.ship - 1);
     this.updateShipVisual(false);
     this.ship.setAlpha(0);
     this.tweens.add({ targets: this.ship, alpha: 1, duration: motion.base, ease: "Sine.easeOut" });
@@ -181,6 +184,7 @@ export class LandingScene extends Phaser.Scene {
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.thrustTrail.destroy();
+      this.nozzleFlame.destroy();
       this.scenery.destroy();
     });
 
@@ -224,6 +228,7 @@ export class LandingScene extends Phaser.Scene {
 
     const thrusting = this.phase.kind === "descending" && this.controls.thrust;
     this.thrustTrail.update(this.ship.x, this.ship.y, this.ship.rotation, thrusting, 1);
+    this.nozzleFlame.update(this.ship.x, this.ship.y, this.ship.rotation, this.nozzleDistance(), thrusting, time, deltaSeconds);
     this.scenery.update(this.ship.x);
     this.updateDashboard();
   }
@@ -580,7 +585,7 @@ export class LandingScene extends Phaser.Scene {
 
   private createThrusterMisfire(x: number, y: number, rotation: number): void {
     const bottom = bottomVector(rotation);
-    const nozzle = this.footOffset * landingScenery.ship.scale - landingScenery.ship.nozzleInsetPx;
+    const nozzle = this.nozzleDistance();
     const startX = x + bottom.x * nozzle;
     const startY = y + bottom.y * nozzle;
     const baseAngle = Math.atan2(bottom.y, bottom.x);
@@ -694,6 +699,11 @@ export class LandingScene extends Phaser.Scene {
       thrusting,
     );
     this.applyShipScale(1 + squash * landingScenery.ship.squashStretchRatio, 1 - squash);
+  }
+
+  /** Distance from the ship sprite centre to the thruster nozzle along the ship's down axis. */
+  private nozzleDistance(): number {
+    return this.footOffset * landingScenery.ship.scale - landingScenery.ship.nozzleInsetPx;
   }
 
   private applyShipScale(xFactor: number, yFactor: number): void {

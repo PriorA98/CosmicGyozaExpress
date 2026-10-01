@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { landingScenery } from "../../data/landingScenery";
 import { colorNumber, colors, depth, fontStacks, motion, typeScale } from "../../game/designTokens";
+import { landingHudScale } from "./LandingDashboard";
 
 export type LandingCaptionOptions = {
   readonly x: number;
@@ -80,8 +81,12 @@ export function showLandingCaption(scene: Phaser.Scene, options: LandingCaptionO
     scene.tweens.add({ targets: fill, scaleX: 1, duration: options.progressMs, ease: "Linear" });
   }
 
-  container.setScale(0.6).setAlpha(0);
-  scene.tweens.add({ targets: container, scale: 1, alpha: 1, duration: config.popMs, ease: "Back.easeOut" });
+  const hudScale = landingHudScale(scene);
+  // Keep the (possibly enlarged) card inside the canvas.
+  const halfVisible = (width * hudScale) / 2 + config.padX;
+  container.setX(Math.round(Phaser.Math.Clamp(options.x, halfVisible, scene.scale.width - halfVisible)));
+  container.setScale(0.6 * hudScale).setAlpha(0);
+  scene.tweens.add({ targets: container, scale: hudScale, alpha: 1, duration: config.popMs, ease: "Back.easeOut" });
   scene.tweens.add({
     targets: container,
     y: container.y - 6,

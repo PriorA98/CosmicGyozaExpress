@@ -110,21 +110,24 @@ export const BURST_TUNING: Readonly<Record<BurstKind, BurstTuning>> = {
     speed: { min: 20, max: 80 },
     lifespanMs: { min: 520, max: 820 },
     gravityY: -12,
-    tints: [0xffffff, colorNumber(colors.parchmentDeep), colorNumber(colors.wallpaper)],
+    // Near-white washes keep the authored cream; heavier tints read as grey smoke.
+    tints: [0xffffff, 0xfdf6e8, 0xf6ecd8],
     alpha: { start: 0.95, end: 0 },
-    anim: { durationMs: 700, loop: false },
+    // Longer than the lifespan so puffs spend their life in the cream frames, not the grey tail.
+    anim: { durationMs: 1050, loop: false },
     lift: 18,
   },
   sparkle: {
     sheet: "sparkle",
     count: 14,
-    speed: { min: 50, max: 150 },
-    lifespanMs: { min: 520, max: 900 },
-    gravityY: 70,
-    tints: [colorNumber(colors.amber), colorNumber(colors.plaster), colorNumber(colors.ember), 0xffe6a8],
+    speed: { min: 40, max: 120 },
+    lifespanMs: { min: 600, max: 950 },
+    gravityY: 90,
+    // The art is already gold; tints only warm or cool it slightly (multiplying ember turns it brown).
+    tints: [0xffffff, 0xfff3dc, 0xffe4b8, 0xfff8f0],
     alpha: { start: 1, end: 0 },
-    anim: { durationMs: 320, loop: true },
-    lift: 70,
+    anim: { durationMs: 480, loop: true },
+    lift: 35,
   },
   incidentFlour: {
     sheet: "dust",
@@ -132,21 +135,21 @@ export const BURST_TUNING: Readonly<Record<BurstKind, BurstTuning>> = {
     speed: { min: 40, max: 120 },
     lifespanMs: { min: 600, max: 950 },
     gravityY: -8,
-    tints: [0xffffff, colorNumber(colors.parchment), colorNumber(colors.wallpaper)],
+    tints: [0xffffff, 0xfffaf0, 0xf7eedc],
     alpha: { start: 1, end: 0 },
-    anim: { durationMs: 850, loop: false },
+    anim: { durationMs: 1100, loop: false },
     lift: 10,
   },
   incidentConfetti: {
     sheet: "star",
     count: 16,
-    speed: { min: 90, max: 210 },
-    lifespanMs: { min: 700, max: 1100 },
-    gravityY: 160,
+    speed: { min: 70, max: 150 },
+    lifespanMs: { min: 700, max: 1000 },
+    gravityY: 240,
     tints: [colorNumber(colors.ember), colorNumber(colors.sage), colorNumber(colors.terracotta), colorNumber(colors.amber), colorNumber(colors.plum)],
     alpha: { start: 1, end: 0.2 },
     anim: { durationMs: 260, loop: true },
-    lift: 140,
+    lift: 90,
   },
   star: {
     sheet: "star",
@@ -168,7 +171,8 @@ export const STEAM_TUNING = {
   sway: { min: -7, max: 7 },
   tints: [0xffffff, colorNumber(colors.parchmentWarm)],
   alpha: { start: 0.85, end: 0 },
-  animMs: 1500,
+  // Outlasts the lifespan so wisps fade out on alpha before the grey breakup frames dominate.
+  animMs: 2000,
 } as const;
 
 export const SHAKE_TUNING = {

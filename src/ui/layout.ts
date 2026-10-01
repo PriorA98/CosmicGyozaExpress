@@ -68,6 +68,26 @@ export function typewriterVisibleChars(elapsedMs: number, charsPerSecond: number
   return Math.min(length, Math.floor((elapsedMs / 1000) * charsPerSecond));
 }
 
+export const ELLIPSIS = "…";
+
+/**
+ * Shortens a single line so it fits `maxChars` characters (monospaced text), ending with an
+ * ellipsis when cut. Trailing spaces before the ellipsis are dropped so it reads cleanly.
+ */
+export function truncateToChars(line: string, maxChars: number): string {
+  const limit = Number.isFinite(maxChars) ? Math.floor(maxChars) : line.length;
+  if (limit <= 0) return "";
+  if (line.length <= limit) return line;
+  if (limit === 1) return ELLIPSIS;
+  return `${line.slice(0, limit - 1).trimEnd()}${ELLIPSIS}`;
+}
+
+/** How many monospaced characters of width `charWidth` fit in `availableWidth`. */
+export function monoCharsThatFit(availableWidth: number, charWidth: number): number {
+  if (!Number.isFinite(availableWidth) || !Number.isFinite(charWidth) || charWidth <= 0) return 0;
+  return Math.max(0, Math.floor(availableWidth / charWidth));
+}
+
 /** Snaps a screen-pixel length to whole art pixels for a texture displayed at `artScale`. */
 export function toArtPixels(screenPx: number, artScale: number): number {
   const scale = Math.max(1, Math.floor(artScale));

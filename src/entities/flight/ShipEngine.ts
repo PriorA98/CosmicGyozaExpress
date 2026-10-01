@@ -1,32 +1,38 @@
 import Phaser from "phaser";
 import { shipVisualStyle } from "../../data/flightScenery";
-import { colorNumber, depth } from "../../game/designTokens";
+import { colorNumber, colors, depth } from "../../game/designTokens";
 import { createThrustTrail, type ThrustTrail } from "../../fx/feedback";
 import { clamp } from "../../utils/math";
+import { ensureRadialGlowTexture } from "./textureFallbacks";
 
 /** Fraction per second the glow eases toward its target brightness. */
 const GLOW_EASE_PER_SECOND = 10;
+const GLOW_TEXTURE_KEY = "flight-engine-glow";
+const GLOW_TEXTURE_SIZE = 64;
 
 /**
  * Bottom-thruster dressing for the flight ship: the shared thrust trail (exhaust leaves the
- * bottom) plus a soft additive engine glow that warms up while thrusting and idles faintly.
+ * bottom) plus a soft additive engine glow that warms up while thrusting and idles as a tiny
+ * pilot light.
  */
 export class ShipEngine {
   private readonly trail: ThrustTrail;
-  private readonly glow: Phaser.GameObjects.Arc;
-  private readonly core: Phaser.GameObjects.Arc;
+  private readonly glow: Phaser.GameObjects.Image;
+  private readonly core: Phaser.GameObjects.Image;
   private glowLevel = 0;
 
   constructor(scene: Phaser.Scene) {
     this.trail = createThrustTrail(scene, { depth: depth.ship - 1, offset: shipVisualStyle.trailOffset });
-    const color = colorNumber(shipVisualStyle.engineGlowColor);
+    const key = ensureRadialGlowTexture(scene, GLOW_TEXTURE_KEY, GLOW_TEXTURE_SIZE);
     this.glow = scene.add
-      .circle(0, 0, shipVisualStyle.engineGlowRadius, color, 1)
+      .image(0, 0, key)
+      .setTint(colorNumber(shipVisualStyle.engineGlowColor))
       .setBlendMode(Phaser.BlendModes.ADD)
       .setDepth(depth.ship - 0.5)
       .setAlpha(0);
     this.core = scene.add
-      .circle(0, 0, shipVisualStyle.engineGlowRadius * 0.45, color, 1)
+      .image(0, 0, key)
+      .setTint(colorNumber(colors.parchmentWarm))
       .setBlendMode(Phaser.BlendModes.ADD)
       .setDepth(depth.ship - 0.4)
       .setAlpha(0);
@@ -49,9 +55,11 @@ export class ShipEngine {
     const offset = shipVisualStyle.engineOffset;
     const gx = x - Math.sin(rotation) * offset;
     const gy = y + Math.cos(rotation) * offset;
-    const scale = 0.8 + this.glowLevel * 0.6;
-    this.glow.setPosition(gx, gy).setAlpha(this.glowLevel * 0.55).setScale(scale);
-    this.core.setPosition(gx, gy).setAlpha(this.glowLevel).setScale(scale);
+    const diameter = shipVisualStyle.engineGlowRadius * 2;
+    const glowScale = ((0.7 + this.glowLevel * 1.6) * diameter) / GLOW_TEXTURE_SIZE;
+    const coreScale = ((0.35 + this.glowLevel * 0.5) * diameter) / GLOW_TEXTURE_SIZE;
+    this.glow.setPosition(gx, gy).setAlpha(this.glowLevel).setScale(glowScale);
+    this.core.setPosition(gx, gy).setAlpha(clamp(this.glowLevel * 1.4, 0, 1)).setScale(coreScale);
   }
 
   destroy(): void {

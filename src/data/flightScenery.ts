@@ -87,20 +87,41 @@ export type CelestialBodyDefinition = {
   /** Visual-only slow drift range in px and its period. */
   readonly driftPx: number;
   readonly driftPeriodMs: number;
+  /** Procedural pixel stand-in used only while the authored art is still a fallback. */
+  readonly standIn: PlanetStandInDefinition;
+};
+
+export type PlanetStandInDefinition = {
+  /** Canvas size in art px (same as the manifest entry). */
+  readonly size: number;
+  readonly bodyFill: number;
+  /** Darkest outline first, highlight last. */
+  readonly palette: readonly [string, string, string, string, string];
+  readonly craters: number;
+  readonly banded: boolean;
+  readonly seed: number;
 };
 
 export const flightCelestialBodies: readonly CelestialBodyDefinition[] = [
   {
     id: "far-plum",
     textureKey: ASSET.planetFarPlum,
-    x: 720,
-    y: 112,
+    x: 500,
+    y: 96,
     scrollFactor: 0.04,
     scale: FLIGHT_ART_SCALE,
-    alpha: 1,
+    alpha: 0.6,
     tint: "#8E8AA8",
     driftPx: 4,
     driftPeriodMs: 9000,
+    standIn: {
+      size: 96,
+      bodyFill: 0.86,
+      palette: ["#1E1B30", "#3A3352", "#554A73", "#7B6E9C", "#A99DC6"],
+      craters: 0,
+      banded: true,
+      seed: 41,
+    },
   },
   {
     id: "im-fine",
@@ -109,10 +130,18 @@ export const flightCelestialBodies: readonly CelestialBodyDefinition[] = [
     y: 660,
     scrollFactor: 0.1,
     scale: FLIGHT_ART_SCALE,
-    alpha: 1,
+    alpha: 0.55,
     tint: "#8F93AE",
     driftPx: 6,
     driftPeriodMs: 12000,
+    standIn: {
+      size: 128,
+      bodyFill: 0.84,
+      palette: ["#1A1F2E", "#2E3A4C", "#43566A", "#62798C", "#8DA4B3"],
+      craters: 6,
+      banded: false,
+      seed: 77,
+    },
   },
 ];
 
@@ -124,11 +153,24 @@ export const teaMoonScenery = {
   scale: FLIGHT_ART_SCALE,
   haloColor: "#C2CFAE",
   /** Halo rings drawn behind the moon, from inner to outer, as offsets beyond the moon radius. */
-  haloSteps: [10, 24, 42, 66] as const,
-  haloAlpha: 0.075,
-  /** Visible moon body radius in screen px (art body ~ 90% of the 192px canvas, at 2x). */
-  bodyRadius: 172,
+  haloSteps: [6, 14, 24, 36, 50, 66] as const,
+  haloAlpha: 0.05,
+  /**
+   * Visible moon body in screen px relative to the image centre. The authored art (192px canvas)
+   * has a 144 art-px body sitting low to leave room for the teahouse, so the halo follows the body.
+   */
+  artBody: { offsetX: -13, offsetY: 30, radius: 144 },
+  /** Same for the procedural stand-in (centred body, 90% of the canvas). */
+  standInBody: { offsetX: 0, offsetY: 0, radius: 172 },
   breathAlpha: 0.35,
+  standIn: {
+    size: 192,
+    bodyFill: 0.9,
+    palette: ["#2C3A30", "#55704F", "#7F9A6C", "#A9BC8C", "#D6E0B6"],
+    craters: 9,
+    banded: false,
+    seed: 2840,
+  } satisfies PlanetStandInDefinition,
 } as const;
 
 export type AsteroidVisualDefinition = {
@@ -223,21 +265,26 @@ export const arrivalBeaconStyle = {
   chevronBobMs: 900,
   progressWidth: 6,
   progressGap: 9,
-  ghostShipAlpha: 0.22,
+  ghostShipAlpha: 0.16,
   idleAlpha: 0.5,
   activeAlpha: 0.92,
   /** Beacon label sits this far below the chevron plate centre. */
-  labelOffset: 46,
+  labelOffset: 68,
 } as const;
 
 export const destinationIndicatorStyle = {
-  margin: 46,
-  bottomReserve: 64,
-  discRadius: 22,
-  chevronLength: 13,
-  chevronHalfWidth: 11,
-  chevronThickness: 5,
-  labelGap: 30,
+  margin: 58,
+  bottomReserve: 72,
+  discRadius: 17,
+  /** Extra length of the pin's point beyond the disc edge. */
+  pinTipLength: 10,
+  moonGlyphRadius: 9,
+  chevronGap: 5,
+  chevronTravel: 4,
+  chevronLength: 6,
+  chevronHalfWidth: 7,
+  chevronThickness: 3,
+  labelGap: 34,
   textBlockHeight: 30,
   readoutOffset: 13,
   pulseMs: 1200,
@@ -247,18 +294,19 @@ export const destinationIndicatorStyle = {
 } as const;
 
 export const shipVisualStyle = {
-  flightScale: 0.65,
+  /** 144x160 normalized canvas; at this scale the gyoza body roughly spans the 84px collision circle. */
+  flightScale: 0.72,
   /** Idle micro-bob of the sprite only (never moves the physics body or camera target). */
   bobPx: 2.5,
   bobPeriodMs: 2400,
   tiltBobRadians: 0.025,
   /** Engine sits on the ship's bottom, this many px from the centre at flight scale. */
-  engineOffset: 34,
-  trailOffset: 44,
-  engineGlowRadius: 15,
+  engineOffset: 36,
+  trailOffset: 46,
+  engineGlowRadius: 18,
   engineGlowColor: colors.amber,
-  engineGlowIdleAlpha: 0.12,
-  engineGlowThrustAlpha: 0.5,
+  engineGlowIdleAlpha: 0.1,
+  engineGlowThrustAlpha: 0.75,
   engineFlickerMs: 70,
   squash: { "soft-bump": 0.08, "dramatic-bump": 0.16, "gyoza-incident": 0.2 } as const,
   squashMs: 120,

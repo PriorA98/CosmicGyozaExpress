@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { landingCopy, landingScenery } from "../../data/landingScenery";
 import { colorNumber, colors, depth, fontStacks, typeScale } from "../../game/designTokens";
 import type { LandingControls } from "../../types/landing";
+import { landingHudScale } from "./LandingDashboard";
 
 type ControlKey = keyof LandingControls;
 
@@ -21,9 +22,12 @@ export class LandingTouchPads {
   private readonly scene: Phaser.Scene;
   private readonly pads: TouchPad[] = [];
   private controls: LandingControls = EMPTY_CONTROLS;
+  /** Visual scale of the pad buttons (larger on phone-size displays); hit zones are already generous. */
+  private readonly buttonScale: number;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
+    this.buttonScale = landingHudScale(scene);
     const { width, height } = scene.scale;
     const config = landingScenery.touch;
     const panelWidth = Math.min(config.panelMaxWidth, width * config.panelWidthRatio);
@@ -68,14 +72,14 @@ export class LandingTouchPads {
       pad.active = active;
       pad.bg.setAlpha(active ? config.activeAlpha : config.idleAlpha);
       pad.ring.setStrokeStyle(active ? 3 : 2, colorNumber(colors.plaster), active ? 0.76 : 0.32);
-      pad.group.setScale(active ? 0.95 : 1);
+      pad.group.setScale(this.buttonScale * (active ? 0.95 : 1));
     }
   }
 
   private addPad(hitArea: Phaser.Geom.Rectangle, control: ControlKey, accent: string): void {
     const config = landingScenery.touch;
     const copy = landingCopy.touchLabels[control];
-    const group = this.scene.add.container(hitArea.centerX, hitArea.centerY).setDepth(depth.touch);
+    const group = this.scene.add.container(hitArea.centerX, hitArea.centerY).setDepth(depth.touch).setScale(this.buttonScale);
     const bg = this.scene.add.circle(0, 0, config.radius, colorNumber(accent), 1).setAlpha(config.idleAlpha);
     const ring = this.scene.add.circle(0, 0, config.radius).setStrokeStyle(2, colorNumber(colors.plaster), 0.32);
     const glyph = this.scene.add

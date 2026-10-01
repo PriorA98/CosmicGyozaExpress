@@ -3,6 +3,7 @@ import { landingTuning } from "../../data/landingTuning";
 import { landingCopy, landingScenery, landingZoneColors } from "../../data/landingScenery";
 import { burstDust } from "../../fx/feedback";
 import { colorNumber, colors, depth, fontStacks } from "../../game/designTokens";
+import { landingHudScale } from "./LandingDashboard";
 import type { LandingPadAlignment, LandingZone, LandingZoneReading } from "../../systems/LandingSystem";
 import type { LandingPadDefinition } from "../../types/landing";
 
@@ -49,6 +50,7 @@ export class LandingAids {
   private gyroPhase = 0;
   private lastDustMs = 0;
   private visible = true;
+  private readonly instrumentScale: number;
 
   constructor(scene: Phaser.Scene, pad: LandingPadDefinition) {
     this.scene = scene;
@@ -72,8 +74,9 @@ export class LandingAids {
     this.arrow = this.createArrow();
     this.gyro = scene.add.graphics().setDepth(depth.shipFx + 1);
 
+    this.instrumentScale = landingHudScale(scene) > 1 ? landingScenery.compactHud.instrumentScale : 1;
     const parts = this.createInstrument();
-    this.instrument = parts.container;
+    this.instrument = parts.container.setScale(this.instrumentScale);
     this.needle = parts.needle;
     this.speedText = parts.speedText;
     this.zoneText = parts.zoneText;
@@ -233,8 +236,9 @@ export class LandingAids {
   private updateInstrument(frame: LandingAidsFrame): void {
     const config = landingScenery.instrument;
     const { width } = this.scene.scale;
-    const side = frame.shipX > width - config.offsetX - config.edgeMarginX ? -1 : 1;
-    this.instrument.setPosition(Math.round(frame.shipX + side * config.offsetX), Math.round(frame.shipY + config.offsetY));
+    const offsetX = config.offsetX * this.instrumentScale;
+    const side = frame.shipX > width - offsetX - config.edgeMarginX ? -1 : 1;
+    this.instrument.setPosition(Math.round(frame.shipX + side * offsetX), Math.round(frame.shipY + config.offsetY));
 
     this.gaugeValue = Phaser.Math.Linear(this.gaugeValue, frame.reading.descentGauge, config.smoothing);
     this.needle.setY(-config.barHeight / 2 + this.gaugeValue * config.barHeight);
@@ -246,7 +250,11 @@ export class LandingAids {
     }
 
     const zone = zoneFor(frame.reading);
-    const label = frame.reading.onPad ? landingCopy.zone[zone] : landingCopy.offPad;
+    const label = !frame.reading.onPad
+      ? landingCopy.offPad
+      : zone === "rough"
+        ? landingCopy.roughBecause[frame.reading.limiting]
+        : landingCopy.zone[zone];
     const key = `${zone}:${label}`;
     if (key !== this.zoneKey) {
       this.zoneKey = key;
