@@ -1,0 +1,20 @@
+You are producing pixel art for the cozy game "Cosmic Gyoza Express". Do NOT modify any files other than the two output PNGs named below.
+
+STEP 1: Use view_image on each of these style/model references first:
+- D:/code/CosmicGyozaExpress/public/assets/lunar/lunar-teahouse.png  (CANONICAL TEA HOUSE: a round, squat cream plaster cottage with a big domed roof of orange/terracotta scalloped shingles, a small white chimney pipe on the right, two round amber windows with cross muntins, an arched wooden door in the middle, a grey stone footing)
+- D:/code/CosmicGyozaExpress/public/assets/ship/gyoza-idle.png  (CANONICAL HERO SHIP: a gyoza dumpling saucer - tan/golden dough hull with pleat folds, a clear glass dome on top, small legs underneath)
+- D:/code/CosmicGyozaExpress/art-src/items/raw/postcard-v2.png  (the previous postcard; keep its composition, sky, clouds and stamp but fix the house and ship)
+- D:/code/CosmicGyozaExpress/art-src/_probe/asteroid-probe.png  (approved overall style)
+
+Art direction: cozy handcrafted chunky pixel art, warm, soft, slightly silly, never cold sci-fi. Soft light from top-left. Selective dark outlines in ink #1D1F33. Palette: ink #1D1F33, cosmos #1A1B2E, parchment #F4ECDC, plaster #FBF7EC, terracotta #C97B5A, ember #E08A4B, amber #D4A055, sage #8DA17A, sage-deep #6B7E5A, dusk-blue #9EB6C4, plum #9B8FB8, teal #6FA39A. The final image is downscaled to only 90x58 art pixels, so every shape must be big, bold and simple.
+
+STEP 2: With your image generation tool make TWO images, landscape 3:2, full-bleed picture with NO border, NO frame, NO text, NO letters:
+
+IMAGE A "postcard-v3": a travel postcard illustration. Dusk sky (deep blue at top fading to plum), a few big four-point twinkle stars, fluffy peach/plum clouds along the bottom. On the left, a large pale jade-green Tea Moon (about 45% of the image height) with a couple of soft craters. Sitting on top of the moon: the CANONICAL TEA HOUSE drawn as a faithful small version of the reference (round cream cottage, big domed ORANGE scalloped shingle roof, white chimney pipe with a wisp of steam, two round glowing amber windows, arched door). It must NOT be a pagoda, NOT on stilts, NOT a red roof with upturned eaves. Make the house big: its width about 22% of the image width. On the right-middle: the CANONICAL HERO SHIP flying towards the right, a faithful version of the reference: tan/golden gyoza dough hull with visible pleat folds along the top edge, a CLEAR pale-blue glass dome (not green), two or three small legs underneath, a short puffy cream exhaust trail behind it to the left. Ship width about 25% of image width, compact rounded saucer, NOT elongated, NO red dots. Top-right corner: a small scalloped cream postage stamp with one bold terracotta teacup.
+
+IMAGE B "postcard-v3-ship": the CANONICAL HERO SHIP alone, faithful to gyoza-idle.png, seen from the side flying slightly right, with a short puffy cream exhaust trail to the left, centred with generous margin on a SOLID FLAT MAGENTA #FF00FF background, no shadow, no text.
+
+STEP 3: Copy the resulting PNGs to:
+- D:/code/CosmicGyozaExpress/art-src/items/raw/postcard-v3.png
+- D:/code/CosmicGyozaExpress/art-src/items/raw/postcard-v3-ship.png
+Report the paths when done.

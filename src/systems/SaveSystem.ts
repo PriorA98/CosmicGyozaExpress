@@ -2,8 +2,13 @@ import type { InputScheme, MissionResultSummary, SaveDataV1 } from "../types/sav
 import { pickWarmerResult } from "./MissionResultSystem";
 
 export const SAVE_KEY = "cosmic-gyoza-express.save.v1";
-/** Best-effort copy of unreadable save text, kept so a corrupt save is never silently destroyed. */
+/**
+ * Best-effort copy of unreadable save text, kept so a corrupt save is never silently destroyed.
+ * The first backup is never overwritten (it usually holds the player's real progress); later
+ * corruptions go to the "latest" slot, so at most two backups exist.
+ */
 export const CORRUPT_BACKUP_KEY = `${SAVE_KEY}.corrupt-backup`;
+export const CORRUPT_BACKUP_LATEST_KEY = `${SAVE_KEY}.corrupt-backup-latest`;
 
 export const CURRENT_SAVE_VERSION = 1;
 
@@ -33,6 +38,25 @@ export type SaveLoadOutcome =
   | { readonly kind: "future-version"; readonly version: number }
   | { readonly kind: "storage-unavailable" }
   | { readonly kind: "memory" };
+
+/** Why this session's progress cannot reach storage. */
+export type SessionOnlyReason = "storage-unavailable" | "newer-save" | "write-failed";
+
+/** Whether progress written now will survive a reload. */
+export type SavePersistenceStatus =
+  | { readonly kind: "persistent" }
+  | { readonly kind: "session-only"; readonly reason: SessionOnlyReason };
+
+/** Snapshot for dev tooling and capture probes. */
+export type SaveDiagnostics = {
+  /** Outcome of the first storage read this session (later reads usually report `loaded`/`memory`). */
+  readonly firstLoadOutcome: SaveLoadOutcome;
+  readonly lastLoadOutcome: SaveLoadOutcome;
+  readonly storageLocked: boolean;
+  readonly persistence: SavePersistenceStatus;
+  readonly hasCorruptBackup: boolean;
+  readonly hasLatestCorruptBackup: boolean;
+};
 
 export function createDefaultSave(now = new Date()): SaveDataV1 {
   const timestamp = now.toISOString();
@@ -115,9 +139,18 @@ let memoryAhead = false;
 /** Storage holds a newer save version: never write to it this session. */
 let storageLocked = false;
 let lastOutcome: SaveLoadOutcome = { kind: "memory" };
+let firstOutcome: SaveLoadOutcome | null = null;
+/** Last storage access problem seen this session; cleared by a successful write. */
+let storageProblem: "unavailable" | "write-failed" | null = null;
 
 export class SaveSystem {
   static load(): SaveDataV1 {
+    const data = this.loadOnce();
+    firstOutcome = firstOutcome ?? lastOutcome;
+    return data;
+  }
+
+  private static loadOnce(): SaveDataV1 {
     if (memory && storageLocked) {
       lastOutcome = { kind: "memory" };
       return cloneSave(memory);
@@ -226,12 +259,38 @@ export class SaveSystem {
     return storageLocked;
   }
 
+  /**
+   * Whether progress is reaching storage. `session-only` means the game keeps everything in
+   * memory for this visit (storage blocked, full, or holding a newer game's save).
+   */
+  static persistenceStatus(): SavePersistenceStatus {
+    this.ensureLoaded();
+    if (storageLocked) return { kind: "session-only", reason: "newer-save" };
+    if (storageProblem === "unavailable") return { kind: "session-only", reason: "storage-unavailable" };
+    if (memoryAhead) return { kind: "session-only", reason: "write-failed" };
+    return { kind: "persistent" };
+  }
+
+  static diagnostics(): SaveDiagnostics {
+    const persistence = this.persistenceStatus();
+    return {
+      firstLoadOutcome: firstOutcome ?? lastOutcome,
+      lastLoadOutcome: lastOutcome,
+      storageLocked,
+      persistence,
+      hasCorruptBackup: hasStoredKey(CORRUPT_BACKUP_KEY),
+      hasLatestCorruptBackup: hasStoredKey(CORRUPT_BACKUP_LATEST_KEY),
+    };
+  }
+
   /** Forgets the session cache. For tests and dev tooling; the next `load()` re-reads storage. */
   static clearSessionCache(): void {
     memory = null;
     memoryAhead = false;
     storageLocked = false;
     lastOutcome = { kind: "memory" };
+    firstOutcome = null;
+    storageProblem = null;
   }
 
   /** Makes sure storage was inspected (and a future-version lock detected) before any write. */
@@ -268,11 +327,15 @@ function getStorage(): Storage | undefined {
 
 function readFromStorage(): StorageRead {
   const storage = getStorage();
-  if (!storage) return { kind: "unavailable" };
+  if (!storage) {
+    storageProblem = "unavailable";
+    return { kind: "unavailable" };
+  }
   try {
     const raw: unknown = storage.getItem(SAVE_KEY);
     return { kind: "ok", raw: typeof raw === "string" ? raw : null };
   } catch {
+    storageProblem = "unavailable";
     return { kind: "unavailable" };
   }
 }
@@ -280,20 +343,44 @@ function readFromStorage(): StorageRead {
 function writeToStorage(data: SaveDataV1): boolean {
   if (storageLocked) return false;
   const storage = getStorage();
-  if (!storage) return false;
+  if (!storage) {
+    storageProblem = "unavailable";
+    return false;
+  }
   try {
     storage.setItem(SAVE_KEY, JSON.stringify(data));
+    storageProblem = null;
     return true;
   } catch {
+    if (storageProblem !== "unavailable") storageProblem = "write-failed";
     return false;
   }
 }
 
+function readStoredKey(key: string): string | null {
+  const storage = getStorage();
+  if (!storage) return null;
+  try {
+    const value: unknown = storage.getItem(key);
+    return typeof value === "string" ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function hasStoredKey(key: string): boolean {
+  return readStoredKey(key) !== null;
+}
+
+/** Keeps the first corrupt save forever and the most recent later one; never throws. */
 function backupCorrupt(raw: string): void {
   const storage = getStorage();
   if (!storage) return;
+  const copy = raw.slice(0, SAVE_LIMITS.maxBackupLength);
+  const first = readStoredKey(CORRUPT_BACKUP_KEY);
+  if (first === copy) return;
   try {
-    storage.setItem(CORRUPT_BACKUP_KEY, raw.slice(0, SAVE_LIMITS.maxBackupLength));
+    storage.setItem(first === null ? CORRUPT_BACKUP_KEY : CORRUPT_BACKUP_LATEST_KEY, copy);
   } catch {
     // Backups are a courtesy; ignore quota and privacy errors.
   }

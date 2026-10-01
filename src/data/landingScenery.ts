@@ -1,11 +1,12 @@
 import { ASSET } from "./assetManifest";
 import { colors } from "../game/designTokens";
-import type { LandingLimitingFactor } from "../systems/LandingSystem";
-import type { LandingIncidentKind, LandingResultKind } from "../types/landing";
+import type { LandingIncidentKind } from "../types/landing";
+
+export { landingCopy } from "./landingCopy";
 
 /**
- * Tea Moon landing presentation: layout, art anchors, landing-aid styling, and copy.
- * Rules and thresholds live in `landingTuning.ts`; this file only says where things sit and how they look.
+ * Tea Moon landing presentation: layout, art anchors, landing-aid styling, intro, HUD, and touch layout.
+ * Rules and thresholds live in `landingTuning.ts`; copy lives in `landingCopy.ts`.
  *
  * Units: screen px at the 1280x720 logical canvas unless a field says "art px" (1 art px = `artScale` screen px).
  * Depths are offsets inside the shared `depth` bands from `src/game/designTokens.ts`.
@@ -15,6 +16,14 @@ export const LANDING_ART_SCALE = 2;
 export const landingScenery = {
   sky: {
     key: ASSET.lunarSky,
+    /** Top row colour of the painted sky; fills the high sky above it (intro pan) and the shake overscan. */
+    topColor: "#111326",
+    /** Bottom row colour of the ground art; fills below the canvas so camera shake never shows the clear colour. */
+    groundBelowColor: "#5F6176",
+    /** Backdrop layers extend this far past every canvas edge (>= the strongest camera shake offset). */
+    overscanPx: 16,
+    /** Sparse pixel stars in the high sky above the painted sky (only seen during the arrival pan). */
+    highStars: { count: 26, sizePx: 2, minAlpha: 0.25, maxAlpha: 0.75 },
   },
   /** A few faint twinkles over the painted sky; deliberately sparse and dim so they never compete with the ship. */
   twinkles: {
@@ -42,8 +51,10 @@ export const landingScenery = {
   },
   pad: {
     key: ASSET.lunarPad,
-    /** Landing surface line inside the pad art. */
+    /** Landing surface line inside the pad art (the blanket's dark top outline). */
     surfaceRowArtPx: 6,
+    /** Row of the blanket's top face where feet and the contact shadow visually rest (perspective depth). */
+    contactRowArtPx: 10,
   },
   lanterns: {
     key: ASSET.lunarLantern,
@@ -55,17 +66,21 @@ export const landingScenery = {
     baseSinkPx: 2,
     /** Stagger between left and right lantern lighting on touchdown. */
     lightStaggerMs: 160,
-    glowRadius: 40,
-    /** Concentric additive discs that make up the soft lantern glow. */
-    glowRings: 12,
-    glowLitAlpha: 0.75,
-    glowDimAlpha: 0.12,
+    /** Hard-edged stepped glow (pixel rings, additive). */
+    glowRadiusX: 34,
+    glowRadiusY: 30,
+    glowRings: 3,
+    glowRingAlpha: 0.22,
+    glowLitAlpha: 1,
+    glowDimAlpha: 0.22,
     /** Lamp centre measured from the lantern base, upward (screen px). */
     lampHeightPx: 38,
   },
   teahouse: {
     key: ASSET.lunarTeahouse,
     x: 1062,
+    /** Moved inward on touch layouts so the right touch tiles never cover it. */
+    touchX: 1004,
     baseSinkPx: 4,
     steamOffsetX: 42,
     steamOffsetY: 150,
@@ -73,6 +88,7 @@ export const landingScenery = {
   rabbit: {
     key: ASSET.rabbitSprite,
     x: 924,
+    touchX: 880,
     baseSinkPx: 2,
     /** Flip so the rabbit faces the pad (art is authored facing right). */
     flipX: true,
@@ -82,7 +98,7 @@ export const landingScenery = {
     waveFrameRate: 6,
     /** Delay after touchdown before the rabbit waves (lets the dust settle first). */
     waveDelayMs: 220,
-    /** Surprised hop height on incidents (screen px). */
+    /** Surprised hop height on incidents (screen px, even so it stays on the art grid). */
     hopHeightPx: 14,
     idleAnimKey: "landing-rabbit-idle",
     waveAnimKey: "landing-rabbit-wave",
@@ -97,172 +113,218 @@ export const landingScenery = {
     { x: 1236, offsetY: 60, frame: 0, flipX: false },
   ] as const,
   rockAlpha: 1,
-  /** Soft guide light standing over the pad. */
+  /** Soft guide light standing over the pad, built from stepped pixel rows. */
   guideLight: {
     height: 470,
     baseWidthRatio: 0.92,
     topWidthRatio: 1.45,
-    bands: 14,
-    bandAlpha: 0.014,
+    /** Each band is a nested stepped wedge; more bands = brighter core. */
+    bands: 5,
+    bandAlpha: 0.035,
+    /** Row height of the stepped edge (screen px, multiple of the art scale). */
+    stepPx: 8,
     color: "#F9F3E5",
     /** Alpha multiplier while the ship is off the pad vs aligned over it. */
     idleIntensity: 0.55,
     alignedIntensity: 1,
     landedIntensity: 0.25,
     breathMs: 2400,
+    breathAlpha: 0.12,
   },
   /** Corner brackets on the pad surface: ember when unaligned, sage when the ship is over the pad. */
   padBrackets: {
     armPx: 16,
-    lineWidth: 4,
+    thicknessPx: 4,
     insetPx: 6,
-    liftPx: 8,
+    liftPx: 10,
     unalignedAlpha: 0.55,
     alignedAlpha: 0.95,
   },
-  /** Ground shadow + touchdown ring under the ship (the main altitude cue). */
+  /** Ground shadow + touchdown ring under the ship (the main altitude cue), all pixel ellipses. */
   shadow: {
-    minWidth: 34,
-    maxWidth: 132,
-    heightRatio: 0.24,
-    minAlpha: 0.08,
-    maxAlpha: 0.42,
+    minWidth: 36,
+    maxWidth: 124,
+    heightRatio: 0.2,
+    minAlpha: 0.12,
+    maxAlpha: 0.5,
     /** Altitude (px) at which the shadow reaches its smallest/faintest. */
     fadeAltitude: 420,
-    ringLineWidth: 3,
+    /** The touchdown ring is this much wider than the shadow. */
+    ringScale: 1.12,
     ringAlpha: 0.9,
-    dropLineDashPx: 8,
-    dropLineGapPx: 8,
-    dropLineAlpha: 0.38,
+    /** Dotted drop line: one 2x2 dot every `dropLineStepPx`. */
+    dropLineStepPx: 10,
+    dropLineGapPx: 10,
+    dropLineAlpha: 0.45,
   },
   /** Warm flame light pooling on the ground while thrusting low. */
   thrustWash: {
     maxAltitude: 210,
-    width: 170,
-    height: 26,
-    maxAlpha: 0.32,
+    width: 160,
+    height: 20,
+    rings: 3,
+    maxAlpha: 0.6,
     dustIntervalMs: 110,
     dustCount: 4,
     dustSpread: 34,
   },
-  /** Arrow next to the ship pointing back toward the pad while off it. */
+  /** Pixel arrow next to the ship pointing back toward the pad while off it ("#" = filled art px). */
   padArrow: {
-    distanceFromShip: 92,
-    size: 14,
+    distanceFromShip: 100,
     bobPx: 4,
     bobMs: 620,
+    bitmap: ["#.....", "##....", "###...", "####..", "#####.", "####..", "###...", "##....", "#....."],
+    shadowOffsetPx: 2,
   },
   /** Descent gauge that rides beside the ship. */
   instrument: {
-    offsetX: 96,
+    offsetX: 100,
     offsetY: -6,
     barWidth: 10,
     barHeight: 92,
-    panelPadX: 9,
-    panelPadY: 9,
-    needleSize: 7,
-    labelGap: 10,
+    panelPadX: 10,
+    panelPadY: 10,
+    /** Space above the bar for the speed number. */
+    headerPx: 24,
+    needleSize: 6,
+    labelGap: 8,
+    chipPadX: 8,
+    chipPadY: 4,
     smoothing: 0.22,
     edgeMarginX: 70,
     alpha: 0.95,
+    /** Keeps the gauge (and its chip) above the pad surface by this margin. */
+    surfaceMarginPx: 8,
   },
-  /** Gyro ring drawn around the ship while S (stabilizer) is held. */
+  /** Gyro dots orbiting the ship while S (stabilizer) is held. */
   gyro: {
-    radiusX: 74,
+    radiusX: 76,
     radiusY: 20,
     offsetY: 8,
-    dashCount: 10,
-    dashArc: 0.32,
-    lineWidth: 3,
-    alpha: 0.75,
+    dotCount: 14,
+    dotPx: 4,
+    alpha: 0.85,
     spinRadPerSecond: 3.2,
     fadePerSecond: 6,
     levelLineHalfWidth: 26,
   },
-  /** Nozzle flame tongue drawn at the thruster so a held W reads instantly (on top of the shared thrust trail). */
-  flame: {
-    lengthPx: 68,
-    halfWidthPx: 13,
-    glowRadius: 46,
-    glowRings: 14,
-    glowAlpha: 0.5,
-    ignitePerSecond: 9,
-    fadePerSecond: 7,
-    popMs: 140,
-    popScale: 0.35,
-    flickerSlowMs: 70,
-    flickerSlowPx: 5,
-    flickerFastMs: 23,
-    flickerFastPx: 3,
-    /** The shared particle trail starts this far beyond the nozzle so it puffs out of the flame tip. */
-    trailLeadPx: 14,
+  /** Baked pixel flames (ship-fly-1..3) chosen by thrust power, plus the shared fx-thrust puffs. */
+  thrust: {
+    /** Power gained per second while W is held (0..1) and lost per second after release. */
+    ignitePerSecond: 7,
+    fadePerSecond: 9,
+    /** Power at or above which ship-fly-2 / ship-fly-3 show; below `fly2` (but lit) shows ship-fly-1. */
+    fly2Power: 0.4,
+    fly3Power: 0.8,
+    /** Below this power the flame is out (idle frame). */
+    litPower: 0.04,
+    /** Full-power flicker: the frame index (1..3) shown in each `flickerStepMs` slot. */
+    flickerFrames: [3, 3, 2, 3, 3, 3, 2, 3] as const,
+    flickerStepMs: 60,
+    /** The fx puffs start this far inside the baked flame tip so they read as coming out of it. */
+    trailInsetPx: 12,
   },
   ship: {
-    /** Close-up side view. The ship art is authored for artScale 1; keep integer scale. */
-    scale: 1,
-    /** Fallback feet line (fraction of texture height below centre) if the texture cannot be measured. */
+    /** Fallback feet line (fraction of texture height below the origin) if the texture cannot be measured. */
     fallbackFootRatio: 0.36,
-    /** Thrust trail emitter sits this far above the measured feet line, inside the nozzle. */
-    nozzleInsetPx: 10,
-    squashAmount: 0.14,
-    squashStretchRatio: 0.7,
-    squashInMs: 70,
-    squashOutMs: 340,
+    /** Touchdown "squash" is a downward dip in whole art px (no non-integer scaling of pixel art). */
+    touchdownDipPx: { soft: 2, bumpy: 4 },
+    dipInMs: 70,
+    dipOutMs: 300,
   },
   incident: {
     frameStepMs: 115,
     frameCount: 5,
     frameStartMs: { "hard-drop": 360, skid: 520, "tilt-tip": 470, "off-pad": 560 } satisfies Record<LandingIncidentKind, number>,
+    /** Screen px the incident ship travels (integer-scale motion only: position + rotation). */
+    hardDropBouncePx: 26,
+    skidDistancePx: 170,
+    tipShiftPx: 62,
+    offPadShiftPx: 28,
+    shockRingRadiusPx: 72,
+    shockRingMs: 420,
   },
   caption: {
     offsetY: 168,
     padX: 16,
-    padY: 9,
+    padY: 12,
     popMs: 220,
     retryBarHeight: 4,
+    /** Keeps the caption this far from the canvas edges. */
+    edgeMarginPx: 24,
   },
   touchdownDust: {
     soft: { count: 10, spread: 46 },
     bumpy: { count: 18, spread: 78 },
     footSpreadPx: 34,
   },
-  /** Phone-landscape readability: HUD overlays scale up when the canvas is displayed narrower than this (CSS px). */
-  compactHud: {
-    belowDisplayWidthPx: 1000,
-    scale: 1.4,
-    /** The in-world descent gauge grows a little less so it never crowds the ship. */
-    instrumentScale: 1.3,
+  /** Arrival cinematic: camera eases down from the high sky while the ship drifts in from the top. */
+  intro: {
+    /** The camera starts this far above the play view. */
+    risePx: 420,
+    panMs: 1500,
+    /** Ship starts this far above the top edge of the final view. */
+    shipStartAbovePx: 120,
+    shipMs: 1650,
+    /** Fade in from the flight hand-off colour. */
+    fadeInMs: 380,
+    fadeColor: colors.cosmosDeep,
+    cardDelayMs: 220,
+    cardHoldMs: 1100,
+    cardOutMs: 220,
+    cardY: 176,
+    cardWidth: 360,
+    cardHeight: 104,
+    /** Hard cap on the whole intro (the brief: <= 2 s). */
+    totalMs: 1800,
+    hudFadeMs: 260,
   },
-  dashboard: {
+  /** Landing -> result transition after the settle beat. */
+  exit: {
+    fadeMs: 420,
+    color: colors.ink,
+  },
+  /** Display conversion for friendly readouts (shared by HUD and gauge). */
+  readouts: {
+    pixelsPerMeter: 24,
+    risingDeadbandPxPerSecond: 4,
+    driftArrowDeadbandPxPerSecond: 2,
+  },
+  hud: {
     x: 20,
     y: 20,
-    width: 336,
-    padX: 18,
-    padY: 14,
-    rowHeight: 25,
-    titleGap: 30,
-    labelWidth: 96,
-    valueWidth: 120,
-    dotRadius: 5,
-    noteGap: 10,
-    alpha: 0.97,
-    radius: 8,
+    width: 300,
+    /** Narrower panel on phone-class displays (it is scaled up there). */
+    compactWidth: 236,
+    /** Extra boost on top of `compactUiScale` so phone labels clear ~12 CSS px. */
+    compactBoost: 1.12,
+    tickerGap: 8,
+    /** A changed chatter line must hold this long before the ticker retypes it (no flicker on taps). */
+    noteDebounceMs: 380,
+    /** How long after a retry the dashboard keeps its "fresh attempt" note. */
+    retryNoteMs: 1600,
+    /** Share of the soft tilt limit at which the dashboard starts nagging about tilt. */
+    tiltNoteRatio: 0.75,
   },
   controlsHint: {
-    bottomMargin: 26,
-    keySize: 26,
+    bottomMargin: 18,
     gap: 6,
-    groupGap: 22,
-    alpha: 0.9,
+    groupGap: 18,
+    labelGap: 8,
+    padX: 12,
+    padY: 8,
   },
+  /** Touch tiles (screen px of the logical canvas). Left: tilt pair. Right edge: steady stacked over thrust. */
   touch: {
-    radius: 46,
-    zoneHeight: 240,
-    panelWidthRatio: 0.42,
-    panelMaxWidth: 430,
-    panelGap: 16,
-    idleAlpha: 0.22,
-    activeAlpha: 0.55,
+    tileWidth: 124,
+    tileHeight: 118,
+    marginX: 22,
+    marginBottom: 20,
+    gap: 14,
+    /** Pixel chevron drawn on the tilt tiles ("#" = filled art px), pointing right. */
+    chevron: ["#...", "##..", "###.", "####", "###.", "##..", "#..."],
+    chevronOffsetY: -12,
+    labelOffsetY: 26,
   },
 } as const;
 
@@ -275,72 +337,9 @@ export const landingZoneColors = {
   rough: colors.brick,
 } as const satisfies Record<LandingZoneCopyKey, string>;
 
-export const landingCopy = {
-  dashboardTitle: "TEA MOON · LANDING",
-  rows: {
-    descent: "descent",
-    drift: "drift",
-    tilt: "tilt",
-    altitude: "altitude",
-    package: "package",
-  },
-  units: {
-    speed: "px/s",
-    degrees: "°",
-    altitude: "px",
-  },
-  zone: {
-    soft: "soft",
-    bumpy: "bumpy",
-    rough: "too fast",
-  } satisfies Record<LandingZoneCopyKey, string>,
-  /** Chip label for a too-rough reading, naming whichever reading is furthest past its limit. */
-  roughBecause: {
-    descent: "too fast",
-    drift: "too drifty",
-    tilt: "too tilted",
-    pad: "find the pad",
-  } satisfies Record<LandingLimitingFactor, string>,
-  /** Zone label when the ship is not over the pad. */
-  offPad: "find the pad",
-  limitingHint: {
-    descent: "ease the descent",
-    drift: "too much drift",
-    tilt: "level the gyoza",
-    pad: "pad is that way",
-  },
-  notes: {
-    descendingIdle: "please apply soup-facing thrust",
-    thrusting: "single-thruster confidence: moderate",
-    stabilizing: "gyro humming, dumpling leveling",
-    tilted: "bottom not pointed at problem",
-    offPad: "the pad is the glowing blanket",
-    settling: "landing blanket engaged",
-    retry: "fresh attempt, same warm dumpling",
-  },
-  incidentNotes: {
-    "hard-drop": "moon blanket says: softer, please",
-    skid: "sideways soup maneuver detected",
-    "tilt-tip": "bottom thruster argued with geometry",
-    "off-pad": "landing blanket missed the snack",
-  } satisfies Record<LandingIncidentKind, string>,
-  incidentTitle: "gyoza incident",
-  retrying: "re-steaming for another try",
-  touchdown: {
-    soft: "featherlight landing!",
-    bumpy: "bumpy, but delivered",
-    incident: "",
-  } satisfies Record<LandingResultKind, string>,
-  controls: [
-    { keys: ["W"], label: "thrust" },
-    { keys: ["A", "D"], label: "tilt" },
-    { keys: ["S"], label: "steady" },
-    { keys: ["R"], label: "retry" },
-  ],
-  touchLabels: {
-    rotateLeft: { glyph: "<", label: "tilt left" },
-    rotateRight: { glyph: ">", label: "tilt right" },
-    stabilizer: { glyph: "S", label: "steady" },
-    thrust: { glyph: "^", label: "thrust" },
-  },
-} as const;
+/** Readable HUD text colour per zone on the dark panel (brick is too dim for text, so too-fast uses ember). */
+export const landingZoneTextColors = {
+  soft: colors.plaster,
+  bumpy: colors.amber,
+  rough: colors.ember,
+} as const satisfies Record<LandingZoneCopyKey, string>;

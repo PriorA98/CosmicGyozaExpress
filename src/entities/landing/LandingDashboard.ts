@@ -1,185 +1,134 @@
 import Phaser from "phaser";
-import { landingCopy, landingScenery, landingZoneColors } from "../../data/landingScenery";
-import { colorNumber, colors, depth, fontStacks, typeScale } from "../../game/designTokens";
-import type { LandingZone } from "../../systems/LandingSystem";
-
-export type LandingDashboardRowView = {
-  readonly value: string;
-  /** Omit for rows without a zone dot. */
-  readonly zone?: LandingZone;
-};
+import { landingCopy } from "../../data/landingCopy";
+import { LANDING_ART_SCALE, landingScenery, landingZoneTextColors } from "../../data/landingScenery";
+import { colorNumber, colors, depth, typeScale } from "../../game/designTokens";
+import { DashboardTicker, HudPanel, KEYCAP_HEIGHT, Keycap, TICKER_HEIGHT, monoStyle, type HudRow } from "../../ui";
+import type { LandingReadout } from "./landingReadouts";
+import { fillNotchedRect } from "./pixelShapes";
 
 export type LandingDashboardView = {
-  readonly descent: LandingDashboardRowView;
-  readonly drift: LandingDashboardRowView;
-  readonly tilt: LandingDashboardRowView;
-  readonly altitude: LandingDashboardRowView;
-  readonly package: LandingDashboardRowView;
+  readonly descent: LandingReadout;
+  readonly drift: LandingReadout;
+  readonly tilt: LandingReadout;
+  readonly altitude: LandingReadout;
+  readonly packageLabel: string;
   readonly note: string;
 };
 
-type RowKey = keyof typeof landingCopy.rows;
-
-type Row = {
-  readonly value: Phaser.GameObjects.Text;
-  readonly dot: Phaser.GameObjects.Arc;
-  shownValue: string;
-  shownZone: LandingZone | undefined;
+export type LandingDashboardOptions = {
+  /** Phone-class display: only the essential rows, no chatter line. */
+  readonly compact: boolean;
+  /** Overall HUD scale (compactUiScale, boosted on compact displays). */
+  readonly scale: number;
 };
 
-const ROW_ORDER: readonly RowKey[] = ["descent", "drift", "tilt", "altitude", "package"];
+type ReadoutRowId = "descent" | "drift" | "tilt" | "altitude";
+const FULL_ROWS: readonly ReadoutRowId[] = ["descent", "drift", "tilt", "altitude"];
+const COMPACT_ROWS: readonly ReadoutRowId[] = ["descent"];
 
 /**
- * Compact dark HUD panel with the landing readouts. Interim wave-1 styling with design tokens;
- * the shared UI kit replaces the panel chrome later.
+ * Landing telemetry on the shared UI kit: a HudPanel (descent / drift / tilt / altitude / package) and a
+ * DashboardTicker chatter line underneath. Compact displays keep only descent + package and drop the ticker;
+ * drift and tilt are still called out by the in-world gauge chip. Values arrive pre-formatted (one shared
+ * `LandingReadouts`), so the HUD and the gauge always agree.
  */
 export class LandingDashboard {
-  private readonly rows = new Map<RowKey, Row>();
-  private readonly note: Phaser.GameObjects.Text;
+  readonly root: Phaser.GameObjects.Container;
+  private readonly panel: HudPanel;
+  private readonly ticker: DashboardTicker | undefined;
+  private readonly rows: readonly ReadoutRowId[];
   private shownNote = "";
+  private pendingNote = "";
+  private pendingSinceMs = 0;
 
-  constructor(scene: Phaser.Scene) {
-    const config = landingScenery.dashboard;
-    const contentWidth = config.width - config.padX * 2;
-    const noteTop = config.padY + config.titleGap + ROW_ORDER.length * config.rowHeight + config.noteGap;
-    const height = noteTop + typeScale.base + 10 + config.padY;
-    // Everything is laid out in panel-local space so the whole dashboard can scale up on small screens.
-    const container = scene.add.container(config.x, config.y).setDepth(depth.hud).setScale(landingHudScale(scene));
-    const panel = scene.add.graphics();
-    panel.fillStyle(colorNumber(colors.cosmosDeep), 0.35);
-    panel.fillRoundedRect(0, 3, config.width, height, config.radius);
-    panel.fillStyle(colorNumber(colors.cosmosPanel), config.alpha);
-    panel.fillRoundedRect(0, 0, config.width, height, config.radius);
-    panel.lineStyle(1, colorNumber(colors.plaster), 0.18);
-    panel.strokeRoundedRect(0.5, 0.5, config.width - 1, height - 1, config.radius);
-    panel.fillStyle(colorNumber(colors.ember), 0.9);
-    panel.fillRect(config.padX, config.padY + typeScale.sm + 7, 28, 2);
-    panel.lineStyle(1, colorNumber(colors.plaster), 0.12);
-    panel.lineBetween(config.padX, noteTop - config.noteGap / 2, config.padX + contentWidth, noteTop - config.noteGap / 2);
-    container.add(panel);
+  constructor(scene: Phaser.Scene, options: LandingDashboardOptions) {
+    const config = landingScenery.hud;
+    this.rows = options.compact ? COMPACT_ROWS : FULL_ROWS;
+    const width = options.compact ? config.compactWidth : config.width;
+    const rows: HudRow[] = [
+      ...this.rows.map((id) => ({ id, label: landingCopy.rows[id], value: "" })),
+      { id: "package", label: landingCopy.rows.package, value: "" },
+    ];
 
-    const left = config.padX;
-    container.add(
-      scene.add.text(left, config.padY, landingCopy.dashboardTitle, {
-        color: colors.ember,
-        fontFamily: fontStacks.pixel,
-        fontSize: `${typeScale.sm}px`,
-      }),
-    );
-
-    ROW_ORDER.forEach((key, index) => {
-      const y = config.padY + config.titleGap + index * config.rowHeight;
-      const label = scene.add.text(left, y, landingCopy.rows[key], {
-        color: "rgba(251,247,236,0.62)",
-        fontFamily: fontStacks.mono,
-        fontSize: `${typeScale.base}px`,
-      });
-      const value = scene.add.text(left + config.labelWidth, y - 1, "", {
-        color: colors.plaster,
-        fontFamily: fontStacks.mono,
-        fontSize: `${typeScale.md}px`,
-        fontStyle: "bold",
-      });
-      const dot = scene.add
-        .circle(left + contentWidth - config.dotRadius, y + typeScale.md / 2 + 1, config.dotRadius, colorNumber(colors.sage))
-        .setVisible(false);
-      container.add([label, value, dot]);
-      this.rows.set(key, { value, dot, shownValue: "", shownZone: undefined });
-    });
-
-    this.note = scene.add.text(left, noteTop, "", {
-      color: colors.parchmentDeep,
-      fontFamily: fontStacks.mono,
-      fontSize: `${typeScale.sm}px`,
-      fontStyle: "italic",
-      wordWrap: { width: contentWidth },
-    });
-    container.add(this.note);
+    this.panel = new HudPanel(scene, { x: 0, y: 0, width, title: landingCopy.dashboardTitle, icon: "moon", rows });
+    const children: Phaser.GameObjects.GameObject[] = [this.panel];
+    if (!options.compact) {
+      this.ticker = new DashboardTicker(scene, { x: 0, y: this.panel.panelHeight + config.tickerGap, width });
+      children.push(this.ticker);
+    }
+    this.root = scene.add.container(config.x, config.y, children).setDepth(depth.hud).setScale(options.scale);
   }
 
-  update(view: LandingDashboardView): void {
-    for (const key of ROW_ORDER) {
-      const row = this.rows.get(key);
-      if (!row) continue;
-      const next = view[key];
-      if (next.value !== row.shownValue) {
-        row.shownValue = next.value;
-        row.value.setText(next.value);
-      }
-      if (next.zone !== row.shownZone) {
-        row.shownZone = next.zone;
-        row.dot.setVisible(next.zone !== undefined);
-        if (next.zone) {
-          row.dot.setFillStyle(colorNumber(landingZoneColors[next.zone]));
-          row.value.setColor(next.zone === "soft" ? colors.plaster : landingZoneColors[next.zone]);
-        }
-      }
-    }
+  /** Height on screen, including the ticker (for laying out other overlays below it). */
+  get displayHeight(): number {
+    const config = landingScenery.hud;
+    const height = this.panel.panelHeight + (this.ticker ? config.tickerGap + TICKER_HEIGHT : 0);
+    return height * this.root.scaleY;
+  }
 
-    const note = `› ${view.note}`;
-    if (note !== this.shownNote) {
-      this.shownNote = note;
-      this.note.setText(note);
+  update(view: LandingDashboardView, timeMs: number): void {
+    for (const id of this.rows) {
+      const readout = view[id];
+      this.panel.setValue(id, readout.text, landingZoneTextColors[readout.zone]);
     }
+    this.panel.setValue("package", view.packageLabel);
+    this.updateNote(view.note, timeMs);
+  }
+
+  setAlpha(alpha: number): void {
+    this.root.setAlpha(alpha);
+  }
+
+  destroy(): void {
+    this.root.destroy();
+  }
+
+  /** Retypes the chatter only once a new line has held for a moment, so tapping thrust never stutters it. */
+  private updateNote(note: string, timeMs: number): void {
+    if (!this.ticker) return;
+    if (note !== this.pendingNote) {
+      this.pendingNote = note;
+      this.pendingSinceMs = timeMs;
+    }
+    const first = this.shownNote === "";
+    if (note === this.shownNote) return;
+    if (!first && timeMs - this.pendingSinceMs < landingScenery.hud.noteDebounceMs) return;
+    this.shownNote = note;
+    this.ticker.say(note);
   }
 }
 
-/**
- * HUD scale for the landing overlays: 1 on desktop, larger when the 1280x720 canvas is shown small
- * (phone landscape) so readouts stay legible. Measured once at scene create.
- */
-export function landingHudScale(scene: Phaser.Scene): number {
-  const compact = landingScenery.compactHud;
-  return scene.scale.displaySize.width > 0 && scene.scale.displaySize.width < compact.belowDisplayWidthPx ? compact.scale : 1;
-}
-
-/** Keycap hint strip along the bottom edge (keyboard devices only). */
-export function createLandingControlsHint(scene: Phaser.Scene): Phaser.GameObjects.Container {
+/** Keycap hint strip along the bottom edge (keyboard devices only), on a pixel-notched dark backing. */
+export function createLandingControlsHint(scene: Phaser.Scene, scale: number): Phaser.GameObjects.Container {
   const config = landingScenery.controlsHint;
-  const container = scene.add.container(0, 0).setDepth(depth.hud).setAlpha(config.alpha);
+  const cell = LANDING_ART_SCALE;
+  const container = scene.add.container(0, 0).setDepth(depth.hud);
   let x = 0;
 
   for (const group of landingCopy.controls) {
     for (const key of group.keys) {
-      const cap = scene.add.graphics();
-      cap.fillStyle(colorNumber(colors.borderStrong), 1);
-      cap.fillRoundedRect(x, 2, config.keySize, config.keySize, 5);
-      cap.fillStyle(colorNumber(colors.parchmentWarm), 1);
-      cap.fillRoundedRect(x, 0, config.keySize, config.keySize - 2, 5);
-      const label = scene.add
-        .text(x + config.keySize / 2, (config.keySize - 2) / 2, key, {
-          color: colors.ink,
-          fontFamily: fontStacks.mono,
-          fontSize: `${typeScale.sm}px`,
-          fontStyle: "bold",
-        })
-        .setOrigin(0.5);
-      container.add([cap, label]);
-      x += config.keySize + config.gap;
+      const cap = new Keycap(scene, { x, y: 0, label: key });
+      container.add(cap);
+      x += cap.keyWidth + config.gap;
     }
     const text = scene.add
-      .text(x + 2, config.keySize / 2, group.label, {
-        color: colors.plaster,
-        fontFamily: fontStacks.mono,
-        fontSize: `${typeScale.base}px`,
-      })
+      .text(x - config.gap + config.labelGap, KEYCAP_HEIGHT / 2, group.label, monoStyle({ size: typeScale.base, color: colors.plaster }))
       .setOrigin(0, 0.5);
     container.add(text);
-    x += text.width + config.groupGap;
+    x += text.width + config.labelGap - config.gap + config.groupGap;
   }
 
   const totalWidth = x - config.groupGap;
   const backing = scene.add.graphics();
-  const padX = 14;
-  const padY = 8;
-  backing.fillStyle(colorNumber(colors.cosmosPanel), 0.72);
-  backing.fillRoundedRect(-padX, -padY, totalWidth + padX * 2, config.keySize + padY * 2, 8);
+  const w = Math.ceil((totalWidth + config.padX * 2) / cell) * cell;
+  const h = KEYCAP_HEIGHT + config.padY * 2;
+  backing.fillStyle(colorNumber(colors.cosmosPanel), 0.78);
+  fillNotchedRect(backing, -config.padX, -config.padY, w, h, cell);
   container.addAt(backing, 0);
-  const hudScale = landingHudScale(scene);
-  container.setScale(hudScale);
+  container.setScale(scale);
   container.setPosition(
-    Math.round((scene.scale.width - totalWidth * hudScale) / 2),
-    scene.scale.height - (config.bottomMargin + config.keySize) * hudScale,
+    Math.round((scene.scale.width - (totalWidth * scale)) / 2 / cell) * cell,
+    Math.round((scene.scale.height - (config.bottomMargin + KEYCAP_HEIGHT + config.padY) * scale) / cell) * cell,
   );
   return container;
 }

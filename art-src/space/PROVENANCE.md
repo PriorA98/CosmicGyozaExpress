@@ -20,7 +20,29 @@ All commands run from the repo root. Python 3 + Pillow (dev tooling only).
 - **Command:** `python art-src/space/scripts/starfield.py`
 - **Checks:** `previews/space-near-tile.png` (3x3 tiling over stars-far at 2x) and `previews/stars-near.preview.png`.
 
-## nebula.png (key `space-nebula`): 640x360, soft alpha (max alpha 127), tiles horizontally
+## nebula.png (key `space-nebula`): 640x360 at TRUE art resolution, soft alpha (max 127), tiles horizontally (round 2, 2026-10-01)
+
+- **Why rebuilt:** the round-1 assets critic (score 7.6, issue 3, major) found the round-1 file was 100% uniform 2x2 blocks. That is 320x180 effective art drawn at artScale 2, so it rendered at 4 screen px per art px, and its chunky checker-dither fringes clashed with the 2 px stars, asteroids and moon. The round-1 file is kept for comparison at `previews/nebula-r1-old.png`.
+- **Source:** the same Codex image_gen raw as round 1, `raw/nebula-v1.png` (codex-cli 0.159.3; prompt quoted in the round-1 section below). Round 2 made no new Codex calls. The raw already had the approved composition (top and bottom bands, calm empty middle, amber top-left rims), so only the normalization changed.
+- **Normalization (`scripts/nebula_true.py`, new):**
+  `python art-src/space/scripts/nebula_true.py art-src/space/raw/nebula-v1.png public/assets/space/nebula.png --squash 0.82 --median 7 --blur 2.5 --colors 18 --warm 3 --edge 20 --edge-wave 6 --levels 5`
+  1. Median filter (7 raw px) then Gaussian blur (2.5 raw px) on the raw. This erases the raw's own coarse grid of about 6 px per pixel and its checker-dither fringe, and keeps the puffy cloud shapes. Over black the RGB is already premultiplied, so blurring it is exact.
+  2. Box-filter cover-fit to 832x360 (640 plus a 192 px seam overlap). `--squash 0.82` is a mild vertical squash, so only 12 rows per side are cropped (round 1 cropped 54). This keeps the amber-lit top-left puffs.
+  3. Alpha comes from brightness over black (floor 8, full at +60), with colour un-premultiplied.
+  4. **Seam:** a min-cost vertical quilting path through the overlap (columns 0..191 against 640..831), computed per 1 px row and feathered ±6 px on the smooth source *before* re-pixelizing. Left of the path the layer shows the overflow columns, which continue from x=639, so the wrap is exact.
+  5. **Edge fade:** the top and bottom 20 rows fade to fully transparent, and rows 0-1 and 358-359 have alpha 0 across the whole width. The fade line is scalloped by an x-periodic cloud-bump profile (|sin| waves with integer counts over 640, so it wraps). Stepped alpha then makes it dissolve as small puffs, not a straight horizontal stripe.
+  6. **Re-pixelize at 1 art px = 1 file px:** colour goes to an 18-colour median-cut palette over the visible pixels, plus 3 slots cut only from warm (amber) pixels so the rims are not averaged away. There is no colour dither, which gives clean stepped colour bands. Alpha goes to 5 stepped levels (0/32/64/96/127), with a narrow 1 px 4x4-Bayer transition (35% of each step) between levels. The result is stepped alpha bands with lightly broken 1 px edges in place of the round-1 2x2 checker fringe.
+- **Metrics:** 640x360 RGBA, 43 KB, 21 RGB colours (73 RGBA combinations). Uniform 2x2 blocks over visible pixels: 0.56, down from 1.00 in round 1 (what remains is flat colour inside bands, not upscaling). The wrap seam diff between columns 639 and 0 is 6.3, about the same as the mean adjacent-column diff of 5.4.
+- **Iteration notes (round 2):**
+  - Pure Gaussian blur 5 with 28 colours: true resolution, but it read as posterized airbrush with many thin wobbly contour bands, the amber was lost, and a straight edge-fade stripe was visible at top and bottom. Rejected.
+  - Adding `--squash` plus a wavy fade: better framing, but the 3.5 px waviness still read as a horizon line.
+  - Median 7, blur 2.5, 18+3 warm colours: puffy, deliberate tonal steps, and the amber rims came back.
+  - Scalloped fade 20 rows deep with 5 alpha levels: the fade reads as dissolving puffs. Final.
+- **Checks:** `previews/nebula-tile3x.png` (3 tiles over stars-far at 2x, no seam), `previews/nebula-seam-zoom.png` (wrap region at 2x), `previews/nebula.preview.png` (`pixelize.py --preview --scale 3`), `e2e/out/contact-space.png`. In-game: `node e2e/capture.mjs --states=title,flight-incident,flight-approach --label=w2-assets-space` ran with 0 runtime errors and no asset failures. The clouds render at 2 screen px per art px, matching the stars, with no visible seam and no hard band edge.
+- **Known nit:** on a light background (contact sheet, right panel) the lowest-alpha rim pixels show a faint darker outline, because their un-premultiplied colour is darker. The layer is only ever drawn over the dark sky, where this is invisible.
+
+## nebula.png: round-1 pipeline (superseded, kept for history)
+
 
 - **Source:** Codex image_gen via codex-cli 0.159.3 → `raw/nebula-v1.png` (1672x941, clouds on flat black).
 - **Codex prompt (as reported by Codex):**
@@ -43,4 +65,4 @@ All commands run from the repo root. Python 3 + Pillow (dev tooling only).
 - **Known nit:** the quilting cut leaves one short straight vertical edge in the top band near x≈80, where a teal puff meets a plum one. It is only visible when zoomed; at 50% alpha over the dark sky it reads as a cloud overlap.
 
 ## Manual edits
-None. All outputs are reproducible from the commands above.
+None. All outputs are reproducible from the commands above. `scripts/nebula.py` is the round-1 (2x2 grid) normalizer, kept only for history. The production nebula comes from `scripts/nebula_true.py`.

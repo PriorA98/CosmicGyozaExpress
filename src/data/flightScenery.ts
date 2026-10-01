@@ -19,10 +19,11 @@ export type ParallaxLayerDefinition = {
   readonly scrollFactorY: number;
   readonly alpha: number;
   /**
-   * `tile` repeats in both axes. `band` repeats horizontally only: the layer moves vertically
-   * as one band, centred on the viewport, so a horizontally tileable texture never shows a seam.
+   * `tile` repeats in both axes. `mirror` is for art that only tiles horizontally (the nebula):
+   * it is stacked with its own vertical mirror at runtime, so it repeats in Y without a seam and
+   * always covers the viewport however far the camera scrolls.
    */
-  readonly mode: "tile" | "band";
+  readonly mode: "tile" | "mirror";
   /** Slow autonomous drift in art px per second (keeps the sky alive while parked). */
   readonly driftX: number;
   /**
@@ -49,7 +50,7 @@ export const flightParallaxLayers: readonly ParallaxLayerDefinition[] = [
     scrollFactorX: 0.15,
     scrollFactorY: 0.06,
     alpha: 0.5,
-    mode: "band",
+    mode: "mirror",
     driftX: 0,
     fallbackStars: 0,
   },
@@ -81,8 +82,10 @@ export type CelestialBodyDefinition = {
   readonly y: number;
   readonly scrollFactor: number;
   readonly scale: number;
-  readonly alpha: number;
-  /** Multiply tint that pushes distant bodies back into the sky. */
+  /**
+   * Multiply tint that pushes distant bodies back into the sky. Bodies stay fully opaque (they sit
+   * in front of the star layers), so depth comes from this tint, never from transparency.
+   */
   readonly tint: string;
   /** Visual-only slow drift range in px and its period. */
   readonly driftPx: number;
@@ -110,8 +113,7 @@ export const flightCelestialBodies: readonly CelestialBodyDefinition[] = [
     y: 96,
     scrollFactor: 0.04,
     scale: FLIGHT_ART_SCALE,
-    alpha: 0.6,
-    tint: "#8E8AA8",
+    tint: "#B4AECB",
     driftPx: 4,
     driftPeriodMs: 9000,
     standIn: {
@@ -130,8 +132,7 @@ export const flightCelestialBodies: readonly CelestialBodyDefinition[] = [
     y: 660,
     scrollFactor: 0.1,
     scale: FLIGHT_ART_SCALE,
-    alpha: 0.55,
-    tint: "#8F93AE",
+    tint: "#C3C1D6",
     driftPx: 6,
     driftPeriodMs: 12000,
     standIn: {
@@ -152,8 +153,8 @@ export const teaMoonScenery = {
   y: 850,
   scale: FLIGHT_ART_SCALE,
   haloColor: "#C2CFAE",
-  /** Halo rings drawn behind the moon, from inner to outer, as offsets beyond the moon radius. */
-  haloSteps: [6, 14, 24, 36, 50, 66] as const,
+  /** Stepped halo discs beyond the moon body, in ART px (drawn on the 2x pixel grid). */
+  haloSteps: [3, 7, 12, 18, 25, 33] as const,
   haloAlpha: 0.05,
   /**
    * Visible moon body in screen px relative to the image centre. The authored art (192px canvas)
@@ -176,31 +177,34 @@ export const teaMoonScenery = {
 export type AsteroidVisualDefinition = {
   readonly obstacleId: string;
   readonly textureKey: AssetKey;
-  readonly bobPx: number;
+  /** Sleepy bob amplitude in ART px (moves in whole art pixels, never sub-pixel). */
+  readonly bobArtPx: number;
   readonly bobPeriodMs: number;
-  readonly wobbleDegrees: number;
-  readonly wobblePeriodMs: number;
   readonly flipX: boolean;
 };
 
 export const asteroidArt = {
-  /** Asteroid art is 72x72; the rock body fills ~88% of the canvas. */
-  canvasPx: 72,
-  bodyFillRatio: 0.88,
+  /**
+   * Contract art (assetManifest): one canvas per rock whose body diameter in art px equals the
+   * obstacle radius, displayed at exactly 2x. Legacy 72px canvases (body ~88%) are scaled to fit
+   * their collision circle only until the per-rock art lands.
+   */
+  legacyCanvasPx: 72,
+  legacyBodyFillRatio: 0.88,
   fallbackTextureKey: ASSET.asteroidSleepy,
-  squashScale: 0.1,
-  squashMs: 110,
+  squashScale: 0.12,
+  squashMs: 120,
   flashColor: colors.plaster,
-  flashMs: 90,
-  nudgePx: { "soft-bump": 4, "dramatic-bump": 9, "gyoza-incident": 14 } as const,
+  flashMs: 150,
+  nudgePx: { "soft-bump": 6, "dramatic-bump": 10, "gyoza-incident": 14 } as const,
 } as const;
 
 export const asteroidVisuals: readonly AsteroidVisualDefinition[] = [
-  { obstacleId: "soft-asteroid-01", textureKey: ASSET.asteroidSleepy, bobPx: 4, bobPeriodMs: 3600, wobbleDegrees: 3, wobblePeriodMs: 5200, flipX: false },
-  { obstacleId: "soft-asteroid-02", textureKey: ASSET.asteroidRice, bobPx: 5, bobPeriodMs: 4200, wobbleDegrees: 2.5, wobblePeriodMs: 6100, flipX: false },
-  { obstacleId: "soft-asteroid-03", textureKey: ASSET.asteroidTea, bobPx: 5, bobPeriodMs: 4700, wobbleDegrees: 2, wobblePeriodMs: 6800, flipX: false },
-  { obstacleId: "soft-asteroid-04", textureKey: ASSET.asteroidMochi, bobPx: 4, bobPeriodMs: 3900, wobbleDegrees: 3, wobblePeriodMs: 5600, flipX: true },
-  { obstacleId: "soft-asteroid-05", textureKey: ASSET.asteroidCrumb, bobPx: 3, bobPeriodMs: 3300, wobbleDegrees: 4, wobblePeriodMs: 4800, flipX: false },
+  { obstacleId: "soft-asteroid-01", textureKey: ASSET.asteroidSleepy, bobArtPx: 2, bobPeriodMs: 3600, flipX: false },
+  { obstacleId: "soft-asteroid-02", textureKey: ASSET.asteroidRice, bobArtPx: 2, bobPeriodMs: 4200, flipX: false },
+  { obstacleId: "soft-asteroid-03", textureKey: ASSET.asteroidTea, bobArtPx: 3, bobPeriodMs: 4700, flipX: false },
+  { obstacleId: "soft-asteroid-04", textureKey: ASSET.asteroidMochi, bobArtPx: 2, bobPeriodMs: 3900, flipX: true },
+  { obstacleId: "soft-asteroid-05", textureKey: ASSET.asteroidCrumb, bobArtPx: 2, bobPeriodMs: 3300, flipX: false },
 ];
 
 export type DebrisDefinition = {
@@ -209,31 +213,33 @@ export type DebrisDefinition = {
   readonly x: number;
   readonly y: number;
   readonly scrollFactor: number;
-  readonly scale: number;
   readonly alpha: number;
   readonly driftX: number;
   readonly driftY: number;
   readonly driftPeriodMs: number;
-  /** Full turns per minute (visual only). */
-  readonly spinRpm: number;
+  /**
+   * Quarter-turn tumble interval in ms (0 = none). Debris turns in 90 degree steps only, so the
+   * pixel grid is never resampled by an arbitrary rotation.
+   */
+  readonly tumbleMs: number;
 };
 
 export const debrisTextureKey: AssetKey = ASSET.asteroidDebris;
 
 export const flightDebris: readonly DebrisDefinition[] = [
-  { frame: 0, x: 210, y: 150, scrollFactor: 0.6, scale: 2, alpha: 0.5, driftX: 18, driftY: 8, driftPeriodMs: 9000, spinRpm: 1.4 },
-  { frame: 2, x: 760, y: 470, scrollFactor: 0.55, scale: 1, alpha: 0.45, driftX: -14, driftY: 10, driftPeriodMs: 11000, spinRpm: -2 },
-  { frame: 1, x: 1180, y: 250, scrollFactor: 0.65, scale: 2, alpha: 0.5, driftX: 20, driftY: -6, driftPeriodMs: 10000, spinRpm: 1 },
-  { frame: 3, x: 1520, y: 820, scrollFactor: 0.6, scale: 1, alpha: 0.42, driftX: -10, driftY: -12, driftPeriodMs: 12500, spinRpm: 2.4 },
-  { frame: 0, x: 1890, y: 420, scrollFactor: 0.7, scale: 1, alpha: 0.48, driftX: 16, driftY: 10, driftPeriodMs: 9500, spinRpm: -1.6 },
-  { frame: 2, x: 2240, y: 980, scrollFactor: 0.6, scale: 2, alpha: 0.46, driftX: -18, driftY: 6, driftPeriodMs: 13000, spinRpm: 1.2 },
-  { frame: 1, x: 2620, y: 300, scrollFactor: 0.68, scale: 1, alpha: 0.44, driftX: 12, driftY: 14, driftPeriodMs: 10500, spinRpm: -2.2 },
-  { frame: 3, x: 980, y: 1080, scrollFactor: 0.62, scale: 2, alpha: 0.46, driftX: 14, driftY: -10, driftPeriodMs: 11500, spinRpm: 1.8 },
-  { frame: 0, x: 2980, y: 760, scrollFactor: 0.66, scale: 1, alpha: 0.42, driftX: -12, driftY: -8, driftPeriodMs: 12000, spinRpm: -1.2 },
-  { frame: 2, x: 420, y: 760, scrollFactor: 0.58, scale: 1, alpha: 0.4, driftX: 10, driftY: 12, driftPeriodMs: 10000, spinRpm: 2 },
+  { frame: 0, x: 210, y: 150, scrollFactor: 0.6, alpha: 0.5, driftX: 18, driftY: 8, driftPeriodMs: 9000, tumbleMs: 2600 },
+  { frame: 2, x: 760, y: 470, scrollFactor: 0.55, alpha: 0.45, driftX: -14, driftY: 10, driftPeriodMs: 11000, tumbleMs: 3400 },
+  { frame: 1, x: 1180, y: 250, scrollFactor: 0.65, alpha: 0.5, driftX: 20, driftY: -6, driftPeriodMs: 10000, tumbleMs: 0 },
+  { frame: 3, x: 1520, y: 820, scrollFactor: 0.6, alpha: 0.42, driftX: -10, driftY: -12, driftPeriodMs: 12500, tumbleMs: 3000 },
+  { frame: 0, x: 1890, y: 420, scrollFactor: 0.7, alpha: 0.48, driftX: 16, driftY: 10, driftPeriodMs: 9500, tumbleMs: 0 },
+  { frame: 2, x: 2240, y: 980, scrollFactor: 0.6, alpha: 0.46, driftX: -18, driftY: 6, driftPeriodMs: 13000, tumbleMs: 3800 },
+  { frame: 1, x: 2620, y: 300, scrollFactor: 0.68, alpha: 0.44, driftX: 12, driftY: 14, driftPeriodMs: 10500, tumbleMs: 2800 },
+  { frame: 3, x: 980, y: 1080, scrollFactor: 0.62, alpha: 0.46, driftX: 14, driftY: -10, driftPeriodMs: 11500, tumbleMs: 0 },
+  { frame: 0, x: 2980, y: 760, scrollFactor: 0.66, alpha: 0.42, driftX: -12, driftY: -8, driftPeriodMs: 12000, tumbleMs: 3200 },
+  { frame: 2, x: 420, y: 760, scrollFactor: 0.58, alpha: 0.4, driftX: 10, driftY: 12, driftPeriodMs: 10000, tumbleMs: 0 },
 ];
 
-/** Colour per docking state, shared by the arrival beacon, indicator, and HUD status dot. */
+/** Colour per docking state, shared by the arrival beacon, indicator, and HUD status pill. */
 export const dockingStateColors: Readonly<Record<DockingStateKind, string>> = {
   "too-far": colors.duskBlue,
   approaching: colors.ember,
@@ -242,34 +248,45 @@ export const dockingStateColors: Readonly<Record<DockingStateKind, string>> = {
   ready: colors.sage,
 };
 
+/** Delivery beacon. All lengths are ART px (displayed at FLIGHT_ART_SCALE on the pixel grid). */
 export const arrivalBeaconStyle = {
   /** Dashed ring: number of dashes and the fraction of each slot that is drawn. */
-  dashCount: 36,
-  dashFill: 0.58,
-  ringWidth: 3,
-  ringWidthReady: 4,
-  /** Outer approach ring (very faint). */
-  approachDashCount: 72,
-  approachAlpha: 0.14,
+  dashCount: 32,
+  dashFill: 0.55,
+  dashFillReady: 0.8,
+  ringThickness: 2,
+  /** Dark underlay band so the ring reads over the bright moon limb. */
+  ringShadowThickness: 4,
+  ringShadowAlpha: 0.55,
+  /** Outer approach ring (very faint dotted circle). */
+  approachDashCount: 96,
+  approachDashFill: 0.25,
+  approachAlpha: 0.18,
   lanternCount: 8,
-  lanternRadius: 4,
-  lanternGlowRadius: 11,
-  /** Lanterns light up in a slow chase toward the chevron. */
+  /** Lanterns light up in a slow chase. */
   lanternChaseMs: 1400,
-  chevronInset: 16,
-  chevronLength: 30,
-  chevronHalfWidth: 20,
-  chevronThickness: 7,
-  chevronPlateRadius: 30,
-  chevronBobPx: 5,
+  /** Chevron badge sits inside the ring, this far from the centre along the bottom direction. */
+  badgeDistance: 41,
+  plateRadius: 13,
+  chevronLength: 8,
+  chevronHalfWidth: 7,
+  chevronThickness: 3,
+  chevronSpacing: 6,
+  chevronBobArtPx: 1,
   chevronBobMs: 900,
-  progressWidth: 6,
-  progressGap: 9,
-  ghostShipAlpha: 0.16,
-  idleAlpha: 0.5,
-  activeAlpha: 0.92,
-  /** Beacon label sits this far below the chevron plate centre. */
-  labelOffset: 68,
+  /** Progress arc band just outside the ring. */
+  progressGap: 5,
+  progressThickness: 3,
+  /** Ghost target pose: cream 1-art-px outline + sparse dither, pulsing gently. */
+  ghostColor: colors.parchment,
+  ghostFillAlpha: 0.22,
+  ghostAlphaMin: 0.35,
+  ghostAlphaMax: 0.7,
+  ghostPulseMs: 1600,
+  idleAlpha: 0.55,
+  activeAlpha: 0.95,
+  /** Label pill sits this far (screen px) below the ring's outer edge. */
+  labelGap: 24,
 } as const;
 
 export const destinationIndicatorStyle = {
@@ -284,9 +301,13 @@ export const destinationIndicatorStyle = {
   chevronLength: 6,
   chevronHalfWidth: 7,
   chevronThickness: 3,
-  labelGap: 34,
-  textBlockHeight: 30,
-  readoutOffset: 13,
+  /** Text pill centred under (or above) the pin. */
+  labelGap: 30,
+  pillPaddingX: 10,
+  pillPaddingY: 5,
+  pillLineGap: 1,
+  pillRadius: 6,
+  pillAlpha: 0.82,
   pulseMs: 1200,
   /** Fiction units: 100 world px = 1 "km" on the instrument readout. */
   pxPerUnit: 100,
@@ -294,59 +315,91 @@ export const destinationIndicatorStyle = {
 } as const;
 
 export const shipVisualStyle = {
-  /** 144x160 normalized canvas; at this scale the gyoza body roughly spans the 84px collision circle. */
-  flightScale: 0.72,
+  /**
+   * Display scale for pre-contract ship art (144x160 canvases). Contract art (SHIP_ART, 64x80)
+   * always displays at its integer artScale (2); this only applies until the redraw lands.
+   */
+  legacyFlightScale: 0.72,
   /** Idle micro-bob of the sprite only (never moves the physics body or camera target). */
-  bobPx: 2.5,
+  bobPx: 2,
   bobPeriodMs: 2400,
   tiltBobRadians: 0.025,
-  /** Engine sits on the ship's bottom, this many px from the centre at flight scale. */
-  engineOffset: 36,
-  trailOffset: 46,
-  engineGlowRadius: 18,
+  /** Engine glow and particle trail positions below the saucer centre, in ART px. */
+  engineOffsetArt: 14,
+  trailOffsetArt: 30,
+  /** Same offsets in screen px for the legacy art at legacyFlightScale. */
+  legacyEngineOffset: 36,
+  legacyTrailOffset: 46,
+  engineGlowRadius: 16,
   engineGlowColor: colors.amber,
   engineGlowIdleAlpha: 0.1,
-  engineGlowThrustAlpha: 0.75,
+  engineGlowThrustAlpha: 0.7,
   engineFlickerMs: 70,
-  squash: { "soft-bump": 0.08, "dramatic-bump": 0.16, "gyoza-incident": 0.2 } as const,
-  squashMs: 120,
+  squash: { "soft-bump": 0.16, "dramatic-bump": 0.22, "gyoza-incident": 0.26 } as const,
+  squashMs: 130,
+  /** Brief warm fill flash on the hull when bumped (ms) and its colour. */
+  bumpFlashMs: { "soft-bump": 90, "dramatic-bump": 130 } as const,
+  bumpFlashColor: colors.parchmentWarm,
   /** Thrust intensity reaches 1 at this speed (px/s). */
   intensitySpeed: 260,
 } as const;
 
-export const flightHudStyle = {
-  x: 18,
-  y: 18,
-  width: 272,
-  paddingX: 16,
-  paddingY: 14,
-  rowHeight: 21,
-  titleGap: 30,
-  radius: 8,
-  panelColor: "#141626",
-  panelAlpha: 0.8,
-  borderColor: "#F7F0DC",
-  borderAlpha: 0.18,
-  labelAlpha: 0.56,
-  valueColumn: 92,
-  noteGap: 10,
-  noteWrap: 236,
-  statusDotRadius: 4,
+/** Flight dashboard layout (screen px at 1280x720 before compactUiScale). */
+export const flightHudLayout = {
+  margin: 16,
+  panelWidth: 268,
+  stackGap: 8,
+  /** Keycap hint strip, bottom centre (keyboard devices only). */
+  hintBottom: 14,
+  hintGap: 6,
+  hintGroupGap: 18,
+  hintPaddingX: 12,
+  hintPaddingY: 6,
+  hintAlpha: 0.9,
+  /** Dashboard ticker (top centre on desktop, beside the panel on compact displays). */
+  tickerWidth: 480,
+  /** Touch pads (touch devices only), anchored to the bottom corners. */
+  touchRadius: 52,
+  touchInset: 74,
+  touchSpacing: 118,
 } as const;
+
+/** Package meter accent by condition (0..100), warmest band first. */
+export const packageMeterBands: readonly { readonly min: number; readonly accent: "sage" | "amber" | "ember" }[] = [
+  { min: 70, accent: "sage" },
+  { min: 40, accent: "amber" },
+  { min: 0, accent: "ember" },
+];
+
+export type FlightHintGroup = { readonly keys: readonly string[]; readonly label: string };
 
 export const flightHudCopy = {
   title: "tea moon route",
   speed: "speed",
   distance: "moon",
   bottom: "bottom",
-  arrival: "arrival",
   package: "package",
-  incidentMode: "incident",
-  ready: "hold steady...",
-  controlsKeyboard: "W/S thrust & brake  ·  A/D rotate  ·  R restart",
-  controlsDevSuffix: "  ·  F1 debug",
-  beaconLabel: "bottom side",
+  speedUnit: "km/s",
+  incidentPill: "gyoza incident",
+  arrivingPill: "landing window open",
+  hints: [
+    { keys: ["W"], label: "thrust" },
+    { keys: ["S"], label: "brake" },
+    { keys: ["A", "D"], label: "rotate" },
+    { keys: ["R"], label: "restart" },
+  ] satisfies readonly FlightHintGroup[],
+  touch: { rotateLeft: "left", rotateRight: "right", brake: "brake", thrust: "thrust" },
+  /** Arrival status pill label per docking state. */
+  pill: {
+    "too-far": "cruising",
+    approaching: "approaching",
+    "slow-down": "slow down",
+    align: "align bottom",
+    ready: "ready",
+  } satisfies Readonly<Record<DockingStateKind, string>>,
+  beaconLabel: "bottom to moon",
   indicatorLabel: "tea moon",
+  ready: "hold steady...",
 } as const;
 
 export const flightLines = {

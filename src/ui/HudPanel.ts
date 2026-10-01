@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { ASSET, NINE_SLICE, type UiIconName } from "../data/assetManifest";
 import { colorNumber, colors, typeScale } from "../game/designTokens";
 import { addUiIcon } from "./icons";
-import { stackOffsets } from "./layout";
+import { stackOffsets, uiIconScale, uiPixelLabelSize, uiScaled, uiTextSize } from "./layout";
 import { Meter } from "./Meter";
 import type { MeterAccent } from "./statePalette";
 import { addNineSlicePanel, drawDarkHudSurface } from "./surfaces";
@@ -35,6 +35,8 @@ export type HudPanelOptions = {
   readonly icon?: UiIconName;
   readonly rows: readonly HudRow[];
   readonly fixed?: boolean;
+  /** Compact-display multiplier (see `compactUiScale`): scales text, rows and padding. Default 1. */
+  readonly uiScale?: number;
 };
 
 /** Authored dark panel art is opaque; a touch of translucency keeps gameplay visible beneath. */
@@ -49,9 +51,12 @@ export const HUD_LAYOUT = {
 } as const;
 
 /** Total panel height for a given row count (pure, used by callers to lay out HUD stacks). */
-export function hudPanelHeight(rowCount: number): number {
-  return HUD_LAYOUT.headerHeight + rowCount * HUD_LAYOUT.rowHeight + HUD_LAYOUT.padding;
+export function hudPanelHeight(rowCount: number, uiScale = 1): number {
+  return uiScaled(HUD_LAYOUT.headerHeight, uiScale) + rowCount * uiScaled(HUD_LAYOUT.rowHeight, uiScale) + uiScaled(HUD_LAYOUT.padding, uiScale);
 }
+
+/** Value text size in a HUD row (instrument readouts are slightly larger than labels). */
+const HUD_VALUE_SIZE = 15;
 
 /**
  * Dark translucent HUD panel: pixel header (optional icon) + aligned label/value rows.
@@ -64,12 +69,16 @@ export class HudPanel extends Phaser.GameObjects.Container {
   private readonly values = new Map<string, Phaser.GameObjects.Text>();
   private readonly meters = new Map<string, Meter>();
   private readonly titleText: Phaser.GameObjects.Text;
+  private readonly uiScale: number;
 
   constructor(scene: Phaser.Scene, options: HudPanelOptions) {
     super(scene, options.x, options.y);
-    const { padding, headerHeight, rowHeight } = HUD_LAYOUT;
+    this.uiScale = options.uiScale ?? 1;
+    const padding = uiScaled(HUD_LAYOUT.padding, this.uiScale);
+    const headerHeight = uiScaled(HUD_LAYOUT.headerHeight, this.uiScale);
+    const rowHeight = uiScaled(HUD_LAYOUT.rowHeight, this.uiScale);
     this.panelWidth = options.width;
-    this.panelHeight = hudPanelHeight(options.rows.length);
+    this.panelHeight = hudPanelHeight(options.rows.length, this.uiScale);
 
     const art = addNineSlicePanel(scene, ASSET.uiPanelDark, this.panelWidth, this.panelHeight, NINE_SLICE.panel);
     if (art) this.add(art.setAlpha(HUD_ART_ALPHA));
@@ -81,11 +90,12 @@ export class HudPanel extends Phaser.GameObjects.Container {
 
     let titleX = padding;
     if (options.icon) {
-      this.add(addUiIcon(scene, padding, headerHeight / 2, options.icon, { originX: 0 }));
-      titleX += 32 + 8;
+      const iconScale = uiIconScale(this.uiScale);
+      this.add(addUiIcon(scene, padding, headerHeight / 2, options.icon, { originX: 0, scale: iconScale }));
+      titleX += 16 * iconScale + uiScaled(8, this.uiScale);
     }
     this.titleText = scene.add
-      .text(titleX, headerHeight / 2 + 1, options.title.toUpperCase(), pixelLabelStyle({ color: colors.amber }))
+      .text(titleX, headerHeight / 2 + 1, options.title.toUpperCase(), pixelLabelStyle({ size: uiPixelLabelSize(this.uiScale), color: colors.amber }))
       .setOrigin(0, 0.5);
     this.add(this.titleText);
 
@@ -125,10 +135,13 @@ export class HudPanel extends Phaser.GameObjects.Container {
   }
 
   private addRow(row: HudRow, top: number): void {
-    const { padding, rowHeight, meterHeight, meterWidthRatio } = HUD_LAYOUT;
+    const padding = uiScaled(HUD_LAYOUT.padding, this.uiScale);
+    const rowHeight = uiScaled(HUD_LAYOUT.rowHeight, this.uiScale);
+    const meterHeight = Math.round(uiScaled(HUD_LAYOUT.meterHeight, this.uiScale) / 2) * 2;
+    const { meterWidthRatio } = HUD_LAYOUT;
     const midY = top + rowHeight / 2;
     const label = this.scene.add
-      .text(padding, midY, row.label, monoStyle({ size: typeScale.sm, color: colors.plaster }))
+      .text(padding, midY, row.label, monoStyle({ size: uiTextSize(typeScale.sm, this.uiScale), color: colors.plaster }))
       .setOrigin(0, 0.5)
       .setAlpha(0.66);
     this.add(label);
@@ -150,7 +163,7 @@ export class HudPanel extends Phaser.GameObjects.Container {
     }
 
     const value = this.scene.add
-      .text(this.panelWidth - padding, midY, row.value ?? "", monoStyle({ size: 15, bold: true, color: row.valueColor ?? colors.plaster }))
+      .text(this.panelWidth - padding, midY, row.value ?? "", monoStyle({ size: uiTextSize(HUD_VALUE_SIZE, this.uiScale), bold: true, color: row.valueColor ?? colors.plaster }))
       .setOrigin(1, 0.5);
     this.values.set(row.id, value);
     this.add(value);

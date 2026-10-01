@@ -1,10 +1,11 @@
 import Phaser from "phaser";
-import { ASSET, NINE_SLICE, type UiIconName } from "../data/assetManifest";
+import type { UiIconName } from "../data/assetManifest";
 import { colorNumber, colors, motion } from "../game/designTokens";
 import { emitGameEvent } from "../game/events";
 import { isReducedMotion } from "../fx/feedback";
 import { addUiIcon } from "./icons";
-import { addNineSlicePanel } from "./surfaces";
+import { uiIconScale, uiPixelLabelSize, uiScaled } from "./layout";
+import { fillSteppedRect, STEPPED_CORNER } from "./surfaces";
 import { pixelLabelStyle } from "./textStyles";
 
 export type ButtonVariant = "primary" | "secondary" | "ink";
@@ -22,6 +23,11 @@ export type ButtonOptions = {
   readonly keys?: readonly string[];
   /** Pin to the camera (HUD use). */
   readonly fixed?: boolean;
+  /**
+   * Compact-display multiplier (see `compactUiScale`). Snaps the label to the next whole
+   * Silkscreen grid size, the icon to an integer scale, and scales the default height. Default 1.
+   */
+  readonly uiScale?: number;
   readonly onActivate?: () => void;
 };
 
@@ -29,11 +35,10 @@ type VariantPalette = {
   readonly fill: string;
   readonly hoverFill: string;
   readonly pressedFill: string;
-  readonly border: string;
   readonly label: string;
+  readonly labelShadow: string;
   readonly highlightAlpha: number;
   readonly bevel: string;
-  readonly bevelAlpha: number;
 };
 
 const VARIANTS: Readonly<Record<ButtonVariant, VariantPalette>> = {
@@ -41,48 +46,50 @@ const VARIANTS: Readonly<Record<ButtonVariant, VariantPalette>> = {
     fill: colors.terracotta,
     hoverFill: "#D58A68",
     pressedFill: colors.terracottaDeep,
-    border: colors.ink,
     label: colors.plaster,
+    labelShadow: colors.terracottaDeep,
     highlightAlpha: 0.32,
     bevel: colors.terracottaDeep,
-    bevelAlpha: 1,
   },
   secondary: {
     fill: colors.parchmentWarm,
     hoverFill: colors.plaster,
     pressedFill: colors.parchmentDeep,
-    border: colors.ink,
     label: colors.ink,
-    highlightAlpha: 0.6,
+    labelShadow: colors.border,
+    highlightAlpha: 1,
     bevel: colors.border,
-    bevelAlpha: 1,
   },
   ink: {
     fill: colors.ink,
     hoverFill: colors.inkSoft,
     pressedFill: colors.cosmosDeep,
-    border: colors.ink,
     label: colors.plaster,
+    labelShadow: colors.cosmosDeep,
     highlightAlpha: 0.12,
     bevel: colors.cosmosDeep,
-    bevelAlpha: 1,
   },
 };
 
-/** Pixel-button geometry (design-system.md "Pixel buttons": 2px ink border, hard 3px shadow). */
+/**
+ * Pixel-button geometry (design-system.md "Pixel buttons": 2px ink border, hard 3px shadow).
+ * The shadow is a solid ink lip directly under the face (no gap); pressing sinks the face onto it.
+ */
 const BORDER = 2;
 const SHADOW = 3;
-const FOCUS_GAP = 5;
+const BEVEL = 4;
+const FOCUS_GAP = 4;
+const FOCUS_WIDTH = 2;
 const ICON_GAP = 10;
-const BUTTON_FRAME = { idle: 0, hover: 1, pressed: 2 } as const;
-/** Label offsets for the authored button art (its bottom 4 art px are the baked shadow). */
-const ART_IDLE_LABEL_Y = -4;
-const ART_PRESSED_LABEL_Y = 0;
+const ICON_ART_PX = 16;
+const LABEL_PADDING_X = 24;
+const DEFAULT_HEIGHT = 56;
+const FOCUS_PULSE_ALPHA = 0.55;
 
 /**
  * Primary/secondary/ink pixel button. Pointer: press on down, activate on release over the button.
  * Keyboard: bound keys show the pressed state briefly, then activate. Emits `ui:hover` and
- * `ui:confirm`. Origin is the top-left of the face (the shadow sits outside the box).
+ * `ui:confirm`. Origin is the top-left of the face (the 3px lip sits below the box).
  */
 export class Button extends Phaser.GameObjects.Container {
   readonly buttonWidth: number;
@@ -92,8 +99,9 @@ export class Button extends Phaser.GameObjects.Container {
   private readonly graphics: Phaser.GameObjects.Graphics;
   private readonly focusRing: Phaser.GameObjects.Graphics;
   private readonly face: Phaser.GameObjects.Container;
-  private readonly art: Phaser.GameObjects.NineSlice | undefined;
   private readonly labelText: Phaser.GameObjects.Text;
+  private readonly iconImage: Phaser.GameObjects.Image | undefined;
+  private readonly iconWidth: number;
   private readonly hitZone: Phaser.GameObjects.Zone;
   private readonly onActivate: (() => void) | undefined;
   private readonly keyCleanups: (() => void)[] = [];
@@ -108,36 +116,35 @@ export class Button extends Phaser.GameObjects.Container {
     super(scene, options.x, options.y);
     this.variant = options.variant ?? "primary";
     this.onActivate = options.onActivate;
+    const uiScale = options.uiScale ?? 1;
+    const palette = VARIANTS[this.variant];
 
-    const label = scene.add.text(0, 0, options.label, pixelLabelStyle({ color: VARIANTS[this.variant].label }));
-    const iconWidth = options.icon ? 32 + ICON_GAP : 0;
-    this.buttonWidth = Math.max(options.width ?? 0, Math.ceil(label.width + iconWidth + 48));
-    this.buttonHeight = options.height ?? 56;
+    const label = scene.add.text(0, 0, options.label, pixelLabelStyle({ size: uiPixelLabelSize(uiScale), color: palette.label }));
+    const iconScale = uiIconScale(uiScale);
+    this.iconWidth = options.icon ? ICON_ART_PX * iconScale + uiScaled(ICON_GAP, uiScale) : 0;
+    this.buttonWidth = Math.max(options.width ?? 0, Math.ceil(label.width + this.iconWidth + uiScaled(LABEL_PADDING_X, uiScale) * 2));
+    this.buttonHeight = options.height ?? uiScaled(DEFAULT_HEIGHT, uiScale);
 
     this.focusRing = scene.add.graphics();
     this.graphics = scene.add.graphics();
     this.face = scene.add.container(0, 0);
-    // The authored button strip is terracotta, so only the primary variant uses it; others stay drawn.
-    this.art =
-      this.variant === "primary"
-        ? addNineSlicePanel(scene, ASSET.uiButton, this.buttonWidth, this.buttonHeight, NINE_SLICE.button, BUTTON_FRAME.idle)
-        : undefined;
 
-    const contentWidth = label.width + iconWidth;
-    const startX = Math.round((this.buttonWidth - contentWidth) / 2);
-    const centerY = Math.round(this.buttonHeight / 2);
-    if (options.icon) this.face.add(addUiIcon(scene, startX + 16, centerY, options.icon));
-    label.setOrigin(0, 0.5).setPosition(startX + iconWidth, centerY);
-    label.setShadow(0, 2, this.variant === "secondary" ? colors.border : colors.ink, 0, false, true);
+    if (options.icon) {
+      this.iconImage = addUiIcon(scene, 0, 0, options.icon, { scale: iconScale, originX: 0 });
+      this.face.add(this.iconImage);
+    }
+    label.setOrigin(0, 0.5);
+    label.setShadow(0, 2, palette.labelShadow, 0, false, true);
     this.labelText = label;
     this.face.add(label);
+    this.layoutContent();
 
     this.hitZone = scene.add
-      .zone(0, 0, this.buttonWidth + SHADOW, this.buttonHeight + SHADOW)
+      .zone(0, 0, this.buttonWidth, this.buttonHeight + SHADOW)
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
 
-    this.add([this.focusRing, ...(this.art ? [this.art] : [this.graphics]), this.face, this.hitZone]);
+    this.add([this.focusRing, this.graphics, this.face, this.hitZone]);
     this.setSize(this.buttonWidth, this.buttonHeight);
     this.wirePointer();
     this.wireKeys(options.keys ?? []);
@@ -156,8 +163,13 @@ export class Button extends Phaser.GameObjects.Container {
     return this.visualState;
   }
 
+  get isEnabled(): boolean {
+    return this.enabled;
+  }
+
   setLabel(text: string): this {
     this.labelText.setText(text);
+    this.layoutContent();
     return this;
   }
 
@@ -170,6 +182,7 @@ export class Button extends Phaser.GameObjects.Container {
     return this;
   }
 
+  /** Shows the warm focus outline. Callers should show it only for keyboard navigation. */
   setFocused(focused: boolean): this {
     if (this.focused === focused) return this;
     this.focused = focused;
@@ -192,6 +205,15 @@ export class Button extends Phaser.GameObjects.Container {
       this.applyState(this.hovered ? "hover" : "idle");
       this.confirm();
     });
+  }
+
+  private layoutContent(): void {
+    const contentWidth = this.labelText.width + this.iconWidth;
+    const startX = Math.round((this.buttonWidth - contentWidth) / 2);
+    // Optical centre sits a little above the bottom bevel.
+    const centerY = Math.round((this.buttonHeight - BEVEL / 2) / 2);
+    this.iconImage?.setPosition(startX, centerY);
+    this.labelText.setPosition(startX + this.iconWidth, centerY);
   }
 
   private confirm(): void {
@@ -253,39 +275,32 @@ export class Button extends Phaser.GameObjects.Container {
     const palette = VARIANTS[this.variant];
     const state = this.visualState;
     const pressed = state === "pressed";
-    const lift = state === "hover" ? -1 : 0;
-    const offset = pressed ? SHADOW - 1 : lift;
+    // Face offset from its resting place: hover lifts 1px, pressed sinks onto the lip.
+    const offset = pressed ? SHADOW - 1 : state === "hover" ? -1 : 0;
     const fill = state === "hover" ? palette.hoverFill : pressed ? palette.pressedFill : palette.fill;
     const width = this.buttonWidth;
     const height = this.buttonHeight;
 
-    this.face.setPosition(offset, offset);
+    this.face.setPosition(0, offset);
     this.setAlpha(state === "disabled" ? 0.5 : 1);
-
-    if (this.art) {
-      // Authored frames bake the hard shadow into the bottom rows; the face sinks onto it when pressed.
-      this.art.setFrame(pressed ? BUTTON_FRAME.pressed : state === "hover" ? BUTTON_FRAME.hover : BUTTON_FRAME.idle);
-      this.face.setPosition(0, pressed ? ART_PRESSED_LABEL_Y : ART_IDLE_LABEL_Y);
-      this.drawFocusRing();
-      return;
-    }
 
     const g = this.graphics;
     g.clear();
-    // Hard ink shadow (collapses when pressed), then the face with a 2px ink border.
-    // Both shapes drop their outer corner pixel for a stamped, pixel-notched silhouette.
-    const shadow = pressed ? 1 : SHADOW - lift;
+    // Solid ink lip spanning the face's resting box shifted down by SHADOW: no gap is possible.
     g.fillStyle(colorNumber(colors.ink), 1);
-    fillNotchedRect(g, shadow, shadow, width, height);
-    fillNotchedRect(g, offset, offset, width, height);
+    fillSteppedRect(g, 0, SHADOW, width, height, STEPPED_CORNER.notch);
+    // Face: 2px ink border, fill, top/left highlight, bottom bevel.
+    fillSteppedRect(g, 0, offset, width, height, STEPPED_CORNER.notch);
     g.fillStyle(colorNumber(fill), 1);
-    g.fillRect(offset + BORDER, offset + BORDER, width - BORDER * 2, height - BORDER * 2);
-    // Top/left highlight and bottom bevel give the face a tactile, stamped look.
-    g.fillStyle(colorNumber(colors.plaster), pressed ? 0 : palette.highlightAlpha);
-    g.fillRect(offset + BORDER, offset + BORDER, width - BORDER * 2, 2);
-    g.fillRect(offset + BORDER, offset + BORDER, 2, height - BORDER * 2 - 4);
-    g.fillStyle(colorNumber(palette.bevel), palette.bevelAlpha);
-    g.fillRect(offset + BORDER, offset + height - BORDER - 4, width - BORDER * 2, 4);
+    g.fillRect(BORDER, offset + BORDER, width - BORDER * 2, height - BORDER * 2);
+    if (!pressed) {
+      g.fillStyle(colorNumber(colors.plaster), palette.highlightAlpha);
+      g.fillRect(BORDER, offset + BORDER, width - BORDER * 2, 2);
+      g.fillRect(BORDER, offset + BORDER, 2, height - BORDER * 2 - BEVEL);
+    }
+    const bevel = pressed ? BEVEL / 2 : BEVEL;
+    g.fillStyle(colorNumber(palette.bevel), 1);
+    g.fillRect(BORDER, offset + height - BORDER - bevel, width - BORDER * 2, bevel);
     this.drawFocusRing();
   }
 
@@ -296,28 +311,27 @@ export class Button extends Phaser.GameObjects.Container {
     this.focusTween = undefined;
     if (!this.focused || this.visualState === "disabled") return;
 
-    const x = -FOCUS_GAP;
-    const y = -FOCUS_GAP;
-    const width = this.buttonWidth + SHADOW + FOCUS_GAP * 2;
-    const height = this.buttonHeight + SHADOW + FOCUS_GAP * 2;
-    const dash = 8;
+    // Soft solid 2px amber outline hugging the face and its lip, with stepped corners.
+    const reach = FOCUS_GAP + FOCUS_WIDTH;
+    const x = -reach;
+    const y = -reach;
+    const width = this.buttonWidth + reach * 2;
+    const height = this.buttonHeight + SHADOW + reach * 2;
+    const corner = 4;
     g.fillStyle(colorNumber(colors.amber), 1);
-    // Dashed 2px pixel outline.
-    for (let px = x; px < x + width; px += dash * 2) {
-      const len = Math.min(dash, x + width - px);
-      g.fillRect(px, y, len, 2);
-      g.fillRect(px, y + height - 2, len, 2);
-    }
-    for (let py = y; py < y + height; py += dash * 2) {
-      const len = Math.min(dash, y + height - py);
-      g.fillRect(x, py, 2, len);
-      g.fillRect(x + width - 2, py, 2, len);
-    }
+    g.fillRect(x + corner, y, width - corner * 2, FOCUS_WIDTH);
+    g.fillRect(x + corner, y + height - FOCUS_WIDTH, width - corner * 2, FOCUS_WIDTH);
+    g.fillRect(x, y + corner, FOCUS_WIDTH, height - corner * 2);
+    g.fillRect(x + width - FOCUS_WIDTH, y + corner, FOCUS_WIDTH, height - corner * 2);
+    g.fillRect(x + 2, y + 2, 2, 2);
+    g.fillRect(x + width - 4, y + 2, 2, 2);
+    g.fillRect(x + 2, y + height - 4, 2, 2);
+    g.fillRect(x + width - 4, y + height - 4, 2, 2);
     g.setAlpha(1);
     if (!isReducedMotion()) {
       this.focusTween = this.scene.tweens.add({
         targets: g,
-        alpha: { from: 1, to: 0.45 },
+        alpha: { from: 1, to: FOCUS_PULSE_ALPHA },
         duration: motion.breath / 2,
         yoyo: true,
         repeat: -1,
@@ -331,9 +345,4 @@ export class Button extends Phaser.GameObjects.Container {
     this.keyCleanups.length = 0;
     this.focusTween?.remove();
   }
-}
-
-function fillNotchedRect(graphics: Phaser.GameObjects.Graphics, x: number, y: number, width: number, height: number): void {
-  graphics.fillRect(x + BORDER, y, width - BORDER * 2, height);
-  graphics.fillRect(x, y + BORDER, width, height - BORDER * 2);
 }

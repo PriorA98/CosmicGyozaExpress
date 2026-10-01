@@ -9,21 +9,23 @@ import {
   type ParallaxLayerDefinition,
 } from "../../data/flightScenery";
 import { colorNumber, colors, depth } from "../../game/designTokens";
+import { ensureVerticalMirrorTile } from "./pixelArt";
 import { ensureStandInStarTile, isFallbackTexture, planetTextureOrStandIn } from "./textureFallbacks";
 
 type ParallaxLayer = {
   readonly definition: ParallaxLayerDefinition;
   readonly sprite: Phaser.GameObjects.TileSprite;
-  readonly textureHeight: number;
 };
 
-const MS_PER_MINUTE = 60_000;
-const FULL_TURN_DEGREES = 360;
+const QUARTER_TURN_DEGREES = 90;
 
 /**
  * Layered, calm space backdrop for route flight: tiling star/nebula layers that follow the
  * camera at fractional speeds, distant celestial bodies, and slow non-colliding debris.
  * Everything here is visual only and sits below the world depth band.
+ *
+ * Every layer is a viewport-sized TileSprite that repeats in both axes (the nebula via a
+ * vertically mirrored copy), so no camera position can expose an uncovered strip.
  */
 export class SpaceBackdrop {
   private readonly layers: ParallaxLayer[] = [];
@@ -41,22 +43,14 @@ export class SpaceBackdrop {
   /** Call every frame after the camera has moved. */
   update(timeMs: number): void {
     const camera = this.scene.cameras.main;
-    const viewHeight = this.scene.scale.height;
-    const centredScrollY = (this.worldHeight - viewHeight) / 2;
+    const centredScrollY = (this.worldHeight - this.scene.scale.height) / 2;
 
-    for (const layer of this.layers) {
-      const { definition, sprite } = layer;
+    for (const { definition, sprite } of this.layers) {
       const driftX = (definition.driftX * timeMs) / 1000;
-      const tileX = (camera.scrollX * definition.scrollFactorX) / FLIGHT_ART_SCALE + driftX;
-      sprite.tilePositionX = snapToScreenPixel(tileX);
-
-      if (definition.mode === "tile") {
-        sprite.tilePositionY = snapToScreenPixel((camera.scrollY * definition.scrollFactorY) / FLIGHT_ART_SCALE);
-      } else {
-        const bandHeight = layer.textureHeight * FLIGHT_ART_SCALE;
-        const offset = (camera.scrollY - centredScrollY) * definition.scrollFactorY;
-        sprite.y = Math.round((viewHeight - bandHeight) / 2 - offset);
-      }
+      sprite.tilePositionX = snapToScreenPixel((camera.scrollX * definition.scrollFactorX) / FLIGHT_ART_SCALE + driftX);
+      // Mirror layers are anchored so the authored (unflipped) half is framed at the centred scroll.
+      const scrollY = definition.mode === "mirror" ? camera.scrollY - centredScrollY : camera.scrollY;
+      sprite.tilePositionY = snapToScreenPixel((scrollY * definition.scrollFactorY) / FLIGHT_ART_SCALE);
     }
   }
 
@@ -77,40 +71,41 @@ export class SpaceBackdrop {
         alphaMin: fallbackStarfield.alphaMin,
         alphaMax: fallbackStarfield.alphaMax,
       });
+    } else if (definition.mode === "mirror") {
+      textureKey = ensureVerticalMirrorTile(this.scene, definition.textureKey, `${definition.textureKey}--mirror`);
     }
 
-    const textureHeight = this.scene.textures.get(textureKey).getSourceImage().height;
-    const tileWidth = Math.ceil(width / FLIGHT_ART_SCALE) + 2;
-    const tileHeight = definition.mode === "tile" ? Math.ceil(height / FLIGHT_ART_SCALE) + 2 : textureHeight;
-
     const sprite = this.scene.add
-      .tileSprite(0, 0, tileWidth, tileHeight, textureKey)
+      .tileSprite(0, 0, Math.ceil(width / FLIGHT_ART_SCALE) + 2, Math.ceil(height / FLIGHT_ART_SCALE) + 2, textureKey)
       .setOrigin(0, 0)
       .setScale(FLIGHT_ART_SCALE)
       .setScrollFactor(0)
       .setAlpha(definition.alpha)
       .setDepth(depth.backdrop + index * 0.1);
 
-    this.layers.push({ definition, sprite, textureHeight });
+    this.layers.push({ definition, sprite });
   }
 
   private createCelestialBodies(): void {
     flightCelestialBodies.forEach((body, index) => {
+      // Opaque, tinted toward the sky for depth; they sit above every star layer.
       const image = this.scene.add
         .image(body.x, body.y, planetTextureOrStandIn(this.scene, body.textureKey, body.standIn))
         .setScale(body.scale)
         .setScrollFactor(body.scrollFactor)
-        .setAlpha(body.alpha)
         .setTint(colorNumber(body.tint))
         .setDepth(depth.parallax + index * 0.1);
 
+      // Drift in whole art pixels so the planet never sits between grid steps.
+      const drift = { t: 0 };
       this.scene.tweens.add({
-        targets: image,
-        y: body.y + body.driftPx,
+        targets: drift,
+        t: 1,
         duration: body.driftPeriodMs / 2,
         ease: "Sine.easeInOut",
         yoyo: true,
         repeat: -1,
+        onUpdate: () => image.setY(body.y + snapToArtStep(drift.t * body.driftPx)),
       });
     });
   }
@@ -119,28 +114,28 @@ export class SpaceBackdrop {
     for (const bit of flightDebris) {
       const image = this.scene.add
         .image(bit.x, bit.y, debrisTextureKey, bit.frame)
-        .setScale(bit.scale)
+        .setScale(FLIGHT_ART_SCALE)
         .setScrollFactor(bit.scrollFactor)
         .setAlpha(bit.alpha)
         .setTint(colorNumber(colors.duskBlue))
         .setDepth(depth.parallax + 1);
 
+      const drift = { t: 0 };
       this.scene.tweens.add({
-        targets: image,
-        x: bit.x + bit.driftX,
-        y: bit.y + bit.driftY,
+        targets: drift,
+        t: 1,
         duration: bit.driftPeriodMs / 2,
         ease: "Sine.easeInOut",
         yoyo: true,
         repeat: -1,
+        onUpdate: () => image.setPosition(bit.x + snapToArtStep(drift.t * bit.driftX), bit.y + snapToArtStep(drift.t * bit.driftY)),
       });
 
-      if (bit.spinRpm !== 0) {
-        this.scene.tweens.add({
-          targets: image,
-          angle: Math.sign(bit.spinRpm) * FULL_TURN_DEGREES,
-          duration: MS_PER_MINUTE / Math.abs(bit.spinRpm),
-          repeat: -1,
+      if (bit.tumbleMs > 0) {
+        this.scene.time.addEvent({
+          delay: bit.tumbleMs,
+          loop: true,
+          callback: () => image.setAngle((image.angle + QUARTER_TURN_DEGREES) % 360),
         });
       }
     }
@@ -150,4 +145,9 @@ export class SpaceBackdrop {
 /** Tile offsets are in art pixels; snap to half an art pixel (= one screen pixel at 2x). */
 function snapToScreenPixel(artPx: number): number {
   return Math.round(artPx * FLIGHT_ART_SCALE) / FLIGHT_ART_SCALE;
+}
+
+/** Snaps a screen-px offset to whole art pixels (multiples of the art scale). */
+function snapToArtStep(screenPx: number): number {
+  return Math.round(screenPx / FLIGHT_ART_SCALE) * FLIGHT_ART_SCALE;
 }

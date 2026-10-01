@@ -21,7 +21,9 @@ export type SfxCueId =
   | "touchdown-soft"
   | "touchdown-bumpy"
   | "retry-swish"
-  | "result-jingle";
+  | "result-jingle"
+  | "sound-on"
+  | "sound-off";
 
 export type LoopCueId = "thrust" | "stabilizer";
 
@@ -61,6 +63,8 @@ export const SFX_CUE_IDS: readonly SfxCueId[] = [
   "touchdown-bumpy",
   "retry-swish",
   "result-jingle",
+  "sound-on",
+  "sound-off",
 ];
 
 export const LOOP_CUE_IDS: readonly LoopCueId[] = ["thrust", "stabilizer"];
@@ -173,7 +177,10 @@ export function mapGameEventToAudio(event: GameEvent, state: AudioMapperState, n
       return same([{ kind: "reload-settings" }]);
     case "mission:start":
     case "mission:completed":
+      return same([]);
     case "audio:mute":
+      // AudioSystem emits this itself and plays the sound-on/off cue directly (the cue must
+      // sound before the master gain closes), so the mapper never echoes it back.
       return same([]);
   }
 }
@@ -230,6 +237,10 @@ export const AUDIO_MIX = {
   /** Loop voices follow held states with these smooth time constants. */
   loopAttackSeconds: 0.07,
   loopReleaseSeconds: 0.16,
+  /** Held loops dip under one-shot feedback so bumps and chimes always cut through. */
+  loopDuck: { db: -6, holdSeconds: 0.24, attackSeconds: 0.02, releaseSeconds: 0.2 },
+  /** Muting waits this long so the sound-off cue is heard before the master gain closes. */
+  muteCueLeadSeconds: 0.16,
 } as const;
 
 export type MoodTuning = {
@@ -311,9 +322,12 @@ export const MUSIC_TUNING: Readonly<Record<MusicMood, MoodTuning>> = {
 export const MELODY_SCALE: readonly number[] = [72, 74, 76, 79, 81, 84, 86, 88];
 
 export const MUSIC_ENGINE = {
-  /** Scheduler wakes this often (ms) and books notes this far ahead (s). */
-  tickMs: 120,
-  lookaheadSeconds: 0.6,
+  /**
+   * Scheduler wakes this often (ms) and books notes this far ahead (s). A short lookahead keeps
+   * mood changes responsive: a new mood starts at the first step that is not booked yet.
+   */
+  tickMs: 100,
+  lookaheadSeconds: 0.28,
   stepsPerBar: 8,
   padAttackSeconds: 1.5,
   padReleaseSeconds: 1.8,
@@ -322,6 +336,12 @@ export const MUSIC_ENGINE = {
   melodyDecaySeconds: 1.4,
   bassDecaySeconds: 2.2,
   melodySeed: 0x51eed,
+  /**
+   * Mood change (scene:enter): the new mood starts on the next unbooked eighth step (at most
+   * `lookaheadSeconds` + one tick away), outgoing pads release over `releaseSeconds`, incoming
+   * pads swell over `attackSeconds`, and the bus tone glides with this time constant.
+   */
+  moodCrossfade: { releaseSeconds: 0.6, attackSeconds: 0.45, toneGlideSeconds: 0.12 },
 } as const;
 
 /** Every cue declares a peak trim (dB, before the bus); extra fields are recipe-specific. */
@@ -333,19 +353,21 @@ export const SFX_TUNING = {
   "ui-confirm": { db: -12, notes: [76, 83] },
   "ui-back": { db: -14, notes: [79, 72] },
   "brake-whoosh": { db: -8, fromHz: 1900, toHz: 380, seconds: 0.42 },
-  "bump-soft": { db: -4, fromHz: 260, toHz: 170, seconds: 0.26 },
+  "bump-soft": { db: -1, fromHz: 260, toHz: 170, seconds: 0.34, bodyHz: 120 },
   "bump-dramatic": { db: -5, fromHz: 190, toHz: 105, seconds: 0.5 },
   incident: { db: -8, fromHz: 330, toHz: 150, wobbleHz: 13, seconds: 0.95 },
   respawn: { db: -12, notes: [67, 72, 79] },
   "arrival-shimmer": { db: -14, baseNote: 79, stepInterval: 2 },
-  "arrival-chime": { db: -11, notes: [72, 76, 79, 84, 88] },
+  "arrival-chime": { db: -13.5, notes: [72, 76, 79, 84, 88] },
   "touchdown-soft": { db: -7, thumpHz: 92, notes: [79, 84] },
   "touchdown-bumpy": { db: -7, thumpHz: 82, notes: [74] },
   "retry-swish": { db: -8, fromHz: 420, toHz: 2400, seconds: 0.38 },
-  "result-jingle": { db: -9, notes: [72, 76, 79, 81, 79, 84, 88], stepSeconds: 0.16 },
+  "result-jingle": { db: -12, notes: [72, 76, 79, 81, 79, 84, 88], stepSeconds: 0.16 },
+  "sound-on": { db: -13, notes: [72, 79] },
+  "sound-off": { db: -15, notes: [79, 72] },
 } as const satisfies Record<SfxCueId, CueTrim>;
 
 export const LOOP_TUNING = {
-  thrust: { db: -13, humHz: 55, noiseToneHz: 520, flutterHz: 6.5, flutterDepthHz: 90 },
+  thrust: { db: -19, humHz: 55, noiseToneHz: 520, flutterHz: 6.5, flutterDepthHz: 90 },
   stabilizer: { db: -20, hz: 220, beatHz: 0.9, tremoloHz: 3.2 },
 } as const satisfies Record<LoopCueId, CueTrim>;

@@ -8,14 +8,14 @@ export class MoonRabbit {
   private readonly sprite: Phaser.GameObjects.Sprite;
   private readonly baseY: number;
 
-  constructor(scene: Phaser.Scene, surfaceY: number) {
+  constructor(scene: Phaser.Scene, surfaceY: number, x: number = landingScenery.rabbit.x) {
     this.scene = scene;
     const config = landingScenery.rabbit;
     this.baseY = surfaceY + config.baseSinkPx;
-    ensureAnimations(scene);
+    ensureLandingRabbitAnimations(scene);
 
     this.sprite = scene.add
-      .sprite(config.x, this.baseY, config.key, config.idleFrames[0])
+      .sprite(x, this.baseY, config.key, config.idleFrames[0])
       .setOrigin(0.5, 1)
       .setScale(LANDING_ART_SCALE)
       .setFlipX(config.flipX)
@@ -60,7 +60,8 @@ export class MoonRabbit {
   }
 }
 
-function ensureAnimations(scene: Phaser.Scene): void {
+/** Registers the rabbit idle/wave animations once per game (also used by the arrival card). */
+export function ensureLandingRabbitAnimations(scene: Phaser.Scene): void {
   const config = landingScenery.rabbit;
   if (!scene.anims.exists(config.idleAnimKey)) {
     scene.anims.create({

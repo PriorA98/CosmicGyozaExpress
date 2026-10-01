@@ -10,8 +10,8 @@ Normalizer: `tools/art/pixelize.py` (box downscale, adaptive quantize, hard alph
 | `public/assets/items/tea.png` | item-tea | 32x32 | Codex image_gen | `raw/tea-v1.png` |
 | `public/assets/items/mochi.png` | item-mochi | 32x24 | Codex image_gen | `raw/mochi-v1.png` |
 | `public/assets/items/package.png` | item-package | 32x32 | Codex image_gen | `raw/package-v1.png` |
-| `public/assets/items/steam.png` | item-steam | 64x24 (4 x 16x24) | Programmatic (Python/Pillow, Claude-authored) | none |
-| `public/assets/items/memory-postcard.png` | memory-postcard | 96x64 | Codex image_gen + scripted frame | `raw/postcard-v2.png` (v1 kept for reference) |
+| `public/assets/items/steam.png` | item-steam | 64x24 (4 x 16x24) | Programmatic (Python/Pillow, Claude-authored); v2 in wave 2 | none |
+| `public/assets/items/memory-postcard.png` | memory-postcard | 96x64 | Codex image_gen plate + canonical sprite stamps + scripted frame (wave 2, v3) | `raw/postcard-v3.png` (v1/v2/v3-ship kept for reference) |
 
 ## tea / mochi / package (Codex call 1)
 
@@ -48,3 +48,65 @@ Normalization (final):
 python art-src/items/scripts/make_postcard.py art-src/items/raw/postcard-v2.png public/assets/items/memory-postcard.png 40 0,0,1536,1024
 ```
 The script crops the picture box, runs `pixelize.py <crop> <tmp> --size 90x58 --fit cover --opaque --key none --no-crop --colors 40`, then frames it in a hand-drawn 3px parchment border (1px #D8C49E card edge, #ECDFC5 lower/right bevel, #F4ECDC fill, 1px transparent rounded corners). 40 colours chosen over 32 to keep the window glow and stamp legible.
+
+
+---
+
+# Wave 2 (round 2) — 2026-10-01
+
+Critic issue addressed (assets critic, round 1, minor #5): the postcard tea house was a red pagoda on stilts and the
+postcard ship had a green dome, red dots and an elongated hull — both off-model. Also: item-steam should read on
+parchment as well as on dark.
+
+## memory-postcard v3 (current)
+
+Codex call (codex-cli 0.159.3, image_gen), prompt file kept verbatim at `art-src/items/scripts/prompt-postcard-v3.txt`.
+Summary: view_image `public/assets/lunar/lunar-teahouse.png` (canonical cottage), `public/assets/ship/gyoza-idle.png`
+(canonical hero ship), `raw/postcard-v2.png` and `_probe/asteroid-probe.png`; then IMAGE A: full-bleed 3:2 postcard,
+dusk sky, big twinkle stars, peach/plum clouds, pale jade Tea Moon left with the canonical round cream cottage
+(domed orange scalloped shingle roof, white chimney, two round amber windows, arched door — explicitly NOT a pagoda,
+NOT on stilts), the canonical hero ship flying right (tan pleated hull, clear pale-blue dome, small legs, NOT
+elongated, NO red dots), scalloped stamp with a terracotta teacup, no border/text; IMAGE B: the hero ship alone on
+flat magenta.
+Raw: `raw/postcard-v3.png` (used), `raw/postcard-v3-ship.png` (not used: its dome interior is magenta-tinted).
+
+Iteration notes:
+- Plain normalization of v3 (`make_postcard.py ... 40`) -> `work/postcard-v3-c40.png`: the cottage shape was right
+  but the 40-colour quantize pulled its orange roof to brick-red, its windows to pink, and the ship's cat pilot read
+  as a green dome again. Rejected.
+- Final approach: keep Codex's scene as a plate, paint out its house and ship, and stamp box-downscaled copies of the
+  CANONICAL production sprites on top, so the postcard is on-model by construction.
+
+Normalization (final, one command):
+```
+python art-src/items/scripts/compose_postcard_v3.py art-src/items/raw/postcard-v3.png art-src/items/work/postcard-v3-comp.png
+cp art-src/items/work/postcard-v3-comp.png public/assets/items/memory-postcard.png
+```
+What the script does (all deterministic, no manual pixel edits):
+1. Paint-out at raw res: ship box (790,335)-(1385,690) filled column-wise between median sky samples above/below
+   (bright star/stamp pixels rejected); house box (170,0)-(720,340) filled row-wise between median sky strips, and the
+   Tea Moon disc (centre 456,530, r 320) restored inside the box (body colour + ink rim). -> `work/postcard-v3-plate.png`
+2. `python tools/art/pixelize.py work/postcard-v3-plate.png work/postcard-v3-plate-px.png --size 90x58 --fit cover --opaque --key none --no-crop --colors 48`
+3. Stamp corner re-sampled separately (raw box (1244,34)-(1494,302), box downscale + 8-colour median-cut) because the
+   global quantize turned the terracotta cup plum.
+4. Tea house: `public/assets/lunar/lunar-teahouse.png` cropped, BOX-downscaled to 22 px wide, hard alpha (>=110),
+   1px ink #1D1F33 outline, placed at (16,0) so its stone footing sits on the moon.
+5. Ship: `public/assets/ship/gyoza-idle.png` with its enclosed (transparent) dome interior glazed pale glass
+   #B9CFD8 + #E9F1F0 glint (flood-fill from outside), BOX-downscaled to 24 px wide, ink outline, placed at (59,19);
+   three hand-placed cream puffs (#F9F3E5 / #E6D4B4, ink outline) form the exhaust trail behind it.
+6. Same 3px parchment frame as v2 (#D8C49E edge, #ECDFC5 lower/right bevel, #F4ECDC fill, 1px rounded corners).
+Helper: `scripts/stamp_sprite.py` (stand-alone version of step 4/5 used to test how the canonical sprites read at
+~22 px). Note: the ship stamp is derived from the current 144x160 idle art; if the hero ship is redrawn later in this
+wave (64x80 contract), rerun the command above to refresh the postcard from the new idle sprite.
+
+## steam v2 (current)
+
+`python art-src/items/scripts/make_steam.py public/assets/items/steam.png` (v1 kept as `scripts/make_steam_v1.py`).
+Same seamless 4-frame S-curve motion as v1. Changes: stronger core (plaster #FBF7EC at alpha 250, body #EEE4D3 at
+240, top of plume fades only to ~74%), warm-grey rim instead of v1's cool #B4C5CE — #B9A793 on upper-left edges,
+#94806E on lower-right edges (light from top-left) — so the wisp has a readable edge on parchment #F4ECDC and still
+glows on cosmos. Specks with <2 neighbours and detached blobs <6 px removed (they flickered at 2x).
+Iterations: rim #C4B39F/#A3917F (still faint on parchment) -> darker #B9A793/#94806E + less top fade (current).
+
+## Unchanged this wave
+tea.png, mochi.png, package.png (round-1 files, see above).

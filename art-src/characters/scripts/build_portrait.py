@@ -6,8 +6,11 @@ together so both frames share one crop, one scale and one palette.
 
   frame 0 idle  : raw/rabbit-portrait-v2.png
   frame 1 blink : frame 0 with the eyes repainted closed (hand-placed pixels below)
-  frame 2 happy : frame 0 with ONLY the face/ear regions taken from
-                  raw/rabbit-portrait-happy-v2.png (a Codex image edit of v2)
+  frame 2 happy : frame 0 with the perked upright ear taken from
+                  raw/rabbit-portrait-happy-v2.png (a Codex image edit of v2),
+                  then (wave 2) the head/ear rows above the scarf rebuilt
+                  symmetrically so BOTH ears perk straight up, plus a big
+                  open smile. Scarf, cup, paws and body stay pixel-identical.
 
 Usage: python art-src/characters/scripts/build_portrait.py [out.png] [--stage DIR]
 """
@@ -143,6 +146,68 @@ def face(img: Image.Image, mood: str) -> Image.Image:
     return out
 
 
+# ---------------------------------------------------------------------------
+# Wave 2: happy frame perks BOTH ears. The droopy ear only exists on the right
+# half, so every pixel right of the face axis above the scarf is replaced by the
+# mirror of the left half (which already carries the perked ear from the happy
+# raw). The face itself is symmetric about the same axis, so nothing of the
+# idle face is lost; the scarf/cup/paws rows below PERK_ROWS are untouched.
+PERK_ROWS = 45  # rows 0..44 are rebuilt; row 45 down is frame-0 pixels
+MOUTH_DARK = (0x7A, 0x3B, 0x33, 255)
+
+
+def perk_both_ears(img: Image.Image) -> Image.Image:
+    out = img.copy()
+    src = img.load()
+    p = out.load()
+    half = CX2 // 2 + 1  # first column right of the axis (x = 29)
+    for y in range(PERK_ROWS):
+        for x in range(half, SIZE):
+            mx = CX2 - x
+            p[x, y] = src[mx, y] if 0 <= mx < SIZE else (0, 0, 0, 0)
+    # the droopy ear tip poked below the head into row 45; drop that orphan
+    for x in range(46, SIZE):
+        if PERK_ROWS < SIZE:
+            p[x, PERK_ROWS] = (0, 0, 0, 0)
+    out = ink_rim(out)
+    # soft top-left light: the mirrored right rim gets one step darker so the
+    # new right side does not glow like the lit left side
+    q = out.load()
+    a = out.getchannel("A").load()
+    for y in range(PERK_ROWS):
+        for x in range(half + 6, SIZE):
+            if not a[x, y] or q[x, y] == INK:
+                continue
+            if x + 1 < SIZE and q[x + 1, y] == INK:
+                q[x, y] = darker(q[x, y])
+    return out
+
+
+def darker(c: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
+    return (int(c[0] * 0.93), int(c[1] * 0.9), int(c[2] * 0.86), 255)
+
+
+def happy_mouth(img: Image.Image) -> Image.Image:
+    """Open joyful smile: wide top lip, dark mouth with a little pink tongue."""
+    out = img.copy()
+    p = out.load()
+    cream = p[26, 34]
+    for x in range(24, 34):
+        for y in (38, 39, 40):
+            if p[x, y] != INK:
+                p[x, y] = cream
+    pts = {
+        TERRA_DEEP: [(25, 38), (26, 38), (31, 38), (32, 38), (26, 39), (31, 39),
+                     (27, 40), (28, 40), (29, 40), (30, 40)],
+        MOUTH_DARK: [(27, 38), (28, 38), (29, 38), (30, 38), (27, 39), (30, 39)],
+        NOSE: [(28, 39), (29, 39)],
+    }
+    for c, ps in pts.items():
+        for x, y in ps:
+            p[x, y] = c
+    return out
+
+
 BLUSH = (0xEC, 0xA5, 0x94, 255)
 CUP_BOX = (20, 44, 40, 64)
 
@@ -175,7 +240,7 @@ def main() -> None:
     blink = face(base, "blink")
     perked = base.copy()
     perked.paste(happy.crop(HAPPY_EAR_BOX), HAPPY_EAR_BOX[:2])
-    happy_f = face(perked, "happy")
+    happy_f = happy_mouth(face(perk_both_ears(perked), "happy"))
     sheet = Image.new("RGBA", (SIZE * 3, SIZE), (0, 0, 0, 0))
     for i, f in enumerate((idle_f, blink, happy_f)):
         sheet.paste(f, (i * SIZE, 0))

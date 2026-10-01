@@ -19,7 +19,7 @@
     },
     "integratorAssessment": "programmer-art tier (~5): fallback serif fonts, debug vectors on by default, flat circles for asteroids, touch pads always visible on desktop, flat rectangles for lunar surface and pad, painted 1280px planets mismatched with pixel ship, no audio."
   },
-  "phase": "wave-2-preparing",
+  "phase": "wave-2-running",
   "modules": {
     "flight-environment": {
       "status": "fail-round-1",
@@ -262,6 +262,10 @@
     {
       "at": "2026-10-01T18:10:00+09:00",
       "event": "integrator between waves: smooth canvas downsampling below native size + compactUiScale contract (src/game/displayScale.ts) for phone legibility; dev launcher hidden in showcase captures; removed unused legacy painted planets; ship contract -> 64x80 art at 2x; asteroid canvases sized per route rock for exact 2x; new audio:mute event."
+    },
+    {
+      "at": "2026-10-01T21:35:00+09:00",
+      "event": "wave-2 attempt wf_65e51850-5bc failed in 18s on a session usage limit before any work (14/14 agents errored, tree unchanged). Dev server restarted; wave 2 relaunched as wf_7df602c7-7ce."
     }
   ]
 }

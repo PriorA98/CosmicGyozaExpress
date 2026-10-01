@@ -4,6 +4,7 @@ import { flightHudCopy, flightLines, shipVisualStyle, asteroidVisuals } from "..
 import { flightPrototypeRoute } from "../data/flightPrototypeRoute";
 import {
   arrivalGateTuning,
+  arrivalHandoffTuning,
   cameraTuning,
   collisionTuning,
   dockingTuning,
@@ -16,13 +17,13 @@ import { registerDevState } from "../dev/devProbe";
 import { ArrivalBeacon } from "../entities/flight/ArrivalBeacon";
 import { Asteroid } from "../entities/flight/Asteroid";
 import { DestinationIndicator } from "../entities/flight/DestinationIndicator";
-import { FlightHud } from "../entities/flight/FlightHud";
-import { FlightTouchPads } from "../entities/flight/FlightTouchPads";
+import { FlightDashboard, type FlightDashboardMode } from "../entities/flight/FlightDashboard";
 import { ShipEngine } from "../entities/flight/ShipEngine";
 import { SpaceBackdrop } from "../entities/flight/SpaceBackdrop";
 import { TeaMoon } from "../entities/flight/TeaMoon";
-import { GyozaShip } from "../entities/GyozaShip";
+import { GyozaShip, resolveShipArtLayout } from "../entities/GyozaShip";
 import { burstDust, burstIncident, burstSparkles, shakeCamera } from "../fx/feedback";
+import { transitionToScene } from "../fx/transitions";
 import { colorNumber, colors, depth } from "../game/designTokens";
 import { emitGameEvent } from "../game/events";
 import {
@@ -32,9 +33,10 @@ import {
   type ArrivalGateState,
 } from "../systems/ArrivalGateSystem";
 import { classifyCollision, findFirstCollision, resolveCircleCollision } from "../systems/CollisionSystem";
-import { dockingHint, dockingStatusLabel, evaluateDocking } from "../systems/DockingSystem";
-import { applyPackageConditionEvent, packageConditionLabel } from "../systems/PackageConditionSystem";
+import { dockingHint, evaluateDocking } from "../systems/DockingSystem";
+import { applyPackageConditionEvent } from "../systems/PackageConditionSystem";
 import { bottomFacingRadians, bottomVector, integrateShipMovement } from "../systems/ShipMovementSystem";
+import type { LandingSceneData } from "../types/landing";
 import type {
   CollisionContact,
   CollisionSeverity,
@@ -98,10 +100,10 @@ export class FlightScene extends Phaser.Scene {
   private keys!: FlightKeys;
   private backdrop!: SpaceBackdrop;
   private beacon!: ArrivalBeacon;
+  private moon!: TeaMoon;
   private indicator!: DestinationIndicator;
-  private hud!: FlightHud;
+  private hud!: FlightDashboard;
   private asteroids = new Map<string, Asteroid>();
-  private touchPads: FlightTouchPads | undefined;
   private debugGraphics: Phaser.GameObjects.Graphics | undefined;
   private readonly cameraTarget = new Phaser.Math.Vector2();
   private readonly lookAhead = new Phaser.Math.Vector2();
@@ -138,15 +140,19 @@ export class FlightScene extends Phaser.Scene {
     this.debugVisible = false;
     this.lookAhead.set(0, 0);
 
+    const shipLayout = resolveShipArtLayout(this, shipVisualStyle.legacyFlightScale);
     this.backdrop = new SpaceBackdrop(this, route.world.height);
-    new TeaMoon(this);
-    this.beacon = new ArrivalBeacon(this, route.destination);
+    this.moon = new TeaMoon(this);
+    this.beacon = new ArrivalBeacon(this, route.destination, shipLayout);
     this.createAsteroids();
 
     const initialStart = this.sceneData.start ?? route.start;
-    this.engine = new ShipEngine(this);
+    this.engine = new ShipEngine(this, {
+      engine: shipLayout.contract ? shipVisualStyle.engineOffsetArt * shipLayout.scale : shipVisualStyle.legacyEngineOffset,
+      trail: shipLayout.contract ? shipVisualStyle.trailOffsetArt * shipLayout.scale : shipVisualStyle.legacyTrailOffset,
+    });
     this.ship = new GyozaShip(this, initialStart);
-    this.ship.setBaseScale(shipVisualStyle.flightScale).setDepth(depth.ship);
+    this.ship.applyArtLayout(shipLayout).setDepth(depth.ship);
 
     const camera = this.cameras.main;
     camera.setBounds(0, 0, route.world.width, route.world.height);
@@ -170,10 +176,12 @@ export class FlightScene extends Phaser.Scene {
     }) as FlightKeys;
     installDevSceneHotkeys(this);
 
-    const touchDevice = this.sys.game.device.input.touch;
     this.indicator = new DestinationIndicator(this, route.destination);
-    this.hud = new FlightHud(this, { showKeyboardHint: !touchDevice, devHint: import.meta.env.DEV });
-    this.touchPads = touchDevice ? new FlightTouchPads(this) : undefined;
+    this.hud = new FlightDashboard(this);
+    this.indicator.setUiScale(this.hud.uiScale);
+    const onResize = (): void => this.indicator.setUiScale(this.hud.uiScale);
+    this.scale.on(Phaser.Scale.Events.RESIZE, onResize);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off(Phaser.Scale.Events.RESIZE, onResize));
     this.debugGraphics = import.meta.env.DEV ? this.add.graphics().setDepth(depth.foreground) : undefined;
 
     this.restartFlight(this.time.now, initialStart);
@@ -199,7 +207,6 @@ export class FlightScene extends Phaser.Scene {
   }
 
   override update(time: number, delta: number): void {
-    this.touchPads?.refresh();
     this.handleUtilityKeys(time);
 
     const controls = this.readControls();
@@ -236,7 +243,7 @@ export class FlightScene extends Phaser.Scene {
   private readControls(): ShipControls {
     if (this.flightMode.kind !== "flying") return NO_CONTROLS;
 
-    const touch = this.touchPads?.controls ?? NO_CONTROLS;
+    const touch = this.hud.controls;
     return {
       thrust: this.keys.W.isDown || this.keys.UP.isDown || touch.thrust,
       brake: this.keys.S.isDown || this.keys.DOWN.isDown || touch.brake,
@@ -389,14 +396,14 @@ export class FlightScene extends Phaser.Scene {
 
     if (contact) this.asteroids.get(contact.obstacleId)?.react(severity, contact.normalX, contact.normalY, time);
     this.ship.playSquash(shipVisualStyle.squash[severity], shipVisualStyle.squashMs);
-    burstDust(this, hitX, hitY, { count: severity === "soft-bump" ? 8 : 14, spread: severity === "soft-bump" ? 40 : 70 });
+    this.ship.flashHull(colorNumber(shipVisualStyle.bumpFlashColor), shipVisualStyle.bumpFlashMs[severity]);
+    burstDust(this, hitX, hitY, { count: severity === "soft-bump" ? 12 : 16, spread: severity === "soft-bump" ? 48 : 70, depth: depth.shipFx });
     if (severity === "dramatic-bump") shakeCamera(this, "soft");
   }
 
   private triggerIncident(time: number, line: string): void {
     if (this.flightMode.kind !== "flying") return;
 
-    this.touchPads?.clear();
     this.routeCrashes += 1;
     this.packageCondition = applyPackageConditionEvent(this.packageCondition, "gyoza-incident");
     this.setDashboardLine(line, time, respawnTuning.respawnDelayMs + flightNoteTuning.incidentExtraMs);
@@ -452,7 +459,6 @@ export class FlightScene extends Phaser.Scene {
     this.collisionCooldownUntilMs = 0;
     this.invulnerableUntilMs = time + respawnTuning.restartGraceMs;
     this.setDashboardLine(flightLines.start, time, flightNoteTuning.startMs);
-    this.touchPads?.clear();
 
     if (this.ship) {
       this.ship.setKinematicState(start, false);
@@ -478,24 +484,44 @@ export class FlightScene extends Phaser.Scene {
       this.lastProgressEmitMs = undefined;
     }
 
-    if (!gate.complete) return;
+    if (gate.complete) this.startArrivalHandoff(time);
+  }
 
+  /**
+   * Warm hand-off (<= 1.2 s): controls lock, the ship glides toward the moon while the camera
+   * eases onto it, then an iris closes on the Tea Moon and LandingScene starts.
+   */
+  private startArrivalHandoff(time: number): void {
+    const handoff = arrivalHandoffTuning;
     this.flightMode = { kind: "arriving", startedAtMs: time };
-    this.touchPads?.clear();
-    this.setDashboardLine(flightLines.arrival, time, arrivalGateTuning.handoffFadeMs * 4);
+    this.setDashboardLine(flightLines.arrival, time, handoff.noteMs);
     emitGameEvent(this, { type: "flight:arrival-complete" });
-    burstSparkles(this, this.ship.kinematics.x, this.ship.kinematics.y, { count: 16, spread: 90, depth: depth.shipFx });
 
-    const fade = Phaser.Display.Color.HexStringToColor(colors.cosmosDeep);
-    this.cameras.main.fadeOut(arrivalGateTuning.handoffFadeMs, fade.red, fade.green, fade.blue);
-    const routeDurationMs = Math.max(0, time - this.routeStartedAtMs);
-    this.time.delayedCall(arrivalGateTuning.handoffFadeMs, () => {
-      this.scene.start("LandingScene", {
-        missionId: this.missionId(),
-        packageCondition: this.packageCondition,
-        routeCrashes: this.routeCrashes,
-        routeDurationMs,
-      });
+    const ship = this.ship.kinematics;
+    const moon = this.moon.bodyCenter;
+    burstSparkles(this, ship.x, ship.y, { count: 16, spread: 90, depth: depth.shipFx });
+    const dx = moon.x - ship.x;
+    const dy = moon.y - ship.y;
+    const distance = Math.max(1, vectorLength(dx, dy));
+    this.ship.setKinematicState(
+      { ...ship, velocityX: (dx / distance) * handoff.glideSpeed, velocityY: (dy / distance) * handoff.glideSpeed },
+      false,
+    );
+
+    const camera = this.cameras.main;
+    camera.stopFollow();
+    camera.removeBounds();
+    camera.pan(moon.x, moon.y, handoff.panMs, "Sine.easeInOut");
+
+    const payload: LandingSceneData = {
+      missionId: this.missionId(),
+      packageCondition: this.packageCondition,
+      routeCrashes: this.routeCrashes,
+      routeDurationMs: Math.max(0, time - this.routeStartedAtMs),
+    };
+    this.time.delayedCall(handoff.irisDelayMs, () => {
+      const { width, height } = this.scale;
+      transitionToScene(this, "LandingScene", payload, { kind: "iris", x: width / 2, y: height / 2, durationMs: handoff.irisMs });
     });
   }
 
@@ -523,7 +549,10 @@ export class FlightScene extends Phaser.Scene {
     this.updateDebugGraphics();
   }
 
-  /** Camera leads the ship gently in its direction of travel. */
+  /**
+   * Camera leads the ship gently in its direction of travel, and near the Tea Moon it blends
+   * toward a framing point so the whole moon (teahouse included) stays composed with the ship.
+   */
   private updateCameraTarget(delta: number): void {
     const { x, y, velocityX, velocityY } = this.ship.kinematics;
     const targetX = clamp(velocityX * cameraTuning.lookAheadSeconds, -cameraTuning.maxLookAheadX, cameraTuning.maxLookAheadX);
@@ -531,25 +560,34 @@ export class FlightScene extends Phaser.Scene {
     const ease = clamp((delta / 1000) * cameraTuning.lookAheadEasePerSecond, 0, 1);
     this.lookAhead.x += (targetX - this.lookAhead.x) * ease;
     this.lookAhead.y += (targetY - this.lookAhead.y) * ease;
-    this.cameraTarget.set(x + this.lookAhead.x, y + this.lookAhead.y);
+
+    const dock = route.destination;
+    const span = Math.max(1, cameraTuning.moonFramingRadius - dock.radius);
+    const closeness = clamp((cameraTuning.moonFramingRadius - vectorLength(x - dock.x, y - dock.y)) / span, 0, 1);
+    const blend = closeness * closeness * (3 - 2 * closeness) * cameraTuning.moonFramingMaxBlend;
+    const followX = x + this.lookAhead.x;
+    const followY = y + this.lookAhead.y;
+    this.cameraTarget.set(
+      followX + (cameraTuning.moonFramingPoint.x - followX) * blend,
+      followY + (cameraTuning.moonFramingPoint.y - followY) * blend,
+    );
   }
 
   private updateHud(docking: DockingState, time: number): void {
-    const incident = this.flightMode.kind === "incident";
     let note: string;
     if (time < this.dashboardLineUntilMs) note = this.lastDashboardLine;
     else if (docking.kind === "ready") note = flightHudCopy.ready;
     else note = dockingHint(docking);
 
+    const mode: FlightDashboardMode = this.flightMode.kind;
     this.hud.update({
       speed: this.ship.speed(),
       distance: docking.distance,
       bottomDegrees: radiansToCompassDegrees(bottomFacingRadians(this.ship.kinematics.rotation)),
+      packageCondition: this.packageCondition,
       dockingKind: docking.kind,
-      statusLabel: dockingStatusLabel(docking),
-      packageLabel: packageConditionLabel(this.packageCondition),
+      mode,
       note,
-      incident,
     });
   }
 

@@ -1,10 +1,17 @@
 import type { UiIconName } from "../data/assetManifest";
 import { missions, teaMoonMission } from "../data/missions";
-import { resultCopy, type CountPhrase, type ResultStampTone } from "../data/resultCopy";
+import {
+  RESULT_TINY_DISPLAY_SCALE,
+  resultCopy,
+  type CountPhrase,
+  type ResultLayoutTier,
+  type ResultStampTone,
+} from "../data/resultCopy";
 import type { PackageConditionLabel } from "../types/flight";
 import type { DeliveryResultContent, DeliveryResultSceneData, LandingResultKind } from "../types/landing";
 import type { MissionDefinition } from "../types/mission";
 import type { MissionResultSummary } from "../types/save";
+import type { SavePersistenceStatus } from "./SaveSystem";
 import { normalizePackageCondition, packageConditionLabel, packageConditionWarmth } from "./PackageConditionSystem";
 
 const MS_PER_SECOND = 1000;
@@ -164,6 +171,23 @@ export function describeRouteTime(durationMs: number): string {
   const safe = countOrZero(durationMs);
   if (safe < MS_PER_SECOND) return resultCopy.stats.routeTime.unhurried;
   return resultCopy.stats.routeTime.template.replace("{time}", formatRouteTime(safe));
+}
+
+/**
+ * A kind footnote for the result card when this visit's progress cannot be kept; undefined when
+ * the save is reaching storage normally (or a corrupt save was quietly recovered).
+ */
+export function persistenceNotice(status: SavePersistenceStatus): string | undefined {
+  return status.kind === "session-only" ? resultCopy.persistenceNotice[status.reason] : undefined;
+}
+
+/**
+ * Picks the result card layout for the size the canvas is shown at. `compact` comes from the
+ * shared display helper (phone-class display); `displayScale` is shown px per logical px.
+ */
+export function pickResultLayoutTier(compact: boolean, displayScale: number): ResultLayoutTier {
+  if (!compact) return "full";
+  return Number.isFinite(displayScale) && displayScale > 0 && displayScale < RESULT_TINY_DISPLAY_SCALE ? "tiny" : "compact";
 }
 
 /** `count` picks the zero/one/many form; `shown` is the number substituted (defaults to `count`). */

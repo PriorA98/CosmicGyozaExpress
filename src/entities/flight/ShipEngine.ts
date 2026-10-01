@@ -15,14 +15,23 @@ const GLOW_TEXTURE_SIZE = 64;
  * bottom) plus a soft additive engine glow that warms up while thrusting and idles as a tiny
  * pilot light.
  */
+export type ShipEngineOffsets = {
+  /** Screen px from the saucer centre to the engine glow / particle trail, along the ship's down axis. */
+  readonly engine: number;
+  readonly trail: number;
+};
+
 export class ShipEngine {
   private readonly trail: ThrustTrail;
   private readonly glow: Phaser.GameObjects.Image;
   private readonly core: Phaser.GameObjects.Image;
   private glowLevel = 0;
 
-  constructor(scene: Phaser.Scene) {
-    this.trail = createThrustTrail(scene, { depth: depth.ship - 1, offset: shipVisualStyle.trailOffset });
+  constructor(
+    scene: Phaser.Scene,
+    private readonly offsets: ShipEngineOffsets,
+  ) {
+    this.trail = createThrustTrail(scene, { depth: depth.ship - 1, offset: offsets.trail });
     const key = ensureRadialGlowTexture(scene, GLOW_TEXTURE_KEY, GLOW_TEXTURE_SIZE);
     this.glow = scene.add
       .image(0, 0, key)
@@ -52,7 +61,7 @@ export class ShipEngine {
     const ease = clamp((deltaMs / 1000) * GLOW_EASE_PER_SECOND, 0, 1);
     this.glowLevel += (target - this.glowLevel) * ease;
 
-    const offset = shipVisualStyle.engineOffset;
+    const offset = this.offsets.engine;
     const gx = x - Math.sin(rotation) * offset;
     const gy = y + Math.cos(rotation) * offset;
     const diameter = shipVisualStyle.engineGlowRadius * 2;

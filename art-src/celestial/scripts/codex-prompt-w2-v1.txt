@@ -1,0 +1,20 @@
+You are generating production pixel-art source images for the cozy game "Cosmic Gyoza Express". Do NOT modify, create or delete any files other than the PNGs you copy into D:/code/CosmicGyozaExpress/art-src/celestial/raw/.
+
+FIRST use view_image on each of these style references and study them carefully:
+- D:/code/CosmicGyozaExpress/public/assets/ship/gyoza-idle.png and D:/code/CosmicGyozaExpress/public/assets/ship/gyoza-fly-02.png (hero ship: match its chunky pixel rendering, selective dark outline weight, warmth)
+- D:/code/CosmicGyozaExpress/art-src/_probe/asteroid-probe.png (approved style example: cozy sleepy asteroid - match its shading, outline and light from top-left)
+- D:/code/CosmicGyozaExpress/assets/reference/screenshots/delivery-v2.png (UI palette and feel)
+- D:/code/CosmicGyozaExpress/public/assets/lunar/lunar-teahouse.png (THE CANONICAL TEA HOUSE - image 1 must contain a tiny version of exactly this building)
+
+Art direction: cozy handcrafted chunky pixel art, warm, soft, slightly silly, never cold sci-fi. Big clean readable pixel clusters (each image will be downscaled to 96-192 px, so avoid fine noise, thin lines, and tiny speckles). Soft light from the TOP-LEFT, shadow on the lower-right with a soft stepped/dithered terminator. Selective dark outline: ink #1D1F33 on the shadow side, a darker shade of the local colour on the lit side. Limited cohesive palette: ink #1D1F33, parchment #F4ECDC, plaster #FBF7EC, terracotta #C97B5A, terracotta-deep #A6614A, ember #E08A4B, amber #D4A055, sage #8DA17A, sage-deep #6B7E5A, dusk-blue #9EB6C4, plum #9B8FB8, teal #6FA39A, brick #C26954, pale jade #C2CFAE.
+Every image: ONE subject, centred, square canvas, the body fills about 75% of the canvas with generous margin, on a SOLID FLAT MAGENTA #FF00FF background (no stars, no space backdrop, no glow, no halo, no text, no drop shadow on the background, no frame, no vignette). Planet bodies must be fully opaque.
+
+Use your image generation tool to create these 3 square images:
+
+1. tea-moon: "The Tea Moon" - a large round pale jade/cream moon (cream #F4ECDC highlights on the upper-left, pale jade #C2CFAE midtones, cool sage-jade shadow lower-right). A handful of soft rounded craters with gentle rims. Slightly left of centre, one crater clearly shaped like a teacup seen from above: round cup with a dark amber tea surface inside and a little curved handle on the right, carved into the moon surface (moon-coloured rim, not a separate sticker). Sitting ON the upper-right limb of the moon, standing upright on the curved surface, a tiny version of the canonical tea house: a round cream cottage with a domed orange-terracotta shingle roof, a little chimney, two round warm glowing amber windows, an arched wooden door, and a grey stone base - exactly like lunar-teahouse.png but small (about 1/6 of the moon's diameter). One small curly puff of cream steam rising from the chimney into the magenta. Calm, sleepy, inviting.
+
+2. planet-far-plum: a distant, dusty plum/mauve planet (#9B8FB8 family, desaturated, low contrast) with a few faint soft horizontal bands and a thin tilted pale lavender-grey ring crossing in front of it (ring passes behind the planet at the top and in front at the bottom). Calm and quiet, meant to sit far in the background. Simple, clean shapes.
+
+3. planet-im-fine: Planet "I'm Fine" - a whimsical, slightly wobbly (gently lumpy but still basically round, NOT an egg) lavender planet (#9B8FB8 to #C9C0DD) with soft teal (#6FA39A) continent patches, and a small cream adhesive bandage (two crossed plaster strips with a peach pad in the middle) stuck on its upper-left, with a tiny crack peeking out from under the bandage. Sheepish and funny. No face.
+
+Copy each resulting PNG to D:/code/CosmicGyozaExpress/art-src/celestial/raw/ as tea-moon-v1.png, planet-far-plum-v1.png, planet-im-fine-v1.png. Report the saved paths.

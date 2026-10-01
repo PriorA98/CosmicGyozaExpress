@@ -18,6 +18,42 @@ export function essentialTextSize(requestedPx: number): number {
 }
 
 /**
+ * Compact-display scaling (see `compactUiScale` in src/game/displayScale.ts). Components accept
+ * an optional `uiScale` (1 on desktop, up to ~1.6 on phones). Text scales smoothly; pixel art
+ * and pixel fonts snap to whole multiples of their grid so they stay crisp.
+ */
+export const COMPACT_UI_THRESHOLD = 1.25;
+/** Silkscreen is drawn on an 8px grid: 16px = 2 screen px per font pixel, 24px = 3. */
+const PIXEL_FONT_GRID = 8;
+
+function safeScale(uiScale: number): number {
+  return Number.isFinite(uiScale) && uiScale > 0 ? uiScale : 1;
+}
+
+/** Scales a geometry length (px) by `uiScale`, rounded to whole pixels. */
+export function uiScaled(px: number, uiScale = 1): number {
+  return Math.round(px * safeScale(uiScale));
+}
+
+/** Scales a font size by `uiScale`, never below the essential-text floor. */
+export function uiTextSize(px: number, uiScale = 1): number {
+  return essentialTextSize(px * safeScale(uiScale));
+}
+
+/** Silkscreen label size snapped to its 8px grid: 16 at desktop, 24 once the UI is compact. */
+export function uiPixelLabelSize(uiScale = 1, base = 16): number {
+  const scale = safeScale(uiScale);
+  if (scale < COMPACT_UI_THRESHOLD) return base;
+  const snapped = Math.round((base * scale) / PIXEL_FONT_GRID) * PIXEL_FONT_GRID;
+  return Math.max(base + PIXEL_FONT_GRID, snapped);
+}
+
+/** Integer display scale for 16px ui icons: 2 at desktop, 3 once the UI is compact. */
+export function uiIconScale(uiScale = 1, base = 2): number {
+  return safeScale(uiScale) >= COMPACT_UI_THRESHOLD ? base + 1 : base;
+}
+
+/**
  * Fill amount (0..1) for each segment of a segmented meter. Full segments come first, then at
  * most one partial segment, then empty ones. Values outside 0..1 are clamped.
  */

@@ -22,6 +22,14 @@ export const cameraTuning = {
   maxLookAheadY: 96,
   /** How quickly the look-ahead offset eases toward its target (fraction per second). */
   lookAheadEasePerSecond: 2.4,
+  /**
+   * Near the Tea Moon the camera target blends toward this framing point so the ship, the ring
+   * and the whole moon (teahouse included) stay in frame. Blend is 0 at `moonFramingRadius` from
+   * the dock and reaches `moonFramingMaxBlend` at the delivery ring.
+   */
+  moonFramingPoint: { x: 2640, y: 850 },
+  moonFramingRadius: 760,
+  moonFramingMaxBlend: 0.85,
 } as const;
 
 export const dockingTuning = {
@@ -61,8 +69,23 @@ export const arrivalGateTuning = {
   stableReadyMs: 520,
   /** `flight:arrival-progress` is throttled to at most one event per this many ms (<= 10 Hz). */
   progressEventIntervalMs: 100,
-  /** Fade to the landing scene once the window completes. */
-  handoffFadeMs: 320,
+} as const;
+
+/**
+ * Warm hand-off from flight to landing once the landing window completes (total <= 1.2 s):
+ * input locks, the camera eases onto the Tea Moon while the ship glides toward it, then an iris
+ * closes on the moon and LandingScene starts.
+ */
+export const arrivalHandoffTuning = {
+  /** Camera pan onto the moon centre. */
+  panMs: 720,
+  /** The iris starts this long after the window completes and runs for `irisMs`. */
+  irisDelayMs: 420,
+  irisMs: 640,
+  /** Gentle glide toward the moon during the hand-off (px/s). */
+  glideSpeed: 70,
+  /** Arrival note stays this long (covers the whole hand-off). */
+  noteMs: 2400,
 } as const;
 
 /** How long dashboard notes stay before the live docking hint returns (ms). */

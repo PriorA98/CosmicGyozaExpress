@@ -1,7 +1,8 @@
 import Phaser from "phaser";
-import { asteroidArt, type AsteroidVisualDefinition } from "../../data/flightScenery";
+import { FLIGHT_ART_SCALE, asteroidArt, type AsteroidVisualDefinition } from "../../data/flightScenery";
 import { colorNumber, depth } from "../../game/designTokens";
 import type { CollisionSeverity, StaticObstacleDefinition } from "../../types/flight";
+import { contractScale } from "./pixelArt";
 
 type BumpSeverity = Exclude<CollisionSeverity, "none">;
 
@@ -10,7 +11,10 @@ const TAU = Math.PI * 2;
 /**
  * A soft route asteroid. Collision stays in CollisionSystem (circle at the obstacle centre with
  * the obstacle radius); this entity only draws the rock so its visible body matches that circle,
- * gives it a sleepy bob/wobble, and reacts with a squash + flash when bumped.
+ * gives it a sleepy whole-art-pixel bob, and reacts with a squash + flash when bumped.
+ *
+ * Contract art is authored per rock (body diameter in art px == obstacle radius) and shown at
+ * exactly 2x with no rotation, so every rock shares the scene's pixel density.
  */
 export class Asteroid {
   readonly id: string;
@@ -30,12 +34,13 @@ export class Asteroid {
     index: number,
   ) {
     this.id = obstacle.id;
-    const bodyArtPx = asteroidArt.canvasPx * asteroidArt.bodyFillRatio;
-    this.baseScale = (obstacle.radius * 2) / bodyArtPx;
+    const textureKey = visual?.textureKey ?? asteroidArt.fallbackTextureKey;
+    const legacyScale = (obstacle.radius * 2) / (asteroidArt.legacyCanvasPx * asteroidArt.legacyBodyFillRatio);
+    this.baseScale = contractScale(scene, textureKey, legacyScale);
     this.phase = (index * 0.37) % 1;
 
     this.image = scene.add
-      .image(obstacle.x, obstacle.y, visual?.textureKey ?? asteroidArt.fallbackTextureKey)
+      .image(obstacle.x, obstacle.y, textureKey)
       .setScale(this.baseScale)
       .setFlipX(visual?.flipX ?? false)
       .setDepth(depth.world + index * 0.01);
@@ -43,17 +48,16 @@ export class Asteroid {
 
   /** Visual-only idle motion and reaction easing. Never moves the collision circle. */
   update(timeMs: number): void {
-    const bobPx = this.visual?.bobPx ?? 0;
+    const bobArtPx = this.visual?.bobArtPx ?? 0;
     const bobPeriod = this.visual?.bobPeriodMs ?? 1;
-    const wobbleDegrees = this.visual?.wobbleDegrees ?? 0;
-    const wobblePeriod = this.visual?.wobblePeriodMs ?? 1;
+    const bob = Math.round(Math.sin((timeMs / bobPeriod + this.phase) * TAU) * bobArtPx) * FLIGHT_ART_SCALE;
 
-    const bob = Math.sin((timeMs / bobPeriod + this.phase) * TAU) * bobPx;
-    const wobble = Math.sin((timeMs / wobblePeriod + this.phase * 2) * TAU) * wobbleDegrees;
-
-    this.image.setPosition(this.obstacle.x + this.nudgeX, this.obstacle.y + bob + this.nudgeY);
-    this.image.setAngle(wobble);
-    this.image.setScale(this.baseScale * (1 + this.squash), this.baseScale * (1 - this.squash));
+    this.image.setPosition(this.obstacle.x + Math.round(this.nudgeX), this.obstacle.y + bob + Math.round(this.nudgeY));
+    if (this.squash !== 0) {
+      this.image.setScale(this.baseScale * (1 + this.squash), this.baseScale * (1 - this.squash));
+    } else if (this.image.scaleX !== this.baseScale || this.image.scaleY !== this.baseScale) {
+      this.image.setScale(this.baseScale);
+    }
 
     if (this.flashUntilMs > 0 && timeMs >= this.flashUntilMs) {
       this.flashUntilMs = 0;
@@ -65,7 +69,7 @@ export class Asteroid {
   /** Squash away from the hit, brief warm flash, tiny nudge along the contact normal. */
   react(severity: BumpSeverity, normalX: number, normalY: number, timeMs: number): void {
     const nudge = asteroidArt.nudgePx[severity];
-    const squashAmount = asteroidArt.squashScale * (severity === "soft-bump" ? 0.6 : 1);
+    const squashAmount = asteroidArt.squashScale * (severity === "soft-bump" ? 0.7 : 1);
 
     this.reactionTween?.stop();
     this.squash = squashAmount;
@@ -78,6 +82,9 @@ export class Asteroid {
       nudgeY: 0,
       duration: asteroidArt.squashMs * 3,
       ease: "Back.easeOut",
+      onComplete: () => {
+        this.squash = 0;
+      },
     });
 
     this.image.setTint(colorNumber(asteroidArt.flashColor)).setTintMode(Phaser.TintModes.FILL);

@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { destinationIndicatorStyle, dockingStateColors, flightHudCopy } from "../../data/flightScenery";
-import { colorNumber, colors, depth, fontStacks, typeScale } from "../../game/designTokens";
+import { colorNumber, colors, depth, typeScale } from "../../game/designTokens";
+import { SURFACE, monoStyle } from "../../ui";
 import type { DockingState, Point } from "../../types/flight";
 import { clamp } from "../../utils/math";
 
@@ -13,9 +14,12 @@ const TAU = Math.PI * 2;
 export class DestinationIndicator {
   private readonly container: Phaser.GameObjects.Container;
   private readonly graphics: Phaser.GameObjects.Graphics;
+  private readonly pill: Phaser.GameObjects.Graphics;
   private readonly readout: Phaser.GameObjects.Text;
   private readonly name: Phaser.GameObjects.Text;
   private lastReadout = "";
+  private lastLayout = "";
+  private uiScale = 1;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -23,27 +27,22 @@ export class DestinationIndicator {
   ) {
     const style = destinationIndicatorStyle;
     this.graphics = scene.add.graphics();
+    this.pill = scene.add.graphics();
     this.name = scene.add
-      .text(0, 0, flightHudCopy.indicatorLabel, {
-        fontFamily: fontStacks.mono,
-        fontSize: `${typeScale.xs}px`,
-        color: colors.parchment,
-      })
-      .setOrigin(0.5, 0)
-      .setAlpha(0.7);
-    this.readout = scene.add
-      .text(0, 0, "", {
-        fontFamily: fontStacks.mono,
-        fontSize: `${typeScale.sm}px`,
-        fontStyle: "bold",
-        color: colors.plaster,
-      })
+      .text(0, 0, flightHudCopy.indicatorLabel, monoStyle({ size: typeScale.sm, color: colors.parchmentDeep }))
       .setOrigin(0.5, 0);
+    this.readout = scene.add.text(0, 0, "", monoStyle({ size: typeScale.base, bold: true, color: colors.plaster })).setOrigin(0.5, 0);
     this.container = scene.add
-      .container(0, 0, [this.graphics, this.name, this.readout])
+      .container(0, 0, [this.graphics, this.pill, this.name, this.readout])
       .setScrollFactor(0)
       .setDepth(depth.hudFx);
     this.container.setSize(style.discRadius * 2, style.discRadius * 2);
+  }
+
+  /** Display scale for compact (phone) layouts; margins and the pill grow with it. */
+  setUiScale(scale: number): void {
+    this.uiScale = scale;
+    this.container.setScale(scale);
   }
 
   update(docking: DockingState, timeMs: number): void {
@@ -52,15 +51,15 @@ export class DestinationIndicator {
     const camera = this.scene.cameras.main;
     const screenX = this.destination.x - camera.scrollX;
     const screenY = this.destination.y - camera.scrollY;
-    const maxY = height - style.bottomReserve;
-    const onScreen =
-      screenX >= style.margin && screenX <= width - style.margin && screenY >= style.margin && screenY <= maxY;
+    const margin = style.margin * this.uiScale;
+    const maxY = height - style.bottomReserve * this.uiScale;
+    const onScreen = screenX >= margin && screenX <= width - margin && screenY >= margin && screenY <= maxY;
 
     this.container.setVisible(!onScreen);
     if (onScreen) return;
 
-    const x = clamp(screenX, style.margin, width - style.margin);
-    const y = clamp(screenY, style.margin, maxY);
+    const x = clamp(screenX, margin, width - margin);
+    const y = clamp(screenY, margin, maxY);
     const angle = Math.atan2(screenY - y, screenX - x) || Math.atan2(screenY - height / 2, screenX - width / 2);
     const pulse = 0.5 + 0.5 * Math.sin((timeMs / style.pulseMs) * TAU);
     const color = colorNumber(docking.kind === "too-far" ? colors.ember : dockingStateColors[docking.kind]);
@@ -68,19 +67,36 @@ export class DestinationIndicator {
     this.container.setPosition(Math.round(x), Math.round(y));
     this.drawBeacon(color, angle, pulse);
 
-    // Keep the text block on the inward side of the disc so it never clips off screen.
-    const gap = style.labelGap;
-    const inwardX = Math.round(clamp(-Math.cos(angle) * gap, -gap, gap));
-    const nameY = y < height / 2 ? gap : -gap - style.textBlockHeight;
-    this.name.setPosition(inwardX, nameY);
-    this.readout.setPosition(inwardX, nameY + style.readoutOffset);
-
     const units = docking.distance / style.pxPerUnit;
     const text = `${units >= 10 ? units.toFixed(0) : units.toFixed(1)} ${style.unitLabel}`;
+    const below = y < height / 2 || Math.abs(Math.sin(angle)) < 0.5;
     if (text !== this.lastReadout) {
       this.lastReadout = text;
       this.readout.setText(text);
     }
+    const layout = `${below ? "below" : "above"}:${this.readout.width}`;
+    if (layout !== this.lastLayout) {
+      this.lastLayout = layout;
+      this.layoutPill(below);
+    }
+  }
+
+  /** Name + distance centred under (or above) the pin on a dark HUD pill, so stars never sit in the text. */
+  private layoutPill(below: boolean): void {
+    const style = destinationIndicatorStyle;
+    const blockWidth = Math.ceil(Math.max(this.name.width, this.readout.width) + style.pillPaddingX * 2);
+    const blockHeight = Math.ceil(this.name.height + style.pillLineGap + this.readout.height + style.pillPaddingY * 2);
+    const top = below ? style.labelGap : -style.labelGap - blockHeight;
+    const left = -Math.round(blockWidth / 2);
+    this.name.setPosition(0, top + style.pillPaddingY);
+    this.readout.setPosition(0, top + style.pillPaddingY + this.name.height + style.pillLineGap);
+
+    const g = this.pill;
+    g.clear();
+    g.fillStyle(colorNumber(SURFACE.darkHud.fill), style.pillAlpha);
+    g.fillRoundedRect(left, top, blockWidth, blockHeight, style.pillRadius);
+    g.lineStyle(SURFACE.darkHud.borderWidth, colorNumber(SURFACE.darkHud.border), SURFACE.darkHud.borderAlpha);
+    g.strokeRoundedRect(left + 1, top + 1, blockWidth - 2, blockHeight - 2, style.pillRadius - 1);
   }
 
   /**

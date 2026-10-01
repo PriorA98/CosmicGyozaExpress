@@ -23,7 +23,7 @@ import {
   type SfxCueId,
 } from "../data/audioCues";
 import { registerDevState } from "../dev/devProbe";
-import { onGameEvent, type GameEvent } from "../game/events";
+import { GAME_EVENT, onGameEvent, type GameEvent } from "../game/events";
 import { SaveSystem } from "./SaveSystem";
 
 /**
@@ -31,7 +31,8 @@ import { SaveSystem } from "./SaveSystem";
  * - `installAudioSystem(game)` is called exactly once from main.ts.
  * - Subscribes to GameEvents via `onGameEvent`; never required by gameplay code.
  * - Creates/resumes the AudioContext only after a user gesture; degrades silently on any failure.
- * - Reads volumes from save settings; `M` toggles mute.
+ * - Reads volumes from save settings; `M` toggles mute (in memory only) and emits
+ *   `{ type: "audio:mute", muted }` so the HUD can show a sound on/off toast.
  *
  * Everything is Web Audio synthesis (no audio files). The node graph is built against
  * `BaseAudioContext`, so the exact same voices render inside an OfflineAudioContext for the
@@ -44,14 +45,28 @@ export type CueAnalysis = {
   readonly cue: string;
   readonly peak: number;
   readonly peakDb: number;
+  /** RMS over the whole render window (short cues read low here; compare `momentaryDb`). */
   readonly rms: number;
+  /** Loudest 300 ms RMS window in dBFS: how loud the cue feels while it sounds. */
+  readonly momentaryDb: number;
   readonly durationMs: number;
+  /** Mood-switch renders only: request-to-first-note delay. */
+  readonly latencyMs?: number;
+};
+
+export type MoodSwitch = {
+  readonly from: MusicMood;
+  readonly to: MusicMood;
+  /** Delay between the mood request (scene:enter) and the first note of the new mood. */
+  readonly latencyMs: number;
 };
 
 export type AudioDevState = {
-  readonly contextState: AudioContextState | "uncreated" | "unsupported";
+  /** `failed` = the context could not be created after several gestures (Web Audio exists). */
+  readonly contextState: AudioContextState | "uncreated" | "unsupported" | "failed";
   readonly muted: boolean;
   readonly mood: MusicMood | null;
+  readonly lastMoodSwitch: MoodSwitch | null;
   readonly volumes: AudioVolumes;
   readonly activeLoops: readonly LoopCueId[];
   readonly lastCues: readonly { readonly cue: string; readonly atMs: number; readonly played: boolean }[];
@@ -71,7 +86,7 @@ type AudioBus = {
   readonly noise: AudioBuffer;
 };
 
-type LoopVoice = { readonly gain: GainNode; readonly sources: readonly AudioScheduledSourceNode[] };
+type LoopVoice = { readonly gain: GainNode; readonly duck: GainNode; readonly sources: readonly AudioScheduledSourceNode[] };
 
 const SAMPLE_RATE = 44100;
 const SILENCE = 0.0001;
@@ -82,6 +97,12 @@ const ANALYZE_LOOP_HOLD_SECONDS = 1.2;
 const ANALYZE_LOOP_SECONDS = 2;
 const ANALYZE_MUSIC_SECONDS = 9;
 const CUE_START_OFFSET = 0.02;
+const MOMENTARY_WINDOW_SECONDS = 0.3;
+const ANALYZE_SWITCH_AT_SECONDS = 3;
+/** Gestures that may retry a context that failed to construct or resume before giving up. */
+const MAX_CONTEXT_ATTEMPTS = 5;
+/** UI cues never duck the held loops (hover sweeps would make thrust pump). */
+const NON_DUCKING_CUES: ReadonlySet<SfxCueId> = new Set<SfxCueId>(["ui-hover", "ui-confirm", "ui-back", "sound-on", "sound-off"]);
 
 // ---------------------------------------------------------------------------------------------
 // Bus construction (shared by realtime and offline contexts)
@@ -368,7 +389,10 @@ function playSfx(bus: AudioBus, cue: SfxCueId, t0: number, step = 1): void {
     }
     case "bump-soft": {
       const t = SFX_TUNING["bump-soft"];
-      playBonk(bus, t0, t.fromHz, t.toHz, t.seconds, dbToGain(t.db), dry);
+      const peak = dbToGain(t.db);
+      // A rounded wooden "boop": the bonk plus a soft low body so it reads under music and thrust.
+      playBonk(bus, t0, t.fromHz, t.toHz, t.seconds, peak, dry);
+      playTone(bus, t0, { type: "sine", hz: t.bodyHz, toHz: t.bodyHz * 0.7, glideSeconds: t.seconds, shape: { attack: 0.006, decay: t.seconds * 1.1, peak: peak * 0.55 } }, dry);
       return;
     }
     case "bump-dramatic": {
@@ -457,6 +481,12 @@ function playSfx(bus: AudioBus, cue: SfxCueId, t0: number, step = 1): void {
       playBell(bus, t0 + t.notes.length * t.stepSeconds, 60, peak * 0.35, 2.4, wet);
       return;
     }
+    case "sound-on":
+    case "sound-off": {
+      const t = SFX_TUNING[cue];
+      t.notes.forEach((note, i) => playPluck(bus, t0 + i * 0.06, note, dbToGain(t.db) * (i === 0 ? 1 : 0.8), dry));
+      return;
+    }
   }
 }
 
@@ -468,7 +498,9 @@ function createLoop(bus: AudioBus, loop: LoopCueId): LoopVoice {
   const { ctx } = bus;
   const gain = ctx.createGain();
   gain.gain.value = 0;
-  gain.connect(bus.sfxIn);
+  const duck = ctx.createGain();
+  gain.connect(duck);
+  duck.connect(bus.sfxIn);
   const sources: AudioScheduledSourceNode[] = [];
 
   if (loop === "thrust") {
@@ -539,7 +571,16 @@ function createLoop(bus: AudioBus, loop: LoopCueId): LoopVoice {
   }
 
   for (const source of sources) source.start();
-  return { gain, sources };
+  return { gain, duck, sources };
+}
+
+/** Briefly dips a held loop so one-shot feedback (bumps, chimes) is never masked by it. */
+function duckLoop(voice: LoopVoice, at: number): void {
+  const { db, holdSeconds, attackSeconds, releaseSeconds } = AUDIO_MIX.loopDuck;
+  const param = voice.duck.gain;
+  param.cancelScheduledValues(at);
+  param.setTargetAtTime(dbToGain(db), at, attackSeconds / 3);
+  param.setTargetAtTime(1, at + holdSeconds, releaseSeconds / 3);
 }
 
 function setLoopLevel(voice: LoopVoice, loop: LoopCueId, active: boolean, at: number): void {
@@ -553,9 +594,25 @@ function setLoopLevel(voice: LoopVoice, loop: LoopCueId, active: boolean, at: nu
 // Generative lullaby
 // ---------------------------------------------------------------------------------------------
 
+type PadVoice = { readonly env: GainNode; readonly oscillators: readonly OscillatorNode[]; readonly peak: number; readonly endsAt: number };
+
+/** Freezes an envelope at `at` (cancelAndHoldAtTime where supported) so a new ramp starts cleanly. */
+function holdParamAt(param: AudioParam, at: number, fallbackValue: number): void {
+  if (typeof param.cancelAndHoldAtTime === "function") {
+    param.cancelAndHoldAtTime(at);
+    return;
+  }
+  param.cancelScheduledValues(at);
+  param.setValueAtTime(fallbackValue, at);
+}
+
 class MusicPlayer {
   private mood: MusicMood;
   private pendingMood: MusicMood | null = null;
+  private requestedAt = 0;
+  private lastSwitch: MoodSwitch | null = null;
+  private crossfadeNextBar = false;
+  private readonly pads: PadVoice[] = [];
   private step = 0;
   private bar = 0;
   private nextStepTime: number;
@@ -576,11 +633,20 @@ class MusicPlayer {
     return this.pendingMood ?? this.mood;
   }
 
-  setMood(mood: MusicMood): void {
+  get lastMoodSwitch(): MoodSwitch | null {
+    return this.lastSwitch;
+  }
+
+  /**
+   * Requests a new mood. It starts on the next step that is not booked yet (under ~0.4 s),
+   * cross-fading the outgoing pads instead of waiting for the bar line.
+   */
+  setMood(mood: MusicMood, requestedAt: number = this.bus.ctx.currentTime): void {
     if (mood === this.mood) {
       this.pendingMood = null;
       return;
     }
+    if (this.pendingMood !== mood) this.requestedAt = requestedAt;
     this.pendingMood = mood;
   }
 
@@ -593,6 +659,7 @@ class MusicPlayer {
       this.step = 0;
     }
     while (this.nextStepTime < until) {
+      if (this.pendingMood) this.switchMood(this.pendingMood, this.nextStepTime);
       this.scheduleStep(this.nextStepTime);
       this.nextStepTime += this.stepSeconds();
       this.step = (this.step + 1) % MUSIC_ENGINE.stepsPerBar;
@@ -615,20 +682,40 @@ class MusicPlayer {
 
   private applyTone(at: number, immediate = false): void {
     const hz = MUSIC_TUNING[this.mood].toneHz;
-    if (immediate) this.bus.musicTone.frequency.setValueAtTime(hz, at);
-    else this.bus.musicTone.frequency.setTargetAtTime(hz, at, 1.2);
+    const param = this.bus.musicTone.frequency;
+    if (immediate) {
+      param.setValueAtTime(hz, at);
+      return;
+    }
+    param.cancelScheduledValues(at);
+    param.setTargetAtTime(hz, at, MUSIC_ENGINE.moodCrossfade.toneGlideSeconds);
+  }
+
+  /** Starts `mood` at `t`: releases sounding pads quickly, restarts the bar, glides the tone. */
+  private switchMood(mood: MusicMood, t: number): void {
+    const { releaseSeconds } = MUSIC_ENGINE.moodCrossfade;
+    for (const pad of this.pads) {
+      if (pad.endsAt <= t) continue;
+      try {
+        holdParamAt(pad.env.gain, t, pad.peak);
+        pad.env.gain.setTargetAtTime(0, t, releaseSeconds / 4);
+        for (const osc of pad.oscillators) osc.stop(t + releaseSeconds + 0.05);
+      } catch {
+        // A voice that already ended cannot be re-stopped; nothing left to release.
+      }
+    }
+    this.pads.length = 0;
+    this.lastSwitch = { from: this.mood, to: mood, latencyMs: Math.max(0, Math.round((t - this.requestedAt) * 1000)) };
+    this.mood = mood;
+    this.pendingMood = null;
+    this.step = 0;
+    this.bar = 0;
+    this.crossfadeNextBar = true;
+    this.applyTone(t);
   }
 
   private scheduleStep(t: number): void {
-    if (this.step === 0) {
-      if (this.pendingMood) {
-        this.mood = this.pendingMood;
-        this.pendingMood = null;
-        this.bar = 0;
-        this.applyTone(t);
-      }
-      this.scheduleBar(t);
-    }
+    if (this.step === 0) this.scheduleBar(t);
 
     const tuning = MUSIC_TUNING[this.mood];
     const bus = this.bus;
@@ -660,6 +747,13 @@ class MusicPlayer {
     const { ctx } = bus;
     const barSeconds = this.stepSeconds() * MUSIC_ENGINE.stepsPerBar;
     const padPeak = dbToGain(tuning.padDb);
+    const attack = this.crossfadeNextBar ? MUSIC_ENGINE.moodCrossfade.attackSeconds : MUSIC_ENGINE.padAttackSeconds;
+    this.crossfadeNextBar = false;
+    const now = ctx.currentTime;
+    for (let i = this.pads.length - 1; i >= 0; i -= 1) {
+      const pad = this.pads[i];
+      if (pad && pad.endsAt < now) this.pads.splice(i, 1);
+    }
 
     for (const note of chord.pad) {
       const hz = midiToHz(note);
@@ -669,13 +763,14 @@ class MusicPlayer {
       const env = ctx.createGain();
       const holdUntil = t + barSeconds;
       env.gain.setValueAtTime(0, t);
-      env.gain.linearRampToValueAtTime(padPeak, t + MUSIC_ENGINE.padAttackSeconds);
+      env.gain.linearRampToValueAtTime(padPeak, t + attack);
       env.gain.setValueAtTime(padPeak, holdUntil);
       env.gain.exponentialRampToValueAtTime(SILENCE, holdUntil + MUSIC_ENGINE.padReleaseSeconds);
       voiceTone.connect(env);
       env.connect(bus.musicTone);
       const end = holdUntil + MUSIC_ENGINE.padReleaseSeconds + 0.05;
       const nodes: AudioNode[] = [voiceTone, env];
+      const oscillators: OscillatorNode[] = [];
       for (const [type, cents] of [
         ["sawtooth", -MUSIC_ENGINE.padDetuneCents],
         ["triangle", MUSIC_ENGINE.padDetuneCents],
@@ -688,10 +783,12 @@ class MusicPlayer {
         osc.start(t);
         osc.stop(end);
         nodes.push(osc);
+        oscillators.push(osc);
         releaseOnEnd(osc, [osc]);
       }
-      const cleanup = nodes[nodes.length - 1];
-      if (cleanup instanceof OscillatorNode) releaseOnEnd(cleanup, nodes);
+      const cleanup = oscillators[oscillators.length - 1];
+      if (cleanup) releaseOnEnd(cleanup, nodes);
+      this.pads.push({ env, oscillators, peak: padPeak, endsAt: end });
     }
 
     const bassPeak = dbToGain(tuning.bassDb);
@@ -714,6 +811,8 @@ async function renderOffline(seconds: number, play: (bus: AudioBus) => void): Pr
   let lastLoud = 0;
   let samples = 0;
   let invalid = false;
+  const windowSize = Math.max(1, Math.round(MOMENTARY_WINDOW_SECONDS * SAMPLE_RATE));
+  const windowSums = new Float64Array(Math.ceil(buffer.length / windowSize));
   for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
     const data = buffer.getChannelData(channel);
     for (let i = 0; i < data.length; i += 1) {
@@ -727,13 +826,19 @@ async function renderOffline(seconds: number, play: (bus: AudioBus) => void): Pr
       if (magnitude > TAIL_THRESHOLD && i > lastLoud) lastLoud = i;
       sumSquares += value * value;
       samples += 1;
+      const w = Math.floor(i / windowSize);
+      windowSums[w] = (windowSums[w] ?? 0) + value * value;
     }
   }
   const rms = samples > 0 ? Math.sqrt(sumSquares / samples) : 0;
+  let loudestWindow = 0;
+  for (const sum of windowSums) loudestWindow = Math.max(loudestWindow, sum);
+  const momentary = Math.sqrt(loudestWindow / (windowSize * Math.max(1, buffer.numberOfChannels)));
   return {
     peak: invalid ? Number.NaN : peak,
     peakDb: invalid ? Number.NaN : gainToDb(peak),
     rms,
+    momentaryDb: invalid ? Number.NaN : gainToDb(momentary),
     durationMs: Math.round((lastLoud / SAMPLE_RATE) * 1000),
   };
 }
@@ -761,6 +866,16 @@ async function analyzeAllCues(): Promise<CueAnalysis[]> {
     });
     results.push({ cue: `music:${mood}`, ...analysis });
   }
+  // Mood hand-off: flight is playing (notes booked a lookahead ahead) when the result scene enters.
+  let switchLatency: number | undefined;
+  const handoff = await renderOffline(ANALYZE_MUSIC_SECONDS, (bus) => {
+    const player = new MusicPlayer(bus, "flight", CUE_START_OFFSET);
+    player.scheduleUntil(ANALYZE_SWITCH_AT_SECONDS + MUSIC_ENGINE.lookaheadSeconds);
+    player.setMood("result", ANALYZE_SWITCH_AT_SECONDS);
+    player.scheduleUntil(ANALYZE_MUSIC_SECONDS - MUSIC_ENGINE.padReleaseSeconds);
+    switchLatency = player.lastMoodSwitch?.latencyMs;
+  });
+  results.push({ cue: "music:switch flight->result", ...handoff, latencyMs: switchLatency });
   // Worst case: everything loud at once over the result music.
   const stacked = await renderOffline(ANALYZE_SFX_SECONDS, (bus) => {
     const player = new MusicPlayer(bus, "result", CUE_START_OFFSET);
@@ -788,18 +903,24 @@ class AudioEngine {
   private bus: AudioBus | null = null;
   private music: MusicPlayer | null = null;
   private schedulerId: number | null = null;
+  /** Only true when the browser has no AudioContext constructor at all. */
   private unsupported = false;
+  private failedAttempts = 0;
   private muted = false;
   private volumes: AudioVolumes = { music: AUDIO_MIX.defaultMusicVolume, sfx: AUDIO_MIX.defaultSfxVolume };
   private desiredMood: MusicMood | null = null;
+  /** Mood last recorded in the cue log as actually playing (null until the context runs). */
+  private loggedMood: MusicMood | null = null;
   private readonly desiredLoops = new Map<LoopCueId, boolean>();
   private readonly loops = new Map<LoopCueId, LoopVoice>();
   private mapperState: AudioMapperState = createAudioMapperState();
   private readonly lastCues: { cue: string; atMs: number; played: boolean }[] = [];
 
+  constructor(private readonly onMuteChange: (muted: boolean) => void) {}
+
   handleEvent(event: GameEvent): void {
     try {
-      const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+      const now = nowMs();
       const result = mapGameEventToAudio(event, this.mapperState, now);
       this.mapperState = result.state;
       for (const action of result.actions) this.perform(action, now);
@@ -808,22 +929,38 @@ class AudioEngine {
     }
   }
 
-  /** Called on every user gesture: creates or resumes the context. */
+  /**
+   * Called on every user gesture: creates or resumes the context. A thrown constructor or
+   * resume is retried on later gestures (up to MAX_CONTEXT_ATTEMPTS); only a missing
+   * AudioContext constructor marks audio as unsupported.
+   */
   unlock(): void {
+    if (this.unsupported || this.failedAttempts >= MAX_CONTEXT_ATTEMPTS) return;
     try {
-      if (this.unsupported) return;
       if (!this.ctx) this.createContext();
       const ctx = this.ctx;
-      if (ctx && ctx.state === "suspended" && !document.hidden) void ctx.resume().catch(() => undefined);
+      if (ctx && ctx.state === "suspended" && !document.hidden) {
+        void ctx.resume().catch(() => {
+          this.failedAttempts += 1;
+        });
+      }
     } catch {
-      this.unsupported = true;
+      this.failedAttempts += 1;
+      this.discardContext();
     }
   }
 
   toggleMute(): void {
     this.muted = !this.muted;
-    this.applyMaster();
-    if (!this.muted) this.perform({ kind: "sfx", cue: "ui-hover" }, performance.now());
+    // The cue plays through the still-open master; muting waits for it before closing.
+    const cue: SfxCueId = this.muted ? "sound-off" : "sound-on";
+    this.recordCue(cue, nowMs(), this.playSfxNow(cue, undefined, true));
+    this.applyMaster(this.muted ? AUDIO_MIX.muteCueLeadSeconds : 0);
+    try {
+      this.onMuteChange(this.muted);
+    } catch {
+      // Listeners must never break audio.
+    }
   }
 
   onVisibilityChange(hidden: boolean): void {
@@ -838,11 +975,18 @@ class AudioEngine {
   }
 
   devState(): AudioDevState {
-    const contextState: AudioDevState["contextState"] = this.unsupported ? "unsupported" : (this.ctx?.state ?? "uncreated");
+    const contextState: AudioDevState["contextState"] = this.unsupported
+      ? "unsupported"
+      : this.ctx
+        ? this.ctx.state
+        : this.failedAttempts >= MAX_CONTEXT_ATTEMPTS
+          ? "failed"
+          : "uncreated";
     return {
       contextState,
       muted: this.muted,
       mood: this.music?.currentMood ?? this.desiredMood,
+      lastMoodSwitch: this.music?.lastMoodSwitch ?? null,
       volumes: this.volumes,
       activeLoops: [...this.desiredLoops.entries()].filter(([, active]) => active).map(([loop]) => loop),
       lastCues: this.lastCues.slice(),
@@ -850,20 +994,24 @@ class AudioEngine {
     };
   }
 
-  private perform(action: AudioAction, nowMs: number): void {
+  private perform(action: AudioAction, now: number): void {
     switch (action.kind) {
       case "sfx":
-        this.recordCue(action.cue, nowMs, this.playSfxNow(action.cue, action.step));
+        this.recordCue(action.cue, now, this.playSfxNow(action.cue, action.step));
         return;
       case "loop":
         if ((this.desiredLoops.get(action.loop) ?? false) !== action.active) {
-          this.recordCue(`loop:${action.loop}:${action.active ? "on" : "off"}`, nowMs, this.isRunning());
+          this.recordCue(`loop:${action.loop}:${action.active ? "on" : "off"}`, now, this.isRunning());
         }
         this.desiredLoops.set(action.loop, action.active);
         this.applyLoop(action.loop);
         return;
       case "music":
-        if (this.desiredMood !== action.mood) this.recordCue(`music:${action.mood}`, nowMs, this.isRunning());
+        if (this.desiredMood !== action.mood) {
+          const running = this.isRunning();
+          this.recordCue(`music:${action.mood}`, now, running);
+          this.loggedMood = running ? action.mood : null;
+        }
         this.desiredMood = action.mood;
         this.applyMusic();
         return;
@@ -880,6 +1028,13 @@ class AudioEngine {
   private recordCue(cue: string, atMs: number, played: boolean): void {
     this.lastCues.push({ cue, atMs, played });
     if (this.lastCues.length > MAX_LAST_CUES) this.lastCues.splice(0, this.lastCues.length - MAX_LAST_CUES);
+  }
+
+  /** Once the context runs, logs the mood that is now really playing (it was logged as (x) before). */
+  private logMoodPlaying(): void {
+    if (!this.isRunning() || !this.desiredMood || this.loggedMood === this.desiredMood) return;
+    this.loggedMood = this.desiredMood;
+    this.recordCue(`music:${this.desiredMood}`, nowMs(), true);
   }
 
   private isRunning(): boolean {
@@ -899,12 +1054,27 @@ class AudioEngine {
     this.bus = createBus(ctx, ctx.destination, this.volumes, this.muted);
     ctx.onstatechange = () => {
       if (ctx.state === "running") {
+        this.failedAttempts = 0;
         this.applyMusic();
         for (const loop of LOOP_CUE_IDS) this.applyLoop(loop);
+        this.logMoodPlaying();
       }
     };
     this.schedulerId = window.setInterval(() => this.tick(), MUSIC_ENGINE.tickMs);
     this.applyMusic();
+    this.logMoodPlaying();
+  }
+
+  /** Drops a half-built context so the next gesture can try again from scratch. */
+  private discardContext(): void {
+    this.stopScheduler();
+    const ctx = this.ctx;
+    this.ctx = null;
+    this.bus = null;
+    this.music = null;
+    this.loops.clear();
+    this.loggedMood = null;
+    if (ctx) void ctx.close().catch(() => undefined);
   }
 
   private tick(): void {
@@ -922,12 +1092,14 @@ class AudioEngine {
     this.schedulerId = null;
   }
 
-  private playSfxNow(cue: SfxCueId, step: number | undefined): boolean {
+  private playSfxNow(cue: SfxCueId, step: number | undefined, ignoreMute = false): boolean {
     const ctx = this.ctx;
     const bus = this.bus;
-    if (!ctx || !bus || ctx.state !== "running" || this.muted) return false;
+    if (!ctx || !bus || ctx.state !== "running" || (this.muted && !ignoreMute)) return false;
     try {
-      playSfx(bus, cue, ctx.currentTime + 0.005, step);
+      const at = ctx.currentTime + 0.005;
+      playSfx(bus, cue, at, step);
+      if (!NON_DUCKING_CUES.has(cue)) for (const voice of this.loops.values()) duckLoop(voice, at);
       return true;
     } catch {
       return false;
@@ -996,24 +1168,29 @@ class AudioEngine {
     bus.sfxVolume.gain.setTargetAtTime(volumeToGain(this.volumes.sfx) * dbToGain(AUDIO_MIX.sfxTrimDb), ctx.currentTime, ramp);
   }
 
-  private applyMaster(): void {
+  /** Ramps the master gain to the mute state, optionally after `delaySeconds` (lets a cue finish). */
+  private applyMaster(delaySeconds = 0): void {
     const ctx = this.ctx;
     const bus = this.bus;
     if (!ctx || !bus) return;
-    const target = this.muted ? 0 : dbToGain(AUDIO_MIX.masterTrimDb);
-    bus.master.gain.cancelScheduledValues(ctx.currentTime);
-    bus.master.gain.setTargetAtTime(target, ctx.currentTime, AUDIO_MIX.muteRampSeconds / 3);
+    try {
+      const target = this.muted ? 0 : dbToGain(AUDIO_MIX.masterTrimDb);
+      const now = ctx.currentTime;
+      const param = bus.master.gain;
+      holdParamAt(param, now, param.value);
+      param.setTargetAtTime(target, now + Math.max(0, delaySeconds), AUDIO_MIX.muteRampSeconds / 3);
+    } catch {
+      // ignore
+    }
   }
 
   destroy(): void {
-    this.stopScheduler();
-    const ctx = this.ctx;
-    this.ctx = null;
-    this.bus = null;
-    this.music = null;
-    this.loops.clear();
-    if (ctx) void ctx.close().catch(() => undefined);
+    this.discardContext();
   }
+}
+
+function nowMs(): number {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -1027,7 +1204,11 @@ export function installAudioSystem(game: Phaser.Game): void {
   if (installedGames.has(game) || typeof window === "undefined") return;
   installedGames.add(game);
 
-  const engine = new AudioEngine();
+  // Same bus and payload as `emitGameEvent`, which needs a scene; the engine lives on the game.
+  const engine = new AudioEngine((muted) => {
+    const event: GameEvent = { type: "audio:mute", muted };
+    game.events.emit(GAME_EVENT, event);
+  });
   const unsubscribe = onGameEvent(game, (event) => engine.handleEvent(event));
 
   const onGesture = (): void => engine.unlock();

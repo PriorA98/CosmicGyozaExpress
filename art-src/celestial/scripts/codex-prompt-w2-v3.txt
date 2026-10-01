@@ -1,0 +1,7 @@
+You are generating a production pixel-art source image for the cozy game "Cosmic Gyoza Express". Do NOT modify, create or delete any files other than the PNG you copy into D:/code/CosmicGyozaExpress/art-src/celestial/raw/.
+
+FIRST use view_image on: D:/code/CosmicGyozaExpress/art-src/_probe/asteroid-probe.png (approved style: chunky shading, light from top-left, ink outline on the shadow side), D:/code/CosmicGyozaExpress/public/assets/ship/gyoza-idle.png, and D:/code/CosmicGyozaExpress/art-src/celestial/raw/planet-far-plum-v3.png (previous attempt: keep its body rendering and soft highlight, but this time WITHOUT any ring).
+
+Use your image generation tool to create ONE square image, planet-far-plum-body: a perfectly round distant dusty plum/mauve planet (#9B8FB8 family: from pale #C9BFDA highlight upper-left to deep #4F4566 shadow lower-right), desaturated and calm, with 3-4 faint wide soft horizontal bands (only one tone lighter/darker, no pink stripes), a soft cream-lavender highlight on the upper-left, a clear stepped/dithered terminator with the lower-right third in shadow, ink #1D1F33 outline on the shadow side. NO RING, no moons, no stars, no glow. Chunky clean pixel clusters (it will be downscaled to about 64 px wide). The planet is centred, fills about 75% of the canvas, on a SOLID FLAT MAGENTA #FF00FF background (no text, no frame, no background shadow). Fully opaque body.
+
+Copy the resulting PNG to D:/code/CosmicGyozaExpress/art-src/celestial/raw/planet-far-plum-body-v4.png. Report the saved path.

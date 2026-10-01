@@ -1,224 +1,259 @@
 import Phaser from "phaser";
 import { ASSET } from "../../data/assetManifest";
-import { arrivalBeaconStyle, dockingStateColors, flightHudCopy, shipVisualStyle } from "../../data/flightScenery";
-import { colorNumber, colors, depth, fontStacks, typeScale } from "../../game/designTokens";
-import type { DockingState, DockingStateKind, FlightDestinationDefinition } from "../../types/flight";
+import { FLIGHT_ART_SCALE, arrivalBeaconStyle, dockingStateColors, flightHudCopy } from "../../data/flightScenery";
+import { colorNumber, colors, depth } from "../../game/designTokens";
 import { directionVector } from "../../systems/ShipMovementSystem";
+import type { DockingState, DockingStateKind, FlightDestinationDefinition } from "../../types/flight";
+import { StatePill, type UiState } from "../../ui";
+import type { ShipArtLayout } from "../GyozaShip";
+import {
+  ensureOutlineTexture,
+  ensurePixelChevrons,
+  ensurePixelPlate,
+  ensurePixelRing,
+  ringPixelsClockwise,
+  type ArcPixel,
+} from "./pixelArt";
 
 const TAU = Math.PI * 2;
-const TOP_ANGLE = -Math.PI / 2;
-/** Dashed ring turns once per this many ms (slow, calm). */
-const RING_TURN_MS = 48_000;
-const OUTLINE_EXTRA_PX = 3;
-const OUTLINE_ALPHA = 0.55;
+const ART = FLIGHT_ART_SCALE;
+const KEY_PREFIX = "flight-beacon";
+
+/** Gentle pill state per docking kind (StatePill swatches from the UI kit). */
+const PILL_STATE: Readonly<Record<DockingStateKind, UiState>> = {
+  "too-far": "idle",
+  approaching: "docking",
+  "slow-down": "docking",
+  align: "delivering",
+  ready: "flying",
+};
 
 /**
- * Cozy landing beacon drawn around the delivery ring: dashed ring with small chase-lit lanterns,
- * a chevron (plus a faint ghost ship) showing where the ship's BOTTOM must point, colour per
- * docking state, and an arc that fills while the landing window holds.
+ * Cozy landing beacon drawn around the delivery ring, entirely on the 2x pixel grid: a dashed ring
+ * with chase-lit pixel lanterns, a chevron badge (inside the ring) pointing where the ship's BOTTOM
+ * must face, a cream outline ghost of the target pose, a stepped progress arc while the landing
+ * window holds, and a label pill below the ring so nothing overlaps the dashes.
  */
 export class ArrivalBeacon {
-  private readonly approach: Phaser.GameObjects.Graphics;
-  private readonly graphics: Phaser.GameObjects.Graphics;
+  private readonly ring: Phaser.GameObjects.Image;
+  private readonly ringShadow: Phaser.GameObjects.Image;
+  private readonly progressTrack: Phaser.GameObjects.Image;
+  private readonly progressShadow: Phaser.GameObjects.Image;
+  private readonly progress: Phaser.GameObjects.Graphics;
+  private readonly lanterns: Phaser.GameObjects.Graphics;
+  private readonly plate: Phaser.GameObjects.Image;
+  private readonly chevrons: Phaser.GameObjects.Image;
   private readonly ghost: Phaser.GameObjects.Image;
-  private readonly label: Phaser.GameObjects.Text;
+  private readonly label: StatePill;
+  private readonly ringKeys: { readonly idle: string; readonly ready: string; readonly idleShadow: string; readonly readyShadow: string };
+  private readonly progressPixels: readonly ArcPixel[];
   private readonly bottomAngle: number;
+  private readonly badgeX: number;
+  private readonly badgeY: number;
+  private readonly labelY: number;
   private lastKind: DockingStateKind | undefined;
-  /** Reused point buffers for the two chevrons (no per-frame allocation). */
-  private readonly chevronBuffers: readonly Phaser.Math.Vector2[][] = [makePoints(6), makePoints(6)];
+  private lastProgressCount = -1;
 
   constructor(
     scene: Phaser.Scene,
     private readonly destination: FlightDestinationDefinition,
+    shipLayout: ShipArtLayout,
   ) {
+    const style = arrivalBeaconStyle;
     const bottom = directionVector(destination.requiredBottomFacingRadians);
     this.bottomAngle = Math.atan2(bottom.y, bottom.x);
+    const { x, y } = destination;
+    const radiusArt = Math.round(destination.radius / ART);
+    const progressRadiusArt = radiusArt + style.progressGap;
 
-    this.approach = scene.add.graphics().setDepth(depth.world - 1);
-    this.drawApproachRing();
+    // Faint dotted approach circle.
+    const approachKey = ensurePixelRing(scene, {
+      key: `${KEY_PREFIX}-approach`,
+      radius: Math.round(destination.approachRadius / ART),
+      thickness: 1,
+      dashCount: style.approachDashCount,
+      dashFill: style.approachDashFill,
+      color: colors.duskBlue,
+      alpha: style.approachAlpha,
+    });
+    scene.add.image(x, y, approachKey).setScale(ART).setDepth(depth.world - 1);
 
-    this.graphics = scene.add.graphics().setDepth(depth.world + 1);
+    const ringTexture = (suffix: string, fill: number, thickness: number, color: string): string =>
+      ensurePixelRing(scene, {
+        key: `${KEY_PREFIX}-${suffix}`,
+        radius: radiusArt,
+        thickness,
+        dashCount: style.dashCount,
+        dashFill: fill,
+        phase: -Math.PI / style.dashCount,
+        color,
+      });
+    this.ringKeys = {
+      idle: ringTexture("ring", style.dashFill, style.ringThickness, colors.plaster),
+      ready: ringTexture("ring-ready", style.dashFillReady, style.ringThickness, colors.plaster),
+      idleShadow: ringTexture("ring-shadow", style.dashFill, style.ringShadowThickness, colors.cosmosDeep),
+      readyShadow: ringTexture("ring-ready-shadow", style.dashFillReady, style.ringShadowThickness, colors.cosmosDeep),
+    };
+    this.ringShadow = scene.add.image(x, y, this.ringKeys.idleShadow).setScale(ART).setDepth(depth.world + 0.9);
+    this.ring = scene.add.image(x, y, this.ringKeys.idle).setScale(ART).setDepth(depth.world + 1);
 
+    const trackKey = ensurePixelRing(scene, {
+      key: `${KEY_PREFIX}-progress-track`,
+      radius: progressRadiusArt,
+      thickness: style.progressThickness,
+      dashCount: 1,
+      dashFill: 1,
+      color: colors.plaster,
+    });
+    const trackShadowKey = ensurePixelRing(scene, {
+      key: `${KEY_PREFIX}-progress-shadow`,
+      radius: progressRadiusArt,
+      thickness: style.progressThickness + 2,
+      dashCount: 1,
+      dashFill: 1,
+      color: colors.cosmosDeep,
+    });
+    this.progressShadow = scene.add.image(x, y, trackShadowKey).setScale(ART).setAlpha(style.ringShadowAlpha).setDepth(depth.world + 0.9).setVisible(false);
+    this.progressTrack = scene.add.image(x, y, trackKey).setScale(ART).setAlpha(0.22).setDepth(depth.world + 1).setVisible(false);
+    this.progressPixels = ringPixelsClockwise(progressRadiusArt, style.progressThickness);
+    this.progress = scene.add.graphics().setDepth(depth.world + 1.1);
+    this.lanterns = scene.add.graphics().setDepth(depth.world + 1.2);
+
+    // Ghost of the target pose: cream outline, bottom toward the moon.
+    const ghostKey = ensureOutlineTexture(scene, {
+      key: `${KEY_PREFIX}-ghost-${shipLayout.contract ? "contract" : "legacy"}`,
+      sourceKey: ASSET.shipIdle,
+      color: style.ghostColor,
+      fillAlpha: style.ghostFillAlpha,
+    });
     this.ghost = scene.add
-      .image(destination.x, destination.y, ASSET.shipIdle)
-      .setScale(shipVisualStyle.flightScale)
+      .image(x, y, ghostKey)
+      .setOrigin(shipLayout.originX, shipLayout.originY)
+      .setScale(shipLayout.scale)
       .setRotation(destination.requiredBottomFacingRadians - Math.PI)
-      .setAlpha(arrivalBeaconStyle.ghostShipAlpha)
-      .setTintMode(Phaser.TintModes.FILL)
       .setDepth(depth.world + 0.5);
 
-    const plateRadius = destination.radius - arrivalBeaconStyle.chevronInset - arrivalBeaconStyle.chevronLength * 0.55;
-    this.label = scene.add
-      .text(
-        destination.x + bottom.x * plateRadius,
-        destination.y + bottom.y * plateRadius + arrivalBeaconStyle.labelOffset,
-        flightHudCopy.beaconLabel,
-        {
-        fontFamily: fontStacks.mono,
-        fontSize: `${typeScale.xs}px`,
-        color: colors.plaster,
-        stroke: colors.cosmosDeep,
-        strokeThickness: 3,
-        },
-      )
-      .setOrigin(0.5)
-      .setDepth(depth.world + 2);
+    // Chevron badge inside the ring, between the ghost and the moon side of the ring.
+    this.badgeX = x + Math.round(bottom.x * style.badgeDistance) * ART;
+    this.badgeY = y + Math.round(bottom.y * style.badgeDistance) * ART;
+    const plateKey = ensurePixelPlate(scene, {
+      key: `${KEY_PREFIX}-plate`,
+      radius: style.plateRadius,
+      fill: colors.cosmosPanel,
+      fillAlpha: 0.86,
+      rim: colors.plaster,
+      rimAlpha: 0.4,
+    });
+    this.plate = scene.add.image(this.badgeX, this.badgeY, plateKey).setScale(ART).setDepth(depth.world + 1.3);
+    const chevronKey = ensurePixelChevrons(scene, {
+      key: `${KEY_PREFIX}-chevrons-${this.bottomAngle.toFixed(3)}`,
+      angle: this.bottomAngle,
+      length: style.chevronLength,
+      halfWidth: style.chevronHalfWidth,
+      thickness: style.chevronThickness,
+      count: 2,
+      spacing: style.chevronSpacing,
+      color: colors.plaster,
+      outline: colors.cosmosDeep,
+      alphas: [1, 0.55],
+    });
+    this.chevrons = scene.add.image(this.badgeX, this.badgeY, chevronKey).setScale(ART).setDepth(depth.world + 1.4);
+
+    // Label pill below the ring (never on the dashes or the bright moon).
+    this.labelY = y + destination.radius + style.ringShadowThickness * ART + style.labelGap;
+    this.label = new StatePill(scene, { x, y: this.labelY, state: "idle", label: flightHudCopy.beaconLabel });
+    this.label.setDepth(depth.world + 2);
+    this.centreLabel();
   }
 
   update(docking: DockingState, progress: number, timeMs: number): void {
     const style = arrivalBeaconStyle;
-    const { x, y, radius } = this.destination;
-    const color = colorNumber(dockingStateColors[docking.kind]);
     const ready = docking.kind === "ready";
     const active = docking.kind !== "too-far";
     const baseAlpha = active ? style.activeAlpha : style.idleAlpha;
-    const g = this.graphics;
-
-    g.clear();
-
-    // Dashed ring with a dark underlay so it reads over the bright moon limb.
-    const ringWidth = ready ? style.ringWidthReady : style.ringWidth;
-    const slot = TAU / style.dashCount;
-    const dashFill = ready ? 0.82 : style.dashFill;
-    const spin = ((timeMs % RING_TURN_MS) / RING_TURN_MS) * TAU;
-    for (let pass = 0; pass < 2; pass += 1) {
-      const outline = pass === 0;
-      g.lineStyle(
-        outline ? ringWidth + OUTLINE_EXTRA_PX : ringWidth,
-        outline ? colorNumber(colors.cosmosDeep) : color,
-        outline ? OUTLINE_ALPHA * baseAlpha : baseAlpha,
-      );
-      for (let i = 0; i < style.dashCount; i += 1) {
-        const start = spin + i * slot;
-        g.beginPath();
-        g.arc(x, y, radius, start, start + slot * dashFill);
-        g.strokePath();
-      }
-    }
-
-    // Landing-window progress arc (track + fill), clockwise from the top.
-    if (ready) {
-      const progressRadius = radius + style.progressGap;
-      g.lineStyle(style.progressWidth + OUTLINE_EXTRA_PX, colorNumber(colors.cosmosDeep), OUTLINE_ALPHA);
-      g.beginPath();
-      g.arc(x, y, progressRadius, 0, TAU);
-      g.strokePath();
-      g.lineStyle(style.progressWidth, color, 0.22);
-      g.beginPath();
-      g.arc(x, y, progressRadius, 0, TAU);
-      g.strokePath();
-      if (progress > 0) {
-        const end = TOP_ANGLE + TAU * Math.min(1, progress);
-        g.lineStyle(style.progressWidth, colorNumber(colors.parchmentWarm), 0.95);
-        g.beginPath();
-        g.arc(x, y, progressRadius, TOP_ANGLE, end);
-        g.strokePath();
-        g.fillStyle(colorNumber(colors.plaster), 1);
-        g.fillCircle(x + Math.cos(end) * progressRadius, y + Math.sin(end) * progressRadius, style.progressWidth * 0.7);
-      }
-    }
-
-    this.drawLanterns(color, ready, active, timeMs);
-    this.drawChevron(color, docking.kind, timeMs);
 
     if (this.lastKind !== docking.kind) {
       this.lastKind = docking.kind;
-      this.ghost.setTint(colorNumber(colors.parchment)).setVisible(!ready);
-      this.label.setColor(dockingStateColors[docking.kind]);
+      const color = colorNumber(dockingStateColors[docking.kind]);
+      this.ring.setTexture(ready ? this.ringKeys.ready : this.ringKeys.idle).setTint(color);
+      this.ringShadow.setTexture(ready ? this.ringKeys.readyShadow : this.ringKeys.idleShadow);
+      this.chevrons.setTint(color);
+      this.progressTrack.setTint(color).setVisible(ready);
+      this.progressShadow.setVisible(ready);
+      this.label.setPillState(PILL_STATE[docking.kind], ready ? flightHudCopy.ready : flightHudCopy.beaconLabel);
+      this.centreLabel();
+      this.lastProgressCount = -1;
     }
-    this.label.setAlpha(ready ? 0 : baseAlpha);
+
+    this.ring.setAlpha(baseAlpha);
+    this.ringShadow.setAlpha(style.ringShadowAlpha * baseAlpha);
+    this.label.setAlpha(active ? 1 : 0.8);
+
+    const pulse = 0.5 + 0.5 * Math.sin((timeMs / style.ghostPulseMs) * TAU);
+    this.ghost.setVisible(!ready).setAlpha(style.ghostAlphaMin + (style.ghostAlphaMax - style.ghostAlphaMin) * pulse);
+
+    const bob = ready ? 0 : Math.round(Math.sin((timeMs / style.chevronBobMs) * TAU) * style.chevronBobArtPx);
+    const dir = { x: Math.cos(this.bottomAngle), y: Math.sin(this.bottomAngle) };
+    this.chevrons.setPosition(this.badgeX + Math.round(dir.x * bob) * ART, this.badgeY + Math.round(dir.y * bob) * ART);
+
+    this.drawProgress(ready ? progress : 0);
+    this.drawLanterns(colorNumber(dockingStateColors[docking.kind]), ready, active, timeMs);
   }
 
+  private centreLabel(): void {
+    this.label.setPosition(Math.round(this.destination.x - this.label.pillWidth / 2), Math.round(this.labelY));
+  }
+
+  /** Stepped arc: the first `progress` share of the ring's art pixels, clockwise from the top. */
+  private drawProgress(progress: number): void {
+    const count = Math.round(Math.min(1, Math.max(0, progress)) * this.progressPixels.length);
+    if (count === this.lastProgressCount) return;
+    this.lastProgressCount = count;
+    const g = this.progress;
+    g.clear();
+    if (count === 0) return;
+    const { x, y } = this.destination;
+    g.fillStyle(colorNumber(colors.parchmentWarm), 1);
+    for (let index = 0; index < count; index += 1) {
+      const pixel = this.progressPixels[index];
+      if (pixel) g.fillRect(x + pixel.x * ART, y + pixel.y * ART, ART, ART);
+    }
+    const head = this.progressPixels[count - 1];
+    if (head) {
+      g.fillStyle(colorNumber(colors.plaster), 1);
+      g.fillRect(x + (head.x - 1) * ART, y + (head.y - 1) * ART, ART * 3, ART * 3);
+    }
+  }
+
+  /** Small pixel lanterns on the ring, lit in a slow chase (fully lit when ready). */
   private drawLanterns(color: number, ready: boolean, active: boolean, timeMs: number): void {
     const style = arrivalBeaconStyle;
     const { x, y, radius } = this.destination;
-    const g = this.graphics;
+    const g = this.lanterns;
     const step = TAU / style.lanternCount;
     const chase = (timeMs % style.lanternChaseMs) / style.lanternChaseMs;
+    const radiusArt = Math.round(radius / ART);
+    g.clear();
 
     for (let i = 0; i < style.lanternCount; i += 1) {
-      // Offset by half a step so no lantern sits on the chevron.
+      // Offset by half a step so no lantern sits beside the chevron badge.
       const angle = this.bottomAngle + step * (i + 0.5);
-      const lx = x + Math.cos(angle) * radius;
-      const ly = y + Math.sin(angle) * radius;
+      const lx = x + Math.round(Math.cos(angle) * radiusArt) * ART;
+      const ly = y + Math.round(Math.sin(angle) * radiusArt) * ART;
       const chaseDistance = (((i / style.lanternCount - chase) % 1) + 1) % 1;
       const glow = ready ? 1 : active ? 0.35 + 0.65 * (1 - chaseDistance) ** 3 : 0.3;
 
-      g.fillStyle(color, 0.2 * glow);
-      g.fillCircle(lx, ly, style.lanternGlowRadius);
-      g.fillStyle(colorNumber(colors.cosmosDeep), 0.7);
-      g.fillCircle(lx, ly, style.lanternRadius + 2);
+      // Soft plus-shaped glow, dark rounded backing, amber core, cream highlight.
+      g.fillStyle(color, 0.3 * glow);
+      g.fillRect(lx - 4 * ART, ly - 1 * ART, 8 * ART, 2 * ART);
+      g.fillRect(lx - 1 * ART, ly - 4 * ART, 2 * ART, 8 * ART);
+      g.fillStyle(colorNumber(colors.cosmosDeep), 0.8);
+      g.fillRect(lx - 2 * ART, ly - 1 * ART, 4 * ART, 2 * ART);
+      g.fillRect(lx - 1 * ART, ly - 2 * ART, 2 * ART, 4 * ART);
       g.fillStyle(colorNumber(colors.amber), 0.55 + 0.45 * glow);
-      g.fillCircle(lx, ly, style.lanternRadius);
-      g.fillStyle(colorNumber(colors.plaster), 0.4 * glow);
-      g.fillCircle(lx - 1, ly - 1, style.lanternRadius * 0.45);
+      g.fillRect(lx - 1 * ART, ly - 1 * ART, 2 * ART, 2 * ART);
+      g.fillStyle(colorNumber(colors.plaster), 0.25 + 0.6 * glow);
+      g.fillRect(lx - 1 * ART, ly - 1 * ART, ART, ART);
     }
   }
-
-  /** Double chevron just inside the ring, pointing the way the ship's bottom must face. */
-  private drawChevron(color: number, kind: DockingStateKind, timeMs: number): void {
-    const style = arrivalBeaconStyle;
-    const { x, y, radius } = this.destination;
-    const g = this.graphics;
-    const dir = { x: Math.cos(this.bottomAngle), y: Math.sin(this.bottomAngle) };
-    const side = { x: -dir.y, y: dir.x };
-    const bob = kind === "ready" ? 0 : Math.sin((timeMs / style.chevronBobMs) * TAU) * style.chevronBobPx * 0.5;
-    const tipRadius = radius - style.chevronInset + bob;
-
-    // Dark plate behind the chevrons keeps them readable over the bright moon limb.
-    const plateCentre = radius - style.chevronInset - style.chevronLength * 0.55;
-    g.fillStyle(colorNumber(colors.cosmosPanel), 0.72);
-    g.fillCircle(x + dir.x * plateCentre, y + dir.y * plateCentre, style.chevronPlateRadius);
-    g.lineStyle(2, color, 0.5);
-    g.strokeCircle(x + dir.x * plateCentre, y + dir.y * plateCentre, style.chevronPlateRadius);
-
-    this.chevronBuffers.forEach((points, n) => {
-      const tip = tipRadius - n * (style.chevronThickness + 7);
-      const alpha = n === 0 ? 1 : 0.55;
-      writeChevronPoints(points, x, y, dir, side, tip, style.chevronLength, style.chevronHalfWidth, style.chevronThickness);
-      g.lineStyle(OUTLINE_EXTRA_PX + 1, colorNumber(colors.cosmosDeep), OUTLINE_ALPHA * alpha);
-      g.strokePoints(points, true, true);
-      g.fillStyle(color, alpha);
-      g.fillPoints(points, true, true);
-    });
-  }
-
-  private drawApproachRing(): void {
-    const style = arrivalBeaconStyle;
-    const { x, y, approachRadius } = this.destination;
-    this.approach.fillStyle(colorNumber(colors.duskBlue), style.approachAlpha);
-    for (let i = 0; i < style.approachDashCount; i += 1) {
-      const angle = (i / style.approachDashCount) * TAU;
-      this.approach.fillCircle(x + Math.cos(angle) * approachRadius, y + Math.sin(angle) * approachRadius, 2);
-    }
-  }
-}
-
-function makePoints(count: number): Phaser.Math.Vector2[] {
-  return Array.from({ length: count }, () => new Phaser.Math.Vector2());
-}
-
-function writeChevronPoints(
-  points: readonly Phaser.Math.Vector2[],
-  cx: number,
-  cy: number,
-  dir: { readonly x: number; readonly y: number },
-  side: { readonly x: number; readonly y: number },
-  tipRadius: number,
-  length: number,
-  halfWidth: number,
-  thickness: number,
-): void {
-  const back = tipRadius - length * 0.6;
-  const layout: readonly (readonly [number, number])[] = [
-    [tipRadius, 0],
-    [back, halfWidth],
-    [back - thickness, halfWidth],
-    [tipRadius - thickness, 0],
-    [back - thickness, -halfWidth],
-    [back, -halfWidth],
-  ];
-  layout.forEach(([along, across], index) => {
-    points[index]?.set(cx + dir.x * along + side.x * across, cy + dir.y * along + side.y * across);
-  });
 }

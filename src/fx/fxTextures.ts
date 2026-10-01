@@ -1,18 +1,23 @@
 import Phaser from "phaser";
-import { colors } from "../game/designTokens";
-import { PARTICLE_SHEETS, type ParticleSheet, type ParticleSheetId } from "./fxPresets";
+import { colorNumber, colors } from "../game/designTokens";
+import { warmRecolor, type WarmRampStop } from "./fxMath";
+import { PARTICLE_SHEETS, PIXEL_FLAME_TUNING, WARM_RECOLOR, type ParticleSheet, type ParticleSheetId } from "./fxPresets";
 
 /**
  * Resolves particle textures and their life animations.
  *
- * Particle art is loaded from the asset manifest keys. While a sheet is still missing,
- * PreloadScene installs a flat same-size fallback; reading a flat block as a particle is
- * unhelpful for tuning, so this module paints a small procedural pixel stand-in under a
- * private key instead. Asset failures are still recorded by PreloadScene, and the real
+ * Particle art is loaded from the asset manifest keys. Sheets listed in `WARM_RECOLOR` are
+ * copied once per game into a derived canvas texture whose neutral-grey tail pixels are mapped
+ * onto a warm oat/plaster ramp (cozy flour and steam, never soot on dark space). While a sheet
+ * is still missing, PreloadScene installs a flat same-size fallback; reading a flat block as a
+ * particle is unhelpful for tuning, so this module paints a small procedural pixel stand-in
+ * under a private key instead. Asset failures are still recorded by PreloadScene, and the real
  * art is used automatically as soon as the file exists.
  */
 
 const SUBSTITUTE_SUFFIX = "~fx-substitute";
+const WARM_SUFFIX = "~fx-warm";
+const GLOW_KEY = "fx-pixel-glow";
 
 function isFallbackTexture(texture: Phaser.Textures.Texture): boolean {
   if (texture.key === "__MISSING") return true;
@@ -20,7 +25,8 @@ function isFallbackTexture(texture: Phaser.Textures.Texture): boolean {
   return source ? source.isCanvas : true;
 }
 
-export function particleTextureKey(scene: Phaser.Scene, id: ParticleSheetId): string {
+/** Raw sheet key: the loaded art, or a painted stand-in while the art is missing. */
+function sourceSheetKey(scene: Phaser.Scene, id: ParticleSheetId): string {
   const sheet = PARTICLE_SHEETS[id];
   const textures = scene.textures;
   if (textures.exists(sheet.key) && !isFallbackTexture(textures.get(sheet.key))) return sheet.key;
@@ -29,14 +35,94 @@ export function particleTextureKey(scene: Phaser.Scene, id: ParticleSheetId): st
   return textures.exists(substituteKey) ? substituteKey : sheet.key;
 }
 
-/** Creates (once per game) an animation over every frame of a particle sheet. */
-export function particleAnimKey(scene: Phaser.Scene, textureKey: string, frameCount: number, durationMs: number, loop: boolean): string {
-  const key = `${textureKey}:life:${durationMs}:${loop ? "loop" : "once"}`;
+/** Texture to emit for a particle sheet (warm-recoloured copy where configured). */
+export function particleTextureKey(scene: Phaser.Scene, id: ParticleSheetId): string {
+  const sourceKey = sourceSheetKey(scene, id);
+  if (!WARM_RECOLOR.sheets.includes(id)) return sourceKey;
+  const warmKey = `${sourceKey}${WARM_SUFFIX}`;
+  if (!scene.textures.exists(warmKey)) createWarmSheet(scene, sourceKey, PARTICLE_SHEETS[id], warmKey);
+  return scene.textures.exists(warmKey) ? warmKey : sourceKey;
+}
+
+/** Creates (once per game) an animation over an explicit list of sheet frames. */
+export function particleAnimKey(scene: Phaser.Scene, textureKey: string, frames: readonly number[], durationMs: number, loop: boolean): string {
+  const key = `${textureKey}:life:${frames.join("-")}:${durationMs}:${loop ? "loop" : "once"}`;
   if (scene.anims.exists(key)) return key;
-  const frames: Phaser.Types.Animations.AnimationFrame[] = [];
-  for (let frame = 0; frame < frameCount; frame += 1) frames.push({ key: textureKey, frame });
-  scene.anims.create({ key, frames, duration: durationMs, repeat: loop ? -1 : 0 });
+  const texture = scene.textures.get(textureKey);
+  const animFrames: Phaser.Types.Animations.AnimationFrame[] = [];
+  for (const frame of frames) if (texture.has(String(frame))) animFrames.push({ key: textureKey, frame });
+  if (animFrames.length === 0) animFrames.push({ key: textureKey, frame: 0 });
+  scene.anims.create({ key, frames: animFrames, duration: durationMs, repeat: loop ? -1 : 0 });
   return key;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Warm recolour (neutral greys -> oat/plaster ramp)
+// ---------------------------------------------------------------------------------------------
+
+function rampStops(): readonly WarmRampStop[] {
+  return WARM_RECOLOR.ramp.map((stop): WarmRampStop => {
+    const value = colorNumber(stop.color);
+    return { at: stop.at, rgb: [(value >> 16) & 0xff, (value >> 8) & 0xff, value & 0xff] };
+  });
+}
+
+function createWarmSheet(scene: Phaser.Scene, sourceKey: string, sheet: ParticleSheet, warmKey: string): void {
+  try {
+    const source = scene.textures.get(sourceKey).getSourceImage();
+    if (!(source instanceof HTMLImageElement || source instanceof HTMLCanvasElement)) return;
+    const width = source.width;
+    const height = source.height;
+    if (width <= 0 || height <= 0) return;
+    const texture = scene.textures.createCanvas(warmKey, width, height);
+    if (!texture) return;
+    const ctx = texture.getContext();
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(source, 0, 0);
+    const image = ctx.getImageData(0, 0, width, height);
+    const data = image.data;
+    const ramp = rampStops();
+    for (let i = 0; i < data.length; i += 4) {
+      if ((data[i + 3] ?? 0) === 0) continue;
+      const warm = warmRecolor(data[i] ?? 0, data[i + 1] ?? 0, data[i + 2] ?? 0, WARM_RECOLOR.neutralSpread, WARM_RECOLOR.lift, ramp);
+      if (!warm) continue;
+      data[i] = warm[0];
+      data[i + 1] = warm[1];
+      data[i + 2] = warm[2];
+    }
+    ctx.putImageData(image, 0, 0);
+    const count = Math.max(1, Math.floor(width / sheet.frameWidth));
+    const frameHeight = Math.min(height, sheet.frameHeight);
+    for (let frame = 0; frame < count; frame += 1) texture.add(frame, 0, frame * sheet.frameWidth, 0, sheet.frameWidth, frameHeight);
+    texture.refresh();
+  } catch {
+    // Tainted canvas or decode failure: keep using the source sheet.
+    if (scene.textures.exists(warmKey)) scene.textures.remove(warmKey);
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Stepped pixel glow (hard-edged alpha rings, painted at art resolution)
+// ---------------------------------------------------------------------------------------------
+
+/** A disc of 2-3 hard-edged alpha rings (no gradient) for nozzle light; display at artScale. */
+export function pixelGlowTextureKey(scene: Phaser.Scene): string {
+  if (scene.textures.exists(GLOW_KEY)) return GLOW_KEY;
+  try {
+    const { radiusArt, rings, color } = PIXEL_FLAME_TUNING.glow;
+    const size = radiusArt * 2;
+    const texture = scene.textures.createCanvas(GLOW_KEY, size, size);
+    if (!texture) return GLOW_KEY;
+    const ctx = texture.getContext();
+    ctx.clearRect(0, 0, size, size);
+    const painter = makePainter(ctx, 0, size, size);
+    for (const ring of rings) painter.disc(radiusArt, radiusArt, radiusArt * ring.radius, color, ring.alpha, true);
+    ctx.globalAlpha = 1;
+    texture.refresh();
+  } catch {
+    // Glow is optional.
+  }
+  return GLOW_KEY;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -44,24 +130,26 @@ export function particleAnimKey(scene: Phaser.Scene, textureKey: string, frameCo
 // ---------------------------------------------------------------------------------------------
 
 type Painter = {
-  disc(cx: number, cy: number, r: number, color: string, alpha?: number): void;
-  px(x: number, y: number, color: string, alpha?: number): void;
+  /** `replace` overwrites pixels (hard rings) instead of alpha-blending onto them. */
+  disc(cx: number, cy: number, r: number, color: string, alpha?: number, replace?: boolean): void;
+  px(x: number, y: number, color: string, alpha?: number, replace?: boolean): void;
 };
 
 function makePainter(ctx: CanvasRenderingContext2D, ox: number, w: number, h: number): Painter {
-  const px = (x: number, y: number, color: string, alpha = 1): void => {
+  const px = (x: number, y: number, color: string, alpha = 1, replace = false): void => {
     if (x < 0 || y < 0 || x >= w || y >= h) return;
+    if (replace) ctx.clearRect(ox + Math.floor(x), Math.floor(y), 1, 1);
     ctx.globalAlpha = alpha;
     ctx.fillStyle = color;
     ctx.fillRect(ox + Math.floor(x), Math.floor(y), 1, 1);
   };
-  const disc = (cx: number, cy: number, r: number, color: string, alpha = 1): void => {
+  const disc = (cx: number, cy: number, r: number, color: string, alpha = 1, replace = false): void => {
     const r2 = r * r;
     for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y += 1) {
       for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x += 1) {
         const dx = x + 0.5 - cx;
         const dy = y + 0.5 - cy;
-        if (dx * dx + dy * dy <= r2) px(x, y, color, alpha);
+        if (dx * dx + dy * dy <= r2) px(x, y, color, alpha, replace);
       }
     }
   };

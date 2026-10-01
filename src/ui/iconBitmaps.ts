@@ -39,3 +39,60 @@ export const ICON_GLYPHS: Readonly<Record<UiIconName, readonly string[]>> = {
 };
 
 export const ICON_GLYPH_SIZE = 8;
+
+/**
+ * Full-resolution (16x16 art px) redraws that replace frames of the authored `ui-icons` strip
+ * at runtime until the strip itself is re-exported (asset critic round 1: the package read as a
+ * horned bug and the sound waves blurred into a dark burst). Same palette keys as above plus
+ * o ember, d terracotta-deep, c parchment-deep.
+ */
+export const ICON_OVERRIDE_PALETTE: Readonly<Record<string, string>> = {
+  ...ICON_GLYPH_PALETTE,
+  o: colors.ember,
+  d: colors.terracottaDeep,
+  e: colors.amber,
+  c: colors.parchmentDeep,
+};
+
+export const ICON_OVERRIDE_SIZE = 16;
+
+export const ICON_OVERRIDES: Readonly<Partial<Record<UiIconName, readonly string[]>>> = {
+  // Furoshiki bundle: knot ears flaring sideways, a diagonal fold and cream polka dots.
+  package: [
+    "................",
+    "................",
+    ".kkk........kkk.",
+    "koeokk.kk.kkoeok",
+    "kooookkddkkooook",
+    ".kkoookddkoookk.",
+    "...kkkkddkkkk...",
+    "..kooooddoooek..",
+    ".koopooodooopok.",
+    ".kooooooodooook.",
+    ".kopooooodoooek.",
+    ".koooooodooopok.",
+    ".kroooooodooork.",
+    "..krrrrrrrrrrk..",
+    "...kkkkkkkkkk...",
+    "................",
+  ],
+  // Cream speaker with two clean, separated amber arcs.
+  soundOn: [
+    "................",
+    "...........kk...",
+    "......k.....ka..",
+    ".....kpk.k...ka.",
+    "....kppk..ka..ka",
+    "kkkkpppk...ka.ka",
+    "kppppppk...ka.ka",
+    "kppppppk...ka.ka",
+    "kppppppk...ka.ka",
+    "kccccppk...ka.ka",
+    "kkkkcppk..ka..ka",
+    "....kcpk.k...ka.",
+    ".....kck....ka..",
+    "......k....kk...",
+    "................",
+    "................",
+  ],
+};

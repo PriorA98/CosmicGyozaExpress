@@ -1,103 +1,103 @@
 import Phaser from "phaser";
-import { landingCopy, landingScenery } from "../../data/landingScenery";
-import { colorNumber, colors, depth, fontStacks, typeScale } from "../../game/designTokens";
+import { landingCopy } from "../../data/landingCopy";
+import { LANDING_ART_SCALE, landingScenery } from "../../data/landingScenery";
+import { colorNumber, colors, depth, typeScale } from "../../game/designTokens";
+import { TouchControls, monoStyle, type TouchZoneDefinition } from "../../ui";
 import type { LandingControls } from "../../types/landing";
-import { landingHudScale } from "./LandingDashboard";
+import { bitmapSize, drawBitmap, snapToGrid } from "./pixelShapes";
 
 type ControlKey = keyof LandingControls;
 
-type TouchPad = {
-  readonly control: ControlKey;
-  readonly hitArea: Phaser.Geom.Rectangle;
-  readonly bg: Phaser.GameObjects.Arc;
-  readonly ring: Phaser.GameObjects.Arc;
-  readonly group: Phaser.GameObjects.Container;
-  active: boolean;
-};
-
 const EMPTY_CONTROLS: LandingControls = { thrust: false, rotateLeft: false, rotateRight: false, stabilizer: false };
+const CONTROL_KEYS: readonly ControlKey[] = ["rotateLeft", "rotateRight", "stabilizer", "thrust"];
 
-/** Large multi-touch zones in the bottom corners. Only created on touch-capable devices. */
+/** Tile rectangles (screen px of the logical canvas) for each landing control. Pure, so layouts can be tested. */
+export function landingTouchTiles(canvasWidth: number, canvasHeight: number): Record<ControlKey, { x: number; y: number; width: number; height: number }> {
+  const t = landingScenery.touch;
+  const bottom = canvasHeight - t.marginBottom - t.tileHeight;
+  const right = canvasWidth - t.marginX - t.tileWidth;
+  return {
+    rotateLeft: { x: t.marginX, y: bottom, width: t.tileWidth, height: t.tileHeight },
+    rotateRight: { x: t.marginX + t.tileWidth + t.gap, y: bottom, width: t.tileWidth, height: t.tileHeight },
+    thrust: { x: right, y: bottom, width: t.tileWidth, height: t.tileHeight },
+    stabilizer: { x: right, y: bottom - t.gap - t.tileHeight, width: t.tileWidth, height: t.tileHeight },
+  };
+}
+
+/**
+ * Landing controls on the shared UI kit's TouchControls: a tilt pair bottom-left (pixel chevrons) and
+ * steady stacked over thrust on the right edge (kit icons), clear of the HUD, the pad, the rabbit, and the
+ * tea house (which moves inward on touch layouts). Zone ids are the LandingControls keys.
+ */
 export class LandingTouchPads {
-  private readonly scene: Phaser.Scene;
-  private readonly pads: TouchPad[] = [];
-  private controls: LandingControls = EMPTY_CONTROLS;
-  /** Visual scale of the pad buttons (larger on phone-size displays); hit zones are already generous. */
-  private readonly buttonScale: number;
+  readonly root: TouchControls;
+  private readonly decorations: Phaser.GameObjects.Container;
 
   constructor(scene: Phaser.Scene) {
-    this.scene = scene;
-    this.buttonScale = landingHudScale(scene);
-    const { width, height } = scene.scale;
-    const config = landingScenery.touch;
-    const panelWidth = Math.min(config.panelMaxWidth, width * config.panelWidthRatio);
-    const zoneWidth = (panelWidth - config.panelGap) / 2;
-    const zoneTop = height - config.zoneHeight;
-    const rightPanelX = width - panelWidth;
+    const tiles = landingTouchTiles(scene.scale.width, scene.scale.height);
+    const labels = landingCopy.touchLabels;
+    const zones: TouchZoneDefinition[] = [
+      { id: "rotateLeft", shape: { kind: "rect", ...tiles.rotateLeft } },
+      { id: "rotateRight", shape: { kind: "rect", ...tiles.rotateRight } },
+      { id: "stabilizer", shape: { kind: "rect", ...tiles.stabilizer }, icon: "radar", label: labels.stabilizer },
+      { id: "thrust", shape: { kind: "rect", ...tiles.thrust }, icon: "thrust", label: labels.thrust },
+    ];
+    this.root = new TouchControls(scene, { zones });
 
-    this.addPad(new Phaser.Geom.Rectangle(0, zoneTop, zoneWidth, config.zoneHeight), "rotateLeft", colors.ember);
-    this.addPad(new Phaser.Geom.Rectangle(zoneWidth + config.panelGap, zoneTop, zoneWidth, config.zoneHeight), "rotateRight", colors.ember);
-    this.addPad(new Phaser.Geom.Rectangle(rightPanelX, zoneTop, zoneWidth, config.zoneHeight), "stabilizer", colors.duskBlue);
-    this.addPad(
-      new Phaser.Geom.Rectangle(rightPanelX + zoneWidth + config.panelGap, zoneTop, zoneWidth, config.zoneHeight),
-      "thrust",
-      colors.terracotta,
-    );
-    scene.input.addPointer(4);
+    // The kit has no arrow icon yet: pixel chevrons + labels for the tilt pair, on the same layer.
+    this.decorations = scene.add.container(0, 0).setDepth(depth.touch + 1);
+    this.addTiltDecoration(scene, tiles.rotateLeft, true, labels.rotateLeft);
+    this.addTiltDecoration(scene, tiles.rotateRight, false, labels.rotateRight);
+    this.decorations.setVisible(this.root.visible);
   }
 
-  /** Reads every active pointer and returns the held controls. */
+  /** Every object that belongs on the UI camera. */
+  get objects(): readonly Phaser.GameObjects.GameObject[] {
+    return [this.root, this.decorations];
+  }
+
+  /** Reads the held zones as landing controls. */
   read(): LandingControls {
+    // The kit reveals itself on the first touch; keep the chevrons in step.
+    if (this.decorations.visible !== this.root.visible) this.decorations.setVisible(this.root.visible);
+    if (!this.root.visible) return EMPTY_CONTROLS;
     const next: LandingControls = { ...EMPTY_CONTROLS };
-    for (const pointer of this.scene.input.manager.pointers) {
-      if (!pointer.isDown) continue;
-      for (const pad of this.pads) {
-        if (Phaser.Geom.Rectangle.Contains(pad.hitArea, pointer.x, pointer.y)) next[pad.control] = true;
-      }
-    }
-    this.controls = next;
-    this.refreshVisuals();
+    for (const key of CONTROL_KEYS) next[key] = this.root.isDown(key);
     return next;
   }
 
-  get current(): LandingControls {
-    return this.controls;
+  setAlpha(alpha: number): void {
+    this.root.setAlpha(alpha);
+    this.decorations.setAlpha(alpha);
   }
 
-  private refreshVisuals(): void {
-    const config = landingScenery.touch;
-    for (const pad of this.pads) {
-      const active = this.controls[pad.control];
-      if (pad.active === active) continue;
-      pad.active = active;
-      pad.bg.setAlpha(active ? config.activeAlpha : config.idleAlpha);
-      pad.ring.setStrokeStyle(active ? 3 : 2, colorNumber(colors.plaster), active ? 0.76 : 0.32);
-      pad.group.setScale(this.buttonScale * (active ? 0.95 : 1));
-    }
+  destroy(): void {
+    this.root.destroy();
+    this.decorations.destroy();
   }
 
-  private addPad(hitArea: Phaser.Geom.Rectangle, control: ControlKey, accent: string): void {
-    const config = landingScenery.touch;
-    const copy = landingCopy.touchLabels[control];
-    const group = this.scene.add.container(hitArea.centerX, hitArea.centerY).setDepth(depth.touch).setScale(this.buttonScale);
-    const bg = this.scene.add.circle(0, 0, config.radius, colorNumber(accent), 1).setAlpha(config.idleAlpha);
-    const ring = this.scene.add.circle(0, 0, config.radius).setStrokeStyle(2, colorNumber(colors.plaster), 0.32);
-    const glyph = this.scene.add
-      .text(0, -8, copy.glyph, {
-        color: colors.plaster,
-        fontFamily: fontStacks.mono,
-        fontSize: `${typeScale.xl}px`,
-        fontStyle: "bold",
-      })
-      .setOrigin(0.5);
-    const label = this.scene.add
-      .text(0, 22, copy.label, {
-        color: "rgba(251,247,236,0.72)",
-        fontFamily: fontStacks.mono,
-        fontSize: `${typeScale.sm}px`,
-      })
-      .setOrigin(0.5);
-    group.add([bg, ring, glyph, label]);
-    this.pads.push({ control, hitArea, bg, ring, group, active: false });
+  private addTiltDecoration(
+    scene: Phaser.Scene,
+    tile: { x: number; y: number; width: number; height: number },
+    pointsLeft: boolean,
+    label: string,
+  ): void {
+    const t = landingScenery.touch;
+    const cell = LANDING_ART_SCALE;
+    const size = bitmapSize(t.chevron, cell);
+    const cx = tile.x + tile.width / 2;
+    const cy = tile.y + tile.height / 2;
+    const chevron = scene.add.graphics();
+    const left = snapToGrid(cx - size.width / 2, cell);
+    const top = snapToGrid(cy + t.chevronOffsetY - size.height / 2, cell);
+    chevron.fillStyle(colorNumber(colors.cosmosDeep), 0.6);
+    drawBitmap(chevron, left + cell, top + cell, t.chevron, cell, pointsLeft);
+    chevron.fillStyle(colorNumber(colors.parchmentWarm), 1);
+    drawBitmap(chevron, left, top, t.chevron, cell, pointsLeft);
+    const text = scene.add
+      .text(cx, cy + t.labelOffsetY, label, monoStyle({ size: typeScale.sm, bold: true, color: colors.plaster }))
+      .setOrigin(0.5, 0.5)
+      .setAlpha(0.85);
+    this.decorations.add([chevron, text]);
   }
 }
