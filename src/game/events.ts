@@ -15,7 +15,8 @@ export type SceneKey =
   | "TitleScene"
   | "FlightScene"
   | "LandingScene"
-  | "DeliveryResultScene";
+  | "DeliveryResultScene"
+  | "UiKitScene";
 
 /**
  * Cross-module game events. Scenes emit; audio, fx, and dev tooling listen.

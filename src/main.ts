@@ -3,6 +3,7 @@ import { installDevProbe } from "./dev/devProbe";
 import { applyShowcaseSaveFixture } from "./dev/saveFixtures";
 import { readRequestedShowcase } from "./dev/showcaseStates";
 import { gameConfig } from "./gameConfig";
+import { installAudioSystem } from "./systems/AudioSystem";
 import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/components.css";
@@ -13,7 +14,13 @@ if (import.meta.env.DEV) {
   if (showcase) applyShowcaseSaveFixture(showcase.save);
 }
 
-const game = new Phaser.Game(gameConfig);
+// Dev-only scenes load through a DEV-gated dynamic import so production bundles never include them.
+const devScenes: Phaser.Types.Scenes.SceneType[] = import.meta.env.DEV
+  ? [(await import("./dev/UiKitScene")).UiKitScene]
+  : [];
+const baseScenes = Array.isArray(gameConfig.scene) ? gameConfig.scene : [];
+const game = new Phaser.Game({ ...gameConfig, scene: [...baseScenes, ...devScenes] });
+installAudioSystem(game);
 
 if (import.meta.env.DEV) {
   installDevProbe(game);

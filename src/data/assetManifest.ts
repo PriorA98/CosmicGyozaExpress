@@ -86,6 +86,7 @@ export const ASSET = {
   planetImFine: "planet-im-fine",
   celestialTeaMoon: "celestial-tea-moon",
   planetFarPlum: "planet-far-plum",
+  celestialImFine: "celestial-im-fine",
   // Space layers
   spaceStarsFar: "space-stars-far",
   spaceStarsNear: "space-stars-near",
@@ -173,6 +174,7 @@ export const ASSET_MANIFEST: readonly AssetEntry[] = [
   image(ASSET.planetImFine, "assets/planets/planet04.png", 1280, 1280, 1, "#9B8FB8", "circle"),
   image(ASSET.celestialTeaMoon, "assets/celestial/tea-moon.png", 192, 192, 2, "#C2CFAE", "circle"),
   image(ASSET.planetFarPlum, "assets/celestial/planet-far-plum.png", 96, 96, 2, "#9B8FB8", "circle"),
+  image(ASSET.celestialImFine, "assets/celestial/planet-im-fine.png", 128, 128, 2, "#9B8FB8", "circle"),
 
   image(ASSET.spaceStarsFar, "assets/space/stars-far.png", 256, 256, 2, "#14162B"),
   image(ASSET.spaceStarsNear, "assets/space/stars-near.png", 256, 256, 2, "#2F3149"),
