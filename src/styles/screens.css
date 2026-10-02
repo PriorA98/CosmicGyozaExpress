@@ -17,10 +17,22 @@
     inset: 0;
   }
 
+  /* The live canvas recedes into a faint, softened glow behind the card instead of a readable
+     strip, so portrait shows one intentional state rather than a tiny letterboxed game. */
   .game-root canvas {
     box-shadow: none;
-    filter: brightness(0.3) saturate(0.7);
-    transition: filter 320ms var(--ease-soft);
+    filter: brightness(0.45) saturate(0.6) blur(3px);
+    opacity: 0.22;
+    transition:
+      filter 320ms var(--ease-soft),
+      opacity 320ms var(--ease-soft);
+  }
+
+  /* Warm moonlight pool behind the card ties it to the cosmos backdrop. */
+  .app-shell {
+    background:
+      radial-gradient(ellipse 70% 38% at 50% 50%, rgb(224 138 75 / 12%), transparent 70%),
+      radial-gradient(ellipse 60% 30% at 50% 48%, rgb(194 207 174 / 8%), transparent 75%);
   }
 
   .app-shell::before,

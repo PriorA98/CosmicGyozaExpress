@@ -13,14 +13,17 @@ export type GlyphCells = {
 /** Arrow silhouette: a triangle head `HEAD` cells long and a 3-cell-thick shaft. */
 const ARROW = { length: 11, height: 9, head: 5, shaftHalf: 1 } as const;
 
+/** Steady (stabiliser): a bold gyro ring around a centre mark, same 11x9 footprint as the arrows. */
 const STEADY_ROWS: readonly string[] = [
-  "pp.....pp",
-  "p.......p",
-  "...ppp...",
-  "..ppppp..",
-  "...ppp...",
-  "p.......p",
-  "pp.....pp",
+  "..ppppppp..",
+  ".ppp...ppp.",
+  "pp.......pp",
+  "pp...p...pp",
+  "pp..ppp..pp",
+  "pp...p...pp",
+  "pp.......pp",
+  ".ppp...ppp.",
+  "..ppppppp..",
 ];
 
 /** Cells of a left-pointing arrow (other directions are mirrors/transposes of it). */

@@ -76,7 +76,7 @@ const summary = {
     failedCaptures: results.filter((r) => r.status !== "ok").length,
     retriedCaptures: results.filter((r) => r.attempts > 1).length,
     runtimeErrors: results.reduce((sum, r) => sum + (r.errors?.runtimeErrorCount ?? 0), 0),
-    failedAssets: [...new Set(results.flatMap((r) => r.probe?.assetFailures ?? []))],
+    failedAssets: [...new Set(results.flatMap((r) => [...(r.probe?.assetFailures ?? []), ...(r.probeAfterPerf?.assetFailures ?? [])]))],
     minAvgFps: Math.min(...results.map((r) => r.perf?.avgFps ?? Infinity)),
     worstP95FrameMs: Math.max(...results.map((r) => r.perf?.p95FrameMs ?? 0)),
   },
@@ -133,11 +133,16 @@ async function capture(showcase, viewportName, attempt = 1) {
 
     record.png = `${stem}.png`;
     await page.screenshot({ path: `${outDir}/${record.png}` });
+    // Probe while still paused so the JSON describes the frame in the PNG (events after the
+    // screenshot, e.g. a ship falling once keys are released, land in probeAfterPerf instead).
+    record.probe = await probeSnapshot(page);
 
-    await page.evaluate(() => window.__CGE__.resumeAll());
+    // `freezeDuringPerf` keeps the scene paused while frames are sampled, for states whose
+    // post-screenshot motion would leave the scene (e.g. the landing window completing).
+    if (!showcase.freezeDuringPerf) await page.evaluate(() => window.__CGE__.resumeAll());
     for (const key of keys) await page.keyboard.up(key);
     record.perf = await sampleFrames(page, fpsMs);
-    record.probe = await probeSnapshot(page);
+    record.probeAfterPerf = await probeSnapshot(page);
     record.status = "ok";
   } catch (error) {
     record.status = "failed";

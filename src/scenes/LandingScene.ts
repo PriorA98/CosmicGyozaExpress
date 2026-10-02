@@ -477,9 +477,8 @@ export class LandingScene extends Phaser.Scene {
     this.flameFrame = 0;
     this.aids.hide();
     this.thrustTrail.update(this.ship.x, this.ship.y, this.ship.rotation, false, 0);
-    // Puffs already in flight would drift down over the blanket and the hint bar: drop them behind the
-    // backdrop so they vanish at once (ThrustTrail has no clear()); the next attempt restores the depth.
-    this.thrustTrail.setDepth(depth.backdrop - 1);
+    // Puffs already in flight would drift down over the blanket and the hint bar: remove them at once.
+    this.thrustTrail.clear();
   }
 
   private beginTouchdown(result: Exclude<LandingResultKind, "incident">): void {

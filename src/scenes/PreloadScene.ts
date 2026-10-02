@@ -2,6 +2,8 @@ import Phaser from "phaser";
 import { ASSET_MANIFEST, type AssetEntry } from "../data/assetManifest";
 import { recordAssetFailure, recordFontFailures } from "../dev/devProbe";
 import { readRequestedShowcase } from "../dev/showcaseStates";
+import { PARTICLE_SHEETS, type ParticleSheetId } from "../fx/fxPresets";
+import { particleTextureKey } from "../fx/fxTextures";
 import { colorNumber, colors, fontStacks } from "../game/designTokens";
 import { loadGameFonts, type FontLoadReport } from "../game/fonts";
 
@@ -50,6 +52,7 @@ export class PreloadScene extends Phaser.Scene {
         recordAssetFailure(entry.key);
       }
     }
+    this.prewarmParticleTextures();
 
     void this.startFirstScene();
   }
@@ -68,6 +71,17 @@ export class PreloadScene extends Phaser.Scene {
     }
 
     this.scene.start("TitleScene");
+  }
+
+  /**
+   * Builds the warm-recoloured particle sheets once, behind the loading screen. Otherwise the
+   * first scene that emits steam/dust/thrust pays for the canvas copy + getImageData (the
+   * flight -> landing hand-off frame hitched by ~50-80 ms).
+   */
+  private prewarmParticleTextures(): void {
+    for (const id of Object.keys(PARTICLE_SHEETS) as ParticleSheetId[]) {
+      particleTextureKey(this, id);
+    }
   }
 
   private queueAsset(entry: AssetEntry): void {

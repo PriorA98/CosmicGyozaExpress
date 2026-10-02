@@ -131,6 +131,17 @@ describe("touch glyphs", () => {
     for (const [x, y] of right.cells) expect(mirrored.has(`${x},${y}`)).toBe(true);
     expect(touchGlyphCells("steady").cells.length).toBeGreaterThan(0);
   });
+
+  it("gives the steady mark the same footprint as the arrows, symmetric on both axes", () => {
+    const left = touchGlyphCells("left");
+    const steady = touchGlyphCells("steady");
+    expect([steady.width, steady.height]).toEqual([left.width, left.height]);
+    const cells = new Set(steady.cells.map(([x, y]) => `${x},${y}`));
+    for (const [x, y] of steady.cells) {
+      expect(cells.has(`${steady.width - 1 - x},${y}`)).toBe(true);
+      expect(cells.has(`${x},${steady.height - 1 - y}`)).toBe(true);
+    }
+  });
 });
 
 describe("settings model", () => {

@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-10-01 JST
+Last updated: 2026-10-02 JST (wave-2 integration)
 
 This document records the boundaries of the Tea Moon vertical slice as implemented, the shared contracts every module codes against, and how work is split between parallel builders. It complements `development-standards.md` (rules) and `implementation-checklist.md` (process).
 
@@ -50,6 +50,10 @@ Scene handoff payloads (`src/types/`):
 - `LandingSceneData` → `LandingSceneInit` (adds optional `start` kinematics for showcases).
 - `DeliveryResultSceneData` — landing payload + `landingResult`, `landingIncidents`.
 
+- `TitleSceneData` (exported from `TitleScene.ts`) - optional `openPanel: "settings" | "route-log"` (showcases; the route log opens only when a delivery exists).
+
+Hand-off beats: Title -> Flight is a warm fade. Flight -> Landing uses `handoffToScene` (warm flash, then the pixel iris closes on the moon at screen centre). LandingScene opens with its arrival intro (ink fade-in, camera pan, intro card with the waving rabbit; any key or tap skips; skipped when init data has `start`). Landing -> Result and Result -> Title/Flight use an ink warm fade.
+
 Scenes must accept missing/partial init data and fall back to Tea Moon defaults.
 
 ## 5. Shared Contracts
@@ -75,16 +79,17 @@ Required emitters (owners in parentheses):
 | `landing:retry` | retry begins | LandingScene |
 | `result:shown` | result card revealed | DeliveryResultScene |
 | `mission:start` / `mission:completed` | route start / save written | Flight / Result |
-| `settings:changed` | after any settings write is persisted (`SaveSystem.updateSettings`) | settings writers (no in-game settings UI yet) |
+| `settings:changed` | after any settings write is persisted (`SaveSystem.updateSettings`) | TitleScene settings panel (`src/ui/SettingsPanel`) |
+| `audio:mute` | every `M` toggle (in-memory mute) | AudioSystem |
 
-Listeners: `AudioSystem` (sound; reloads volumes on `settings:changed`), `installFxSettings` (reloads reduced motion on `settings:changed`), FX helpers may also listen, dev probe logs the last 400 events (`window.__CGE__.events`) so critics can verify feedback without hearing it.
+Listeners: `AudioSystem` (sound; reloads volumes on `settings:changed`), `installFxSettings` (reloads reduced motion on `settings:changed`), `installSoundToast` (DOM "sound on / sound off" toast on `audio:mute`), FX helpers may also listen, dev probe logs the last 400 events (`window.__CGE__.events`) so critics can verify feedback without hearing it.
 
 New event variants are added **only by the integrator**.
 
 ### 5.2 Asset manifest (`src/data/assetManifest.ts`)
 
 - Every runtime texture has a key in `ASSET`, a path under `public/assets/`, art-pixel size, frame layout, and an `artScale`.
-- **Pixel contract:** art is authored at true resolution and displayed at an integer `artScale` (2 for nearly everything: 1 art px = 2 screen px). Use `setScale(entry.artScale)` or multiples; never non-integer scale on pixel art except the legacy painted planets and the ship (scaled by gameplay size).
+- **Pixel contract:** art is authored at true resolution and displayed at an integer `artScale` (2 for nearly everything: 1 art px = 2 screen px). Use `setScale(entry.artScale)` or multiples; never a non-integer resting scale on pixel art. The ship follows `SHIP_ART` (64x80 canvas, saucer centre at art (32, 34), integer 2x); the only non-integer scales are transient squash-and-stretch tweens (about 400 ms) on bumps. The legacy painted planets were removed in round 1.
 - `PreloadScene` loads the manifest. A missing/broken file is replaced by a generated same-size fallback (flat colour shape) and recorded in `window.__CGE__.assetFailures`. Fallbacks keep the app loadable while art is in production; **the shipped slice must have zero fallbacks**.
 - Spritesheets are horizontal strips of equal frames. Frame indices for icons/portraits are exported (`UI_ICON_FRAME`, `RABBIT_PORTRAIT_FRAME`).
 - Nine-slice insets: `NINE_SLICE`.
@@ -99,29 +104,40 @@ New event variants are added **only by the integrator**.
 
 - Versioned `SaveDataV1` in localStorage key `cosmic-gyoza-express.save.v1`.
 - All reads are untrusted: malformed, partial, old, or future data must recover to a valid save without throwing. All writes are wrapped (`try/catch`) because quota/privacy modes throw. The game must run with storage unavailable.
-- API (static): `load`, `save`, `reset`, `completeMission(missionId, result, memoryRewardId)`, `updateSettings(partial)` (clamped), `isMissionCompleted`, `getBestResult`, `lastLoadOutcome`, `isStorageLocked`, `clearSessionCache`. Corrupt JSON is copied to `cosmic-gyoza-express.save.v1.corrupt-backup` before recovery; a future version is never overwritten.
+- API (static): `load`, `save`, `reset`, `completeMission(missionId, result, memoryRewardId)`, `updateSettings(partial)` (clamped), `isMissionCompleted`, `getBestResult`, `lastLoadOutcome`, `isStorageLocked`, `persistenceStatus()` (`persistent`, or `session-only` with reason `storage-unavailable | newer-save | write-failed`), `diagnostics()` (first/last load outcome, lock, persistence, backup presence), `clearSessionCache`.
+- Corrupt JSON is copied to `cosmic-gyoza-express.save.v1.corrupt-backup` before recovery. That first backup is never overwritten; a later, different corrupt text goes to `...corrupt-backup-latest`, and identical text is not backed up twice. A future version is never overwritten (the session runs in memory). Progress earned while storage was unavailable stays in memory and is flushed once a write succeeds again.
+- When progress cannot be kept, the result card shows a small italic footnote (`resultCopy.persistenceNotice[reason]`). The title screen does not show one yet.
 - Whoever calls `updateSettings` must then emit `settings:changed` so audio and fx re-read the settings.
 
 ### 5.5 Audio
 
 - `AudioSystem` (Web Audio, synthesized, no audio files required) subscribes to game events once per `Phaser.Game`.
 - The AudioContext is created/resumed only after a user gesture. Missing Web Audio, a suspended context, or a thrown node error must silently degrade to no sound.
-- Volumes come from `save.settings.musicVolume`/`sfxVolume`; `M` toggles mute (in memory only, not persisted).
+- Volumes come from `save.settings.musicVolume`/`sfxVolume`; `M` toggles mute (in memory only, not persisted). Each toggle plays a sound-off/on pluck and emits `audio:mute`; `installSoundToast(game)` (called from `src/main.ts`) shows a DOM toast for it in every scene.
+- Mood changes start about 0.05 s after the request (old pads release, new pads swell); held loops dip 6 dB under one-shot feedback. A context that throws while being created or resumed is retried on later gestures (up to 5 times).
 - `src/data/audioCues.ts` is the pure, unit-tested `GameEvent` to cue/loop/mood mapper. Dev state `audio` exposes the context state, mood, active loops, the last cues and `analyzeCues`.
 
 ### 5.6 FX and reduced motion (`src/fx/`)
 
-- `feedback.ts`: `shakeCamera`, `flashScreen`, `createThrustTrail`, `burstDust | burstSparkles | burstIncident | burstStars`, `createSteam`, `squash`, `liveParticleCount`. The particle budget is 300 live particles per scene.
+- `feedback.ts`: `shakeCamera`, `flashScreen`, `createThrustTrail` (`update`, `setDepth`, `clear()` drops puffs already in flight, `destroy`), `createPixelFlame`, `burstDust | burstSparkles | burstIncident | burstStars` (`BurstOptions.lifespanMs` / `spawnRadius`), `settleBursts(scene, withinMs)`, `createSteam`, `squash`, `liveParticleCount`. The particle budget is 300 live particles per scene.
+- Pixel rules: particles render at their integer `artScale` (2), stay fully opaque and pop out at the end of their life (no partial-alpha fades over navy). Thrust, dust and steam use warm-recoloured copies of their sheets (`fxTextures.particleTextureKey`); PreloadScene pre-builds them so no gameplay frame pays for the recolour.
+- Shake jitters the camera scroll in 2 px steps, so `scrollFactor 0` HUDs stay still; world layers overscan by `SHAKE_MAX_OFFSET_PX` (`fxPresets.ts`). Shake is skipped under reduced motion. Flash is an additive warm peach pop in 3 hard steps.
 - Reduced motion: `setReducedMotion(value: boolean | null)`, where `null` follows the OS `prefers-reduced-motion`. `isReducedMotion()` is the single query. `installFxSettings(game)` (`src/fx/fxSettings.ts`) is called from `src/main.ts` right after `installAudioSystem`. It maps a saved `reducedMotion: true` to `true` and a saved `false` to `null` (defer to the OS), and re-syncs on `settings:changed`.
-- `transitions.ts`: `TransitionSpec` = `warm-fade | iris | warp`; `playExitTransition`, `playEnterTransition`, `transitionToScene(scene, target, data?, spec?)`, `isTransitioning`. Under reduced motion, iris and warp collapse to a warm fade, and every promise resolves even if the scene shuts down.
+- `transitions.ts`: `TransitionSpec` = `warm-fade | iris | warp | handoff`; `playExitTransition`, `playEnterTransition`, `transitionToScene(scene, target, data?, spec?)`, `handoffToScene(scene, target, data, focus, durationMs?)`, `isTransitioning`. The iris is a pixel staircase on a 4 px grid; warp is stepped speed lines over an ink veil and never zooms the camera; handoff is a warm flash followed by the iris closing on the focus point. Under reduced motion, iris, warp and handoff collapse to a warm fade, and every promise resolves even if the scene shuts down.
 
 ### 5.7 UI kit (`src/ui/index.ts`)
 
-Import shared HUD/menu components from the barrel: `Button` (`primary | secondary | ink`), `DashboardTicker`, `HudPanel`, `Keycap`, `Meter`, `ParchmentCard`, `StatePill`, `TouchControls` / `detectTouchDevice`, `addUiIcon` / `setUiIcon`, the text style helpers, `SURFACE` / `UI_ART_SCALE`, `stateSwatch` / `meterAccentColor`, and the pure layout helpers in `layout.ts` (`truncateToChars`, `monoCharsThatFit`, `hitTestZones`, `formatReadout`, ...). Wave-1 Flight/Landing HUDs are still scene-local panels; they move to the kit in wave 2.
+Import shared HUD/menu components from the barrel: `Button` (`primary | secondary | ink`), `DashboardTicker`, `HudPanel`, `Keycap`, `Meter`, `ParchmentCard`, `StatePill`, `TouchControls` / `detectTouchDevice`, `Modal`, `SettingsPanel` (+ pure `settingsModel`), `RouteLogPanel`, `installSoundToast` (+ pure `soundToastModel`), `touchGlyphCells`, `addUiIcon` / `setUiIcon`, the text style helpers, `SURFACE` / `UI_ART_SCALE`, `stateSwatch` / `meterAccentColor`, and the pure layout helpers in `layout.ts` (`truncateToChars`, `monoCharsThatFit`, `hitTestZones`, `formatReadout`, `compactUiScale`, ...).
+
+- `Button`, `Keycap`, `StatePill`, `HudPanel` and `TouchControls` take a `uiScale` option (text renders at the larger size instead of `setScale`); phones use `compactUiScale`.
+- Flight and Landing HUDs are built from the kit (`HudPanel`, `Meter`, `StatePill`, `DashboardTicker`, a `Keycap` hint strip, `TouchControls`).
+- Icons come straight from the authored `ui-icons` strip; the wave-1 runtime patch of the package and sound frames was retired once the strip was re-exported. The `ICON_OVERRIDES` bitmaps remain only for the DOM mute toast.
 
 ### 5.8 Page shell
 
 `index.html` inlines `html, body { margin: 0; background: #0e0f1c }` (`--color-cosmos-deep`), so the first paint is dark before the CSS imported by `main.ts` arrives. Shell CSS lives in `src/styles/` (owner: ui).
+
+Portrait phones get one parchment "rotate your phone" card from the shell for every scene, over a receded (blurred, 22% opacity) canvas, so scenes do not need their own readable portrait layouts.
 
 ## 6. Failure Recovery
 
@@ -135,11 +151,13 @@ Import shared HUD/menu components from the barrel: `Button` (`primary | secondar
 
 ## 7. Reproducible Test States
 
-- `src/dev/showcaseStates.ts` defines named states (`?showcase=<id>`), each with scene, init data, save fixture (`fresh | completed | corrupt | keep`), optional held keys, and settle time.
-- `window.__CGE__` (`src/dev/devProbe.ts`) exposes readiness (`isSceneReady`), scene state getters (`getState("flight" | "landing" | "title" | ...)` registered with `registerDevState`), the event log, asset/font failures, `pauseAll/resumeAll`, and an rAF frame sampler.
+- `src/dev/showcaseStates.ts` defines named states (`?showcase=<id>`), each with scene, init data, save fixture (`fresh | completed | corrupt | future | keep`; `future` seeds `{"version":9}` so storage locks to session-only), optional held keys, settle time, and optional `freezeDuringPerf` (keep the captured frame paused while frame times are sampled).
+- `window.__CGE__` (`src/dev/devProbe.ts`) exposes readiness (`isSceneReady`), scene state getters (`getState("flight" | "landing" | "title" | "result" | "audio" | "save" | ...)` registered with `registerDevState`; `save` is registered in BootScene so every scene exposes it), the event log, asset/font failures, `pauseAll/resumeAll`, and an rAF frame sampler.
 - The e2e harness seeds `Math.random` (mulberry32) so generated starfields/particles are reproducible.
-- Showcase ids: `fx-gallery`, `ui-kit`, `title`, `title-completed`, `title-corrupt-save`, `flight-start`, `flight-cruise`, `flight-approach`, `flight-arrival-ready`, `flight-incident`, `landing-descent`, `landing-thrust`, `landing-stabilizer`, `landing-settle-soft`, `landing-incident`, `landing-offpad`, `result-soft`, `result-bumpy`, `result-incident`.
-- `flight-arrival-ready` starts just above the docking speed limit and holds the brake, so the landing window opens only once the harness presses S. The capture then shows the progress arc partly filled (about 0.5-0.8), not the hand-off fade.
+- Showcase ids: `fx-gallery`, `ui-kit`, `title`, `title-completed`, `title-corrupt-save`, `title-settings`, `title-route-log`, `flight-start`, `flight-cruise`, `flight-approach`, `flight-arrival-ready`, `flight-incident`, `flight-bump`, `landing-descent`, `landing-intro`, `landing-thrust`, `landing-stabilizer`, `landing-settle-soft`, `landing-incident`, `landing-offpad`, `result-soft`, `result-bumpy`, `result-incident`, `result-session-only`.
+- `flight-arrival-ready` starts just above the docking speed limit and holds the brake, so the landing window opens only once the harness presses S. The capture shows the progress arc partly filled, not the hand-off. It is `freezeDuringPerf`, so the window cannot complete while frames are sampled.
+- `landing-descent` passes the default hand-off kinematics as `start`, which skips the arrival intro and shows the descent HUD; `landing-intro` captures the intro mid-pan.
+- Capture JSON: `probe` is read while the screenshot frame is still paused, so it describes the PNG; `probeAfterPerf` is read after keys are released and frames sampled. Both include `save` (SaveSystem diagnostics) and `result` (reveal state) when registered.
 - Harness viewports: `desktop` 1280x720, `wide` 1920x1080, `laptop`, `tablet`, `phoneLandscape` 844x390, `phonePortrait` 390x844, and `phoneLandscapeTouch` (844x390 with `hasTouch` + `isMobile`, so touch-pad HUDs render).
 - A capture or playtest interrupted by a page reload (Vite HMR: "Execution context was destroyed", missing `__CGE__`) is retried once. `summary.json` reports `retriedCaptures`, and each capture JSON or playtest report records `attempts` or `attempt`.
 
@@ -162,6 +180,8 @@ Output lands in `e2e/out/<label>/` (gitignored): PNG + JSON per capture (console
 - Asset budget: total `public/assets` ≤ 6 MB; individual PNG ≤ 400 KB.
 
 ## 9. Work Ownership (Tea Moon Polish Program)
+
+Wave 2 kept the wave-1 package split (flight-environment, landing, ui, audio-fx, save-results) plus one asset producer per `public/assets/<folder>/`; `docs/STATUS.json` records the per-wave assignments.
 
 Exactly one owner per file per wave. Shared files are integrator-only; builders request changes through the integrator.
 

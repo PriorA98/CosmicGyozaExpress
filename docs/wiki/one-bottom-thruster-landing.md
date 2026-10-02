@@ -1,6 +1,6 @@
 # One-Bottom-Thruster Landing
 
-Last updated: 2026-05-30 JST
+Last updated: 2026-10-02 JST (arrival intro, touch pads)
 
 Status: locked Phase 2 landing concept.
 
@@ -69,6 +69,9 @@ Keep controls consistent with flight:
 - `D` / Right: rotate clockwise.
 - `S` / Down: gentle stabilizer assist for Tea Moon.
 - `R`: restart landing attempt.
+- Any key or tap during the arrival intro (about 1.8 s: camera eases down, the ship glides in, a "tea moon · landing" card with the waving rabbit) skips it.
+
+Touch layouts show tilt arrows bottom-left and steady stacked over thrust at the right edge. Phones show a compact HUD (descent and package only).
 
 There are no side thrusters.
 

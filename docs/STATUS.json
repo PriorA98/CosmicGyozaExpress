@@ -1,6 +1,6 @@
 {
   "project": "Cosmic Gyoza Express — Tea Moon vertical slice polish",
-  "updatedAt": "2026-10-01T18:10:00+09:00",
+  "updatedAt": "2026-10-02T11:10:00+09:00",
   "passBar": {
     "score": 8.5,
     "runtimeErrors": 0,
@@ -19,7 +19,7 @@
     },
     "integratorAssessment": "programmer-art tier (~5): fallback serif fonts, debug vectors on by default, flat circles for asteroids, touch pads always visible on desktop, flat rectangles for lunar surface and pad, painted 1280px planets mismatched with pixel ship, no audio."
   },
-  "phase": "wave-2-continuation-running",
+  "phase": "wave-2-integrated",
   "modules": {
     "flight-environment": {
       "status": "fail-round-1",
@@ -270,6 +270,14 @@
     {
       "at": "2026-10-02T02:40:00+09:00",
       "event": "wave-2 run wf_7df602c7-7ce interrupted by session usage limit after ~17 min: only asset:space finished (true-resolution nebula, seam fixed). Partial work checkpointed as WIP 8662126 (typecheck broken mid-refactor in LandingScene/transitions; 144 tests pass). Host PC restarted; dev server restarted. Continuation launched as wf_ab05be1c-aab."
+    },
+    {
+      "at": "2026-10-02T10:20:00+09:00",
+      "event": "wave-2 continuation wf_ab05be1c-aab: 11/13 agents completed (flight, landing, audio-fx, save-results builders; ship, asteroids, celestial, items, characters, ui, lunar assets); ui builder + integrator hit the session limit. Typecheck clean, 200 tests pass; committed 2acc108. Finishing run wf_6580dbc0-ad6 (ui builder resume + integrator)."
+    },
+    {
+      "at": "2026-10-02T11:10:00+09:00",
+      "event": "wave-2 integrator (finishing run wf_6580dbc0-ad6): applied integration requests (installSoundToast in main.ts; save dev state at boot; harness probes save/result and reads the probe while paused; freezeDuringPerf; showcases title-settings, title-route-log, flight-bump, landing-intro, result-session-only, landing-descent start override, flight-cruise heading; flight->landing handoff transition; ThrustTrail.clear; authored ui-icons used directly; particle warm sheets pre-built in PreloadScene). Manifest 45/45 match PNGs. typecheck, 201 tests, build, build:pages pass. Capture w2-integration: 48/48 ok (24 states x desktop+phoneLandscape), 0 runtime errors, 0 fallbacks, min 60 fps. Playtests soft (incident first), bumpy, and soft@phoneLandscapeTouch PASSED. Ready for wave-2 critics."
     }
   ]
 }

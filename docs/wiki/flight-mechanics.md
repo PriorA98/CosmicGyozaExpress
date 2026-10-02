@@ -1,6 +1,6 @@
 # Flight Mechanics
 
-Last updated: 2026-05-30 JST
+Last updated: 2026-10-02 JST (controls: mute toast, touch pads)
 
 ## Purpose
 
@@ -44,9 +44,10 @@ Keyboard baseline:
 - `A` / Left: rotate left.
 - `D` / Right: rotate right.
 - `R`: restart current prototype/mission segment.
+- `M` (any scene): toggle sound. A small "sound on / sound off" toast confirms it; mute is not saved.
 - `F1` or backtick: debug toggle.
 
-Touch controls are compatibility support, not the primary tuning baseline.
+Touch controls are compatibility support, not the primary tuning baseline. On touch devices the flight HUD shows left / right / steady pads (cream tiles with pixel glyphs); the keycap hint strip only shows on keyboard, non-compact displays.
 
 ## Route Bounds
 

@@ -41,9 +41,9 @@ export const ICON_GLYPHS: Readonly<Record<UiIconName, readonly string[]>> = {
 export const ICON_GLYPH_SIZE = 8;
 
 /**
- * Full-resolution (16x16 art px) redraws that replace frames of the authored `ui-icons` strip
- * at runtime until the strip itself is re-exported (asset critic round 1: the package read as a
- * horned bug and the sound waves blurred into a dark burst). Same palette keys as above plus
+ * Full-resolution (16x16 art px) bitmaps painted by the DOM mute toast (`SoundToast`), which
+ * cannot sample the Phaser texture. They no longer patch the `ui-icons` strip: wave 2 re-exported
+ * icons.png with authored package / sound frames. Same palette keys as above plus
  * o ember, d terracotta-deep, c parchment-deep.
  */
 export const ICON_OVERRIDE_PALETTE: Readonly<Record<string, string>> = {

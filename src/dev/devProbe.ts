@@ -16,7 +16,7 @@ export type FrameSample = {
 
 export type DevProbeApi = {
   readonly version: 1;
-  readonly showcases: readonly Pick<ShowcaseStateDefinition, "id" | "sceneKey" | "description" | "settleMs" | "save" | "hold">[];
+  readonly showcases: readonly Pick<ShowcaseStateDefinition, "id" | "sceneKey" | "description" | "settleMs" | "save" | "hold" | "freezeDuringPerf">[];
   activeShowcase: string | null;
   readonly sceneCreatedAt: Record<string, number>;
   readonly assetFailures: string[];
@@ -63,13 +63,14 @@ export function installDevProbe(game: Phaser.Game): void {
 
   const probe: DevProbeApi = {
     version: 1,
-    showcases: SHOWCASE_STATES.map(({ id, sceneKey, description, settleMs, save, hold }) => ({
+    showcases: SHOWCASE_STATES.map(({ id, sceneKey, description, settleMs, save, hold, freezeDuringPerf }) => ({
       id,
       sceneKey,
       description,
       settleMs,
       save,
       hold,
+      freezeDuringPerf,
     })),
     activeShowcase: null,
     sceneCreatedAt: {},

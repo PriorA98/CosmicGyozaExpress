@@ -105,7 +105,10 @@ const SHIP = {
 } as const;
 
 /** Route dots: travelled part faint plaster, the part still ahead warm amber. */
-const ROUTE = { spacing: 18, dot: 4, behindAlpha: 0.32, aheadAlpha: 0.85, endInset: 2 } as const;
+const ROUTE = { spacing: 18, dot: 4, behindAlpha: 0.5, aheadAlpha: 0.85, endInset: 2 } as const;
+
+/** Faint stepped warm glow behind the hero ship so it reads as lit and anchored on its route. */
+const SHIP_GLOW = { rings: 3, innerRadius: 52, step: 14, alpha: 0.045, band: 4 } as const;
 
 /** Warm steam puffs that leave the burner while the ship sinks through the low half of its bob. */
 const PUFFS = { pool: 6, intervalMs: 340, lifeMs: 1100, travelPx: 46, bigPx: 6, smallPx: 4, sinkThreshold: 0.2, startAlpha: 0.8 } as const;
@@ -126,6 +129,14 @@ const RESIZE_DEBOUNCE_MS = 160;
 type Layer = Phaser.GameObjects.TileSprite;
 type SaveNoticeKind = keyof typeof titleCopy.saveNotice;
 type Puff = { readonly rect: Phaser.GameObjects.Rectangle; busy: boolean };
+
+/** Optional TitleScene init data (dev showcases and returning flows); all fields optional. */
+export type TitleSceneData = {
+  /** Open a secondary panel right after the title settles (the route log needs a delivery). */
+  readonly openPanel?: "settings" | "route-log";
+};
+
+const OPEN_PANEL_DELAY_MS = 120;
 
 export class TitleScene extends Phaser.Scene {
   private starsFar: Layer | undefined;
@@ -150,9 +161,15 @@ export class TitleScene extends Phaser.Scene {
   private starting = false;
   private elapsedMs = 0;
   private layoutKey = "";
+  private pendingPanel: TitleSceneData["openPanel"] | undefined;
 
   constructor() {
     super("TitleScene");
+  }
+
+  init(data?: Partial<TitleSceneData>): void {
+    const panel = data?.openPanel;
+    this.pendingPanel = panel === "settings" || panel === "route-log" ? panel : undefined;
   }
 
   create(): void {
@@ -207,6 +224,17 @@ export class TitleScene extends Phaser.Scene {
 
     void playEnterTransition(this, { kind: "warm-fade", durationMs: motion.slow });
     emitGameEvent(this, { type: "scene:enter", scene: "TitleScene" });
+    this.openPendingPanel();
+  }
+
+  private openPendingPanel(): void {
+    const panel = this.pendingPanel;
+    this.pendingPanel = undefined;
+    if (!panel) return;
+    this.time.delayedCall(OPEN_PANEL_DELAY_MS, () => {
+      if (panel === "settings") this.openSettings();
+      else if (this.teaMoonDelivered) this.openRouteLog();
+    });
   }
 
   update(_time: number, delta: number): void {
@@ -384,6 +412,8 @@ export class TitleScene extends Phaser.Scene {
 
   private createShip(): void {
     const cruiseKey = "title-ship-cruise";
+    // Animations are global: drop a stale empty one (created before the ship frames existed).
+    if ((this.anims.get(cruiseKey)?.frames.length ?? 1) === 0) this.anims.remove(cruiseKey);
     if (!this.anims.exists(cruiseKey)) {
       this.anims.create({
         key: cruiseKey,
@@ -392,12 +422,18 @@ export class TitleScene extends Phaser.Scene {
         repeat: -1,
       });
     }
+    const glow = this.add.graphics().setDepth(depth.ship - 2);
+    for (let ring = 0; ring < SHIP_GLOW.rings; ring += 1) {
+      glow.fillStyle(colorNumber(ring === 0 ? colors.amber : colors.parchmentDeep), SHIP_GLOW.alpha);
+      fillPixelDisc(glow, this.shipBase.x, this.shipBase.y + SHIP_GLOW.band * 2, SHIP_GLOW.innerRadius + ring * SHIP_GLOW.step, SHIP_GLOW.band);
+    }
+
     this.ship = this.add
       .sprite(this.shipBase.x, this.shipBase.y, ASSET.shipFly1)
       .setOrigin(SHIP_ART.saucerCenterX / SHIP_ART.width, SHIP_ART.saucerCenterY / SHIP_ART.height)
       .setScale(SHIP_ART.artScale)
       .setDepth(depth.ship);
-    this.ship.play(cruiseKey);
+    if ((this.anims.get(cruiseKey)?.frames.length ?? 0) > 0) this.ship.play(cruiseKey);
 
     for (let index = 0; index < PUFFS.pool; index += 1) {
       const rect = this.add.rectangle(0, 0, PUFFS.bigPx, PUFFS.bigPx, colorNumber(colors.amber)).setDepth(depth.ship - 1).setVisible(false);

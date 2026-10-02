@@ -122,6 +122,9 @@ export async function probeSnapshot(page) {
       actualFps: probe.actualFps(),
       eventCount: probe.events.length,
       recentEvents: probe.events.slice(-40).map((entry) => entry.event),
+      // Save diagnostics (registered at boot) and the result reveal state (DeliveryResultScene only).
+      save: probe.getState("save") ?? null,
+      result: probe.getState("result") ?? null,
     };
   });
 }

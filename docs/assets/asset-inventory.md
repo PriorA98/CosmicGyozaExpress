@@ -1,6 +1,6 @@
 # Reference Asset Inventory
 
-Last updated: 2026-10-01 (section 9 added: production assets)
+Last updated: 2026-10-02 JST (section 9 refreshed for the wave-2 production assets)
 
 This catalog documents assets imported from the Gyoza animation handoff and normalized into `assets/reference/` (sections 1-8), and the production runtime assets in `public/assets/` (section 9).
 
@@ -216,31 +216,29 @@ Before a reference asset becomes production:
 - Its source/reference location is known.
 - It does not depend on the raw prototype directory.
 
-## 9. Production Assets (2026-10-01)
+## 9. Production Assets (updated 2026-10-02, wave 2)
 
-Every runtime texture below is registered in `src/data/assetManifest.ts` and loaded by `PreloadScene`. Sizes are art pixels (`width x height`; spritesheets are horizontal strips, given as `frames x frameW x frameH`). Display scale is `artScale` 2 unless noted. Each folder's full method, prompts, rebuild commands and iteration notes are in `art-src/<folder>/PROVENANCE.md`.
+Every runtime texture below is registered in `src/data/assetManifest.ts` and loaded by `PreloadScene`. Sizes are art pixels (`width x height`; spritesheets are horizontal strips, given as `frames x frameW x frameH`). Display scale is `artScale` 2 for every entry. Each folder's full method, prompts, rebuild commands and iteration notes are in `art-src/<folder>/PROVENANCE.md`.
 
-Status at integration (`e2e/out/w1-integration`, desktop, all 19 showcase states): **0 fallbacks in use**, 0 failed requests. Manifest sizes were re-checked against the PNGs with Pillow: all 47 entries match. Total `public/assets` is 3.4 MB (budget 6 MB); the largest PNGs are the two legacy painted planets (279 KB and 335 KB, budget 400 KB).
+Status at wave-2 integration (`e2e/out/w2-integration`, desktop + phoneLandscape, all 24 showcase states): **0 fallbacks in use**, 0 failed requests, 0 runtime errors. Manifest sizes were re-checked against the PNGs with Pillow: all 45 entries match, and no PNG under `public/assets/` is unlisted. Total `public/assets` is about 545 KB including fonts (budget 6 MB); the largest PNG is `lunar-sky.png` (54 KB). The legacy painted planets (`public/assets/planets/`, `planet-tea-moon`, `planet-im-fine`) were removed in the round-1 integration.
 
-### Ship (`public/assets/ship/`), polish of the existing frames
-
-| File | Key | Size | Provenance |
-| --- | --- | --- | --- |
-| `gyoza-idle.png` | `ship-idle` | 144x160 (artScale 1) | Polish of the original handoff frame (no generation). Frames are registered on the saucer-band alpha mask, then a premultiplied 2x box downscale, a shared 32-colour palette, cleanup, a warm rim light, a 2x nearest upscale. Rim on art row 29 in every frame. |
-| `gyoza-fly-01..03.png` | `ship-fly-1..3` | 144x160 each | Same pipeline; flames hang to y~150. |
-| `gyoza-incident-01..05.png` | `ship-incident-1..5` | 144x160 each | Same pipeline; 03 is dome-aligned (shift 12px), 04/05 are aligned by centroid; 05 keeps 3 soft alpha levels. |
-
-Originals are backed up unchanged in `art-src/ship/originals/`. Scripts: `art-src/ship/scripts/register.py`, `polish_ship.py`.
-
-### Celestial (`public/assets/celestial/`)
+### Ship (`public/assets/ship/`), wave-2 redraw
 
 | File | Key | Size | Provenance |
 | --- | --- | --- | --- |
-| `tea-moon.png` | `celestial-tea-moon` | 192x192 | Programmatic Python/Pillow pixel painting at art resolution (`build_tea_moon.py`, helper `paint.py`): jade/cream moon, teacup crater, pagoda tea house with steam. Disc centre (90,112), r=72. |
-| `planet-far-plum.png` | `planet-far-plum` | 96x96 | Programmatic (`build_planets.py far_plum`): dusty plum disc with a tilted ring. |
-| `planet-im-fine.png` | `celestial-im-fine` | 128x128 | Programmatic (`build_planets.py im_fine`): wobbly lavender planet with a cream bandage. |
+| `gyoza-idle.png` | `ship-idle` | 64x80 | One Python/Pillow rig (`art-src/ship/scripts/draw_ship.py`) drawn at true resolution: crescent gyoza hull with 8 crimp scallops, glass dome with a bun pilot, two legs, nozzle bolted under the hull. Crescent silhouette taken from Codex concept v1b (reference only). |
+| `gyoza-fly-01..03.png` | `ship-fly-1..3` | 64x80 each | Same rig plus a baked flame (8, 15, 24 px) from the nozzle exit at art (32, 48). |
+| `gyoza-incident-01..05.png` | `ship-incident-1..5` | 64x80 each | Same rig: squash, dizzy tilt, popped dome with steam, puff cloud, scattering puffs. |
 
-Codex image generation was attempted and hit the usage limit (log in `art-src/celestial/scripts/`), so these are not model-generated.
+Contract (`SHIP_ART`): saucer centre at art (32, 34) in every frame, displayed at integer 2x. Every frame is under 2 KB and uses 26-31 colours.
+
+### Celestial (`public/assets/celestial/`), wave 2
+
+| File | Key | Size | Provenance |
+| --- | --- | --- | --- |
+| `tea-moon.png` | `celestial-tea-moon` | 192x192 | Codex image_gen (`raw/tea-moon-v2.png`), normalized by `normalize_w2.py tea-moon`; steam puffs and round windows repainted by the script. The house matches `lunar-teahouse.png`; teacup crater. Disc centre (90,112), d=144 (same geometry as wave 1). |
+| `planet-far-plum.png` | `planet-far-plum` | 96x96 | Hybrid: Codex image_gen ringless body (`raw/planet-far-plum-body-v4.png`, `normalize_w2.py`) plus a programmatic ring (`compose_plum.py`), because Codex never drew valid ring geometry. |
+| `planet-im-fine.png` | `celestial-im-fine` | 128x128 | Codex image_gen (`raw/planet-im-fine-v1.png`), normalized by `normalize_w2.py planet-im-fine`: teal continents, cross bandage with a crack. |
 
 ### Space layers (`public/assets/space/`)
 
@@ -248,20 +246,20 @@ Codex image generation was attempted and hit the usage limit (log in `art-src/ce
 | --- | --- | --- | --- |
 | `stars-far.png` | `space-stars-far` | 256x256 opaque, tiles both axes | Programmatic (`scripts/starfield.py`, seeded): dithered cosmos base and 78 one-pixel stars. |
 | `stars-near.png` | `space-stars-near` | 256x256 transparent, tiles both axes | Programmatic (`starfield.py`, seeded): 30 sparse stars and 4 hand-placed cross sparkles. |
-| `nebula.png` | `space-nebula` | 640x360 soft alpha, tiles horizontally | Codex image_gen (`raw/nebula-v1.png`), then normalized by `scripts/nebula.py`. |
+| `nebula.png` | `space-nebula` | 640x360 soft alpha (max 127), tiles horizontally | Wave 2: the Codex image_gen raw (`raw/nebula-v1.png`) re-normalized at true 1 px resolution by `scripts/nebula_true.py` (stepped colour bands, 5 alpha levels, wavy transparent top/bottom 20 rows, exact horizontal wrap). The round-1 file is kept at `art-src/space/previews/nebula-r1-old.png`. |
 
-### Asteroids (`public/assets/asteroids/`)
+### Asteroids (`public/assets/asteroids/`), wave 2
 
 | File | Key | Size | Provenance |
 | --- | --- | --- | --- |
-| `asteroid-sleepy.png` | `asteroid-sleepy` | 72x72 | Approved probe image, then `pixelize --colors 32 --pad 4` and `close_outline.py`. The only rock with a face. |
-| `asteroid-rice.png` | `asteroid-rice` | 72x72 | Codex image_gen, then the same normalization. |
-| `asteroid-tea.png` | `asteroid-tea` | 72x72 | Codex image_gen, then the same normalization. |
-| `asteroid-mochi.png` | `asteroid-mochi` | 72x72 | Codex image_gen (v2 of 3), `flood_key.py`, then the same normalization. |
-| `asteroid-crumb.png` | `asteroid-crumb` | 72x72 | Codex image_gen, then the same normalization. |
-| `asteroid-debris.png` | `asteroid-debris` | 4 x 24x24 | Codex image_gen strip, `slice_strip.py`, `pixelize --sheet`; 4 variants, not an animation. |
+| `asteroid-sleepy.png` | `asteroid-sleepy` | 76x76 | Approved probe raw (`raw/asteroid-sleepy-v1.png`), `pixelize --colors 36 --pad 4`, `restore_blush`, `close_outline`. The only rock with a face. |
+| `asteroid-rice.png` | `asteroid-rice` | 92x92 | Codex image_gen raw v1, same normalization. |
+| `asteroid-tea.png` | `asteroid-tea` | 100x100 | Codex image_gen raw v1, same normalization. |
+| `asteroid-mochi.png` | `asteroid-mochi` | 84x84 | Codex image_gen raw v5, `flood_key`, same normalization: flat pastel bands, full plum outline. |
+| `asteroid-crumb.png` | `asteroid-crumb` | 66x66 | Codex image_gen raw v1, same normalization, then `cut_flat` (straight lower-left fracture face with a cream lit ridge). |
+| `asteroid-debris.png` | `asteroid-debris` | 4 x 24x24 | Codex image_gen strip, `slice_strip`, `pixelize --sheet`, `quantize_joint` (one 28-colour palette), `close_outline`; 4 variants, not an animation. |
 
-Every PNG rebuilds pixel for pixel from `art-src/asteroids/raw/` with the commands in PROVENANCE.
+Each canvas is the rock's route radius plus a 4 px pad. Every PNG rebuilds pixel for pixel with `art-src/asteroids/scripts/build_w2.sh`. The `art-src/_probe/` originals are archived in `art-src/asteroids/work/probe-archive/` and still referenced by the items and lunar PROVENANCE files.
 
 ### Lunar landing site (`public/assets/lunar/`)
 
@@ -269,30 +267,30 @@ Every PNG rebuilds pixel for pixel from `art-src/asteroids/raw/` with the comman
 | --- | --- | --- | --- |
 | `lunar-sky.png` | `lunar-sky` | 640x360 opaque | Codex image_gen (prompt A), `pixelize.py --colors 40 --opaque`. |
 | `lunar-hills-far.png` | `lunar-hills-far` | 640x96, tiles horizontally | Codex image_gen (A), `lunar_tools.py strip`, `fix_hills.py`. The exact flags were lost in the outage; PROVENANCE gives an approximate rebuild. |
-| `lunar-ground.png` | `lunar-ground` | 640x64, tiles horizontally | Codex image_gen (A), `lunar_tools.py strip --surface 8`. Surface at art row 8. |
+| `lunar-ground.png` | `lunar-ground` | 640x64, tiles horizontally | Wave 2: the wave-1 Codex surface band (`work/lunar-ground-w1.png`) with the lower regolith repainted as four calm strata by `scripts/build_ground.py`. Surface at art row 8 (rows 0-6 transparent, asserted). |
 | `lunar-pad.png` | `lunar-pad` | 176x24 | Codex image_gen (B), `build_props.py pad`. Mat top is exactly row 6 across x 12-163. |
-| `lunar-lantern.png` | `lunar-lantern` | 2 x 12x28 (dim, lit) | Hand-placed pixel map (`build_lantern.py`, v3) traced from a Codex raw. Lamp centre is about 19 art px above the base. |
+| `lunar-lantern.png` | `lunar-lantern` | 2 x 12x28 (dim, lit) | Wave 2 (v4): hand-placed pixel map (`build_lantern.py`) traced from Codex `raw/lunar-lantern-v1.png`: paper ribs, finial, rope wrap, 1 px peach glow on the lit frame. Lamp centre about 19 art px above the base. |
 | `lunar-teahouse.png` | `lunar-teahouse` | 96x80 | Codex image_gen (B), `build_props.py teahouse`. |
 | `lunar-rocks.png` | `lunar-rocks` | 3 x 32x16 | Codex image_gen (C), `lunar_tools.py split`, `build_props.py rocks`. |
 
-### Characters (`public/assets/characters/`)
+### Characters (`public/assets/characters/`), wave 2
 
 | File | Key | Size | Provenance |
 | --- | --- | --- | --- |
-| `rabbit-portrait.png` | `rabbit-portrait` | 3 x 64x64 (idle, blink, happy) | Codex image_gen v2 plus a happy-ear edit, normalized by `build_portrait.py`; the face is redrawn pixel by pixel for each frame. Bottom-anchored. |
-| `rabbit-sprite.png` | `rabbit-sprite` | 4 x 24x32 (idle x2, wave x2) | Hand-authored pixel map (`build_sprite.py`), using the Codex body images only as reference. Feet on row 31; the art faces right. |
+| `rabbit-portrait.png` | `rabbit-portrait` | 3 x 64x64 (idle, blink, happy) | Codex image_gen raws (v2 + happy v2) normalized by `build_portrait.py`; the face is drawn in code. The happy frame stands both ears up (right half mirrored and re-shaded) with ^ ^ eyes and an open smile. Frames are pixel-identical below row 45. |
+| `rabbit-sprite.png` | `rabbit-sprite` | 4 x 24x32 (idle x2, wave x2) | Hand-authored pixel map (`build_sprite.py`), designed from the Codex body raws: upright ear with a pink stripe, folded floppy ear, 3 px waving forearm, small u-shaped smile. Feet outline on row 31; the art faces right. |
 
 ### Items (`public/assets/items/`)
 
 | File | Key | Size | Provenance |
 | --- | --- | --- | --- |
-| `tea.png` | `item-tea` | 32x32 | Codex image_gen, `pixelize.py --colors 28 --anchor bottom --outline`. |
-| `mochi.png` | `item-mochi` | 32x24 | Codex image_gen, same normalization. |
-| `package.png` | `item-package` | 32x32 | Codex image_gen, same normalization. |
-| `steam.png` | `item-steam` | 4 x 16x24 | Programmatic (Python/Pillow). |
-| `memory-postcard.png` | `memory-postcard` | 96x64 | Codex image_gen (v2) plus a scripted frame. |
+| `tea.png` | `item-tea` | 32x32 | Codex image_gen, `pixelize.py --colors 28 --anchor bottom --outline` (round 1). |
+| `mochi.png` | `item-mochi` | 32x24 | Codex image_gen, same normalization (round 1). |
+| `package.png` | `item-package` | 32x32 | Codex image_gen, same normalization (round 1). |
+| `steam.png` | `item-steam` | 4 x 16x24 | Wave 2: programmatic (`make_steam.py` v2): stronger plaster core, warm grey rim, clean 4-frame loop. |
+| `memory-postcard.png` | `memory-postcard` | 96x64 | Wave 2: Codex image_gen background (`raw/postcard-v3.png`) with its house and ship painted out, pixelized, then the real `lunar-teahouse.png` and the 64x80 `gyoza-idle.png` stamped on, plus a 3 px parchment frame (`compose_postcard_v3.py`). |
 
-### Particles (`public/assets/particles/`)
+### Particles (`public/assets/particles/`) (unchanged in wave 2)
 
 | File | Key | Size | Provenance |
 | --- | --- | --- | --- |
@@ -302,30 +300,27 @@ Every PNG rebuilds pixel for pixel from `art-src/asteroids/raw/` with the comman
 | `steam.png` | `fx-steam` | 6 x 12x20 | Frames 1-4 Codex ribbon glyphs; frames 5-6 Claude curls. |
 | `star.png` | `fx-star` | 3 x 5x5 | Codex glyphs, ported verbatim. |
 
-No image_gen was used for particles; every pixel is authored at exact art size.
+No image_gen was used for particles; every pixel is authored at exact art size. At runtime `src/fx/fxTextures.ts` derives warm-recoloured, hard-alpha copies of thrust, dust and steam (pre-built in `PreloadScene`).
 
 ### UI (`public/assets/ui/`)
 
 | File | Key | Size | Provenance |
 | --- | --- | --- | --- |
-| `icons.png` | `ui-icons` | 16 x 16x16 | Programmatic Pillow pixel maps (`make_icons.py`) with an automatic 1px ink outline. Codex was blocked by its usage limit. Frame order: `UI_ICON_FRAME`. |
-| `panel-parchment.png` | `ui-panel-parchment` | 48x48, nine-slice inset 8 | Programmatic (`make_nineslices.py`). |
-| `panel-dark.png` | `ui-panel-dark` | 48x48, nine-slice inset 8 | Programmatic; fill #14162B at alpha 217. |
-| `button.png` | `ui-button` | 3 x 48x24 (normal, hover, pressed), inset 6 | Programmatic. |
-| `keycap.png` | `ui-keycap` | 2 x 16x16 (up, pressed), inset 4 | Programmatic. |
+| `icons.png` | `ui-icons` | 16 x 16x16 | Wave 2: programmatic Pillow pixel maps (`make_icons.py` v3: fill maps, automatic ink outline, then thin detail overlays). Redrawn: package (furoshiki, 1), radar dish (2), sound-on arcs (12), pointing hand (15). Frame order: `UI_ICON_FRAME`. Used directly in game; the runtime icon patch was retired. |
+| `panel-parchment.png` | `ui-panel-parchment` | 48x48, nine-slice inset 8 | Programmatic (`make_nineslices.py`); byte-identical regen in wave 2. |
+| `panel-dark.png` | `ui-panel-dark` | 48x48, nine-slice inset 8 | Programmatic; fill #14162B at alpha 217; byte-identical regen in wave 2. |
+| `button.png` | `ui-button` | 3 x 48x24 (normal, hover, pressed), inset 6 | Wave 2 (`make_nineslices.py` v2): 1 px ink outline around the whole shape, clipped corners, dark terracotta slab side; pressed sinks 2 px. |
+| `keycap.png` | `ui-keycap` | 2 x 16x16 (up, pressed), inset 4 | Wave 2: 1 px ink outline, warm parchment skirt; pressed sinks 2 px. |
 
-### Legacy painted planets (still in the manifest)
+Codex was not called for any asset in the wave-2 continuation; the image_gen raws above come from earlier attempts and are kept under `art-src/<folder>/raw/`.
 
-| File | Key | Size | Note |
-| --- | --- | --- | --- |
-| `assets/planets/planet00.png` | `planet-tea-moon` | 1280x1280 (artScale 1) | Preloaded, but **nothing renders it**: only `flightPrototypeRoute.backgroundPlanets`, which no scene reads, references it. Candidate for removal (saves about 614 KB of preload together with planet04). |
-| `assets/planets/planet04.png` | `planet-im-fine` | 1280x1280 (artScale 1) | Same as above. |
+### Known weak assets (from wave-2 producer reports)
 
-### Known weak assets (from producer reports)
-
-- `asteroid-mochi`: dither noise on the pink half. `asteroid-crumb`: the broken side reads only through shading. `asteroid-debris`: about 100 colours, simple shapes.
-- `lunar-ground`: the lower regolith bands are a bit blotchy. `lunar-lantern`: a simple hand redraw.
-- `rabbit-portrait`: the happy frame changes only one ear. `rabbit-sprite`: the ear is a small curl.
-- `gyoza-incident-05`: thin, noisy smoke. The ship dome ring is slightly uneven at 2x (inherited from the source).
-- Celestial bodies and `icons.png` are programmatic because Codex hit its usage limit. Regenerating them is optional.
-- `icons.png`: the touch (15) and radar (2) glyphs are the least clear.
+- Ship: the dome glass is opaque tinted glass (reads a little like a helmet); only two legs are visible; the ink outline barely separates from the dark cosmos; incident-03 steam plumes are small.
+- `asteroid-mochi` is the softest-looking rock; `asteroid-crumb`'s fracture face is a scripted flat band; debris outlines sit close to the cosmos colour.
+- `planet-far-plum`: the programmatic ring is plainer than the body. `tea-moon` reads more cream than jade. `planet-im-fine` has a slightly jaggy top edge.
+- `nebula.png`: cloud interiors are smoothed contour bands rather than hand-placed pixels.
+- `lunar-ground`: deepest band is plain. `lunar-lantern`: the 1 px glow relies on the code-drawn glow circle for bloom. `lunar-hills-far`: exact rebuild flags lost.
+- `rabbit-portrait` happy frame is visibly mirrored; `rabbit-sprite` floppy ear can read as a loop at 1x.
+- `memory-postcard`: the stamped cottage and ship are only 22-24 px wide. `item-steam` is a simple blob.
+- `icons.png`: the package's two ears can suggest bunny ears; the radar feed arm is subtle on the dark HUD.

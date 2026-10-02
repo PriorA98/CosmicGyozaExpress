@@ -23,7 +23,7 @@ import { SpaceBackdrop } from "../entities/flight/SpaceBackdrop";
 import { TeaMoon } from "../entities/flight/TeaMoon";
 import { GyozaShip, resolveShipArtLayout } from "../entities/GyozaShip";
 import { burstDust, burstIncident, burstSparkles, shakeCamera } from "../fx/feedback";
-import { transitionToScene } from "../fx/transitions";
+import { handoffToScene } from "../fx/transitions";
 import { colorNumber, colors, depth } from "../game/designTokens";
 import { emitGameEvent } from "../game/events";
 import {
@@ -526,7 +526,8 @@ export class FlightScene extends Phaser.Scene {
     };
     this.time.delayedCall(handoff.irisDelayMs, () => {
       const { width, height } = this.scale;
-      transitionToScene(this, "LandingScene", payload, { kind: "iris", x: width / 2, y: height / 2, durationMs: handoff.irisMs });
+      // Typed story beat: warm flash pop, then the pixel iris closes on the moon (screen centre after the pan).
+      handoffToScene(this, "LandingScene", payload, { x: width / 2, y: height / 2 }, handoff.irisMs);
     });
   }
 

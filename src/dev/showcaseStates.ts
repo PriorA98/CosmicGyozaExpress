@@ -1,5 +1,6 @@
 import { TEA_MOON_MISSION_ID } from "../data/missions";
 import type { SceneKey } from "../game/events";
+import type { TitleSceneData } from "../scenes/TitleScene";
 import type { FlightSceneData } from "../types/flight";
 import type { DeliveryResultSceneData, LandingSceneInit } from "../types/landing";
 
@@ -10,8 +11,10 @@ import type { DeliveryResultSceneData, LandingSceneInit } from "../types/landing
  *
  * `hold` lists keyboard keys (Playwright key names) the harness holds during `settleMs`.
  * `save` selects the localStorage fixture applied before the game boots.
+ * `freezeDuringPerf` keeps the captured frame paused while the harness samples frame times, for
+ * states whose post-screenshot motion would leave the scene (e.g. the landing window completing).
  */
-export type ShowcaseSaveFixture = "fresh" | "completed" | "corrupt" | "keep";
+export type ShowcaseSaveFixture = "fresh" | "completed" | "corrupt" | "future" | "keep";
 
 export type ShowcaseStateDefinition = {
   readonly id: string;
@@ -20,9 +23,11 @@ export type ShowcaseStateDefinition = {
   readonly settleMs: number;
   readonly save: ShowcaseSaveFixture;
   readonly hold?: readonly string[];
+  readonly freezeDuringPerf?: boolean;
   readonly data?: () => object;
 };
 
+const title = (data: TitleSceneData): (() => TitleSceneData) => () => data;
 const flight = (data: FlightSceneData): (() => FlightSceneData) => () => data;
 const landing = (data: Omit<LandingSceneInit, "missionId" | "routeCrashes" | "routeDurationMs">): (() => LandingSceneInit) => () => ({
   missionId: TEA_MOON_MISSION_ID,
@@ -54,6 +59,22 @@ export const SHOWCASE_STATES: readonly ShowcaseStateDefinition[] = [
     save: "corrupt",
   },
   {
+    id: "title-settings",
+    sceneKey: "TitleScene",
+    description: "Title with the settings panel open",
+    settleMs: 1800,
+    save: "fresh",
+    data: title({ openPanel: "settings" }),
+  },
+  {
+    id: "title-route-log",
+    sceneKey: "TitleScene",
+    description: "Title (delivered) with the route log / postcard open",
+    settleMs: 1800,
+    save: "completed",
+    data: title({ openPanel: "route-log" }),
+  },
+  {
     id: "flight-start",
     sceneKey: "FlightScene",
     description: "Route start, ship idle at launch",
@@ -70,7 +91,9 @@ export const SHOWCASE_STATES: readonly ShowcaseStateDefinition[] = [
     hold: ["KeyW"],
     data: flight({
       missionId: TEA_MOON_MISSION_ID,
-      start: { x: 1300, y: 900, rotation: Math.PI / 2 + 0.04, velocityX: 180, velocityY: 0 },
+      // A slight upward heading keeps the held thrust clear of the mochi rock (2090,1030) and the
+      // tea stone (1640,720), so the probe does not end in a gyoza incident after the screenshot.
+      start: { x: 1300, y: 900, rotation: Math.PI / 2 - 0.02, velocityX: 180, velocityY: 0 },
     }),
   },
   {
@@ -96,6 +119,9 @@ export const SHOWCASE_STATES: readonly ShowcaseStateDefinition[] = [
     settleMs: 320,
     save: "fresh",
     hold: ["KeyS"],
+    // Released keys let the window complete inside the perf window and the probe ended in
+    // LandingScene; freeze the captured frame instead (flight perf is covered by other states).
+    freezeDuringPerf: true,
     data: flight({
       missionId: TEA_MOON_MISSION_ID,
       start: { x: 2735, y: 850, rotation: -Math.PI / 2, velocityX: 95, velocityY: 0 },
@@ -113,9 +139,33 @@ export const SHOWCASE_STATES: readonly ShowcaseStateDefinition[] = [
     }),
   },
   {
+    id: "flight-bump",
+    sceneKey: "FlightScene",
+    description: "Dramatic bump against the sleepy rock: amber hull flash, squash and dust",
+    // Contact lands ~930 ms after the scene is ready (measured); 1000 ms catches the flash + squash.
+    settleMs: 1000,
+    save: "fresh",
+    data: flight({
+      missionId: TEA_MOON_MISSION_ID,
+      start: { x: 470, y: 760, rotation: Math.PI / 2, velocityX: 200, velocityY: 0 },
+    }),
+  },
+  {
     id: "landing-descent",
     sceneKey: "LandingScene",
-    description: "Landing start, high above the pad",
+    description: "Landing start, high above the pad (descent HUD; the arrival intro is skipped)",
+    settleMs: 900,
+    save: "fresh",
+    // A `start` override skips the arrival intro; this equals the default hand-off kinematics.
+    data: landing({
+      packageCondition: 100,
+      start: { x: 640, y: 150, rotation: 0, velocityX: 0, velocityY: 22, angularVelocity: 0 },
+    }),
+  },
+  {
+    id: "landing-intro",
+    sceneKey: "LandingScene",
+    description: "Arrival cinematic mid-pan: camera easing down, ship gliding in, title card with the waving rabbit",
     settleMs: 900,
     save: "fresh",
     data: landing({ packageCondition: 100 }),
@@ -217,6 +267,20 @@ export const SHOWCASE_STATES: readonly ShowcaseStateDefinition[] = [
       routeDurationMs: 168000,
       landingResult: "incident",
       landingIncidents: 3,
+    }),
+  },
+  {
+    id: "result-session-only",
+    sceneKey: "DeliveryResultScene",
+    description: "Result card when a newer save locks storage (kind persistence footnote)",
+    settleMs: 1600,
+    save: "future",
+    data: result({
+      packageCondition: 58,
+      routeCrashes: 2,
+      routeDurationMs: 131000,
+      landingResult: "bumpy",
+      landingIncidents: 1,
     }),
   },
 ];

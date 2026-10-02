@@ -57,6 +57,8 @@ export type ThrustTrail = {
   /** Call every frame. `rotation` uses ship convention (0 = nose up); exhaust leaves the bottom. */
   update(x: number, y: number, rotation: number, active: boolean, intensity: number): void;
   setDepth(value: number): void;
+  /** Removes every puff already in flight (e.g. at touchdown) without destroying the trail. */
+  clear(): void;
   destroy(): void;
 };
 
@@ -395,6 +397,11 @@ export function createThrustTrail(scene: Phaser.Scene, options: { readonly depth
     },
     setDepth(value) {
       emitter?.setDepth(value);
+    },
+    clear() {
+      wasActive = false;
+      carry = 0;
+      if (emitter?.active) emitter.killAll();
     },
     destroy() {
       emitter?.destroy();

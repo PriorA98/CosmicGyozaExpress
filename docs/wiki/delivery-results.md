@@ -1,6 +1,6 @@
 # Delivery Results
 
-Last updated: 2026-05-30 JST
+Last updated: 2026-10-02 JST (result actions and storage footnote as implemented)
 
 ## Purpose
 
@@ -125,3 +125,7 @@ Phase 2 result scene should offer:
 - retry Tea Moon if map is not implemented yet.
 
 The full galaxy map can wait, but the player should not be stranded after result.
+
+As implemented (wave 2): the card reveals in about 1.3 s (any key or tap skips to the settled card), then offers `fly again` (`Enter`) and `back to title` (`Esc`). When progress cannot be kept (storage unavailable, a newer save already in storage, or a failed write), a small italic footnote says so kindly; the game still continues in memory.
+
+The title screen also has a `settings` panel (sound on/off, music and effects volume, reduced motion; saved on the device; arrow keys choose and adjust, `Esc` closes) and, after the first delivery, a `route log` with the collected postcard and delivery stats.

@@ -20,6 +20,10 @@ export function applyShowcaseSaveFixture(fixture: ShowcaseSaveFixture): void {
       case "completed":
         globalThis.localStorage?.setItem(SAVE_KEY, JSON.stringify(createCompletedSave()));
         return;
+      case "future":
+        // A save from a newer game version: SaveSystem must never overwrite it (session-only mode).
+        globalThis.localStorage?.setItem(SAVE_KEY, JSON.stringify({ version: 9 }));
+        return;
     }
   } catch {
     // Storage can be unavailable (privacy mode); the game must still boot.

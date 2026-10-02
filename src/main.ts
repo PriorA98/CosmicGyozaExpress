@@ -6,6 +6,7 @@ import { installFxSettings } from "./fx/fxSettings";
 import { installAdaptiveCanvasInterpolation } from "./game/displayScale";
 import { gameConfig } from "./gameConfig";
 import { installAudioSystem } from "./systems/AudioSystem";
+import { installSoundToast } from "./ui/SoundToast";
 import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/components.css";
@@ -26,6 +27,8 @@ installAudioSystem(game);
 installAdaptiveCanvasInterpolation(game);
 // Syncs save.settings.reducedMotion (and the OS preference) into src/fx; re-syncs on settings:changed.
 installFxSettings(game);
+// Mute (M) feedback toast for every scene, including showcases that boot straight into flight/landing/result.
+installSoundToast(game);
 
 if (import.meta.env.DEV) {
   installDevProbe(game);
