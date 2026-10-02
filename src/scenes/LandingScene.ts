@@ -369,7 +369,7 @@ export class LandingScene extends Phaser.Scene {
       shipX: this.ship.x,
       shipY: this.ship.y,
       feetY: this.landingState.y + landingTuning.shipRadius,
-      rotation: this.ship.rotation,
+      rotation: this.ship.visualRotation,
       reading: this.reading,
       readouts: this.readouts,
       alignment: this.alignment,
@@ -476,7 +476,7 @@ export class LandingScene extends Phaser.Scene {
     this.thrustPower = 0;
     this.flameFrame = 0;
     this.aids.hide();
-    this.thrustTrail.update(this.ship.x, this.ship.y, this.ship.rotation, false, 0);
+    this.thrustTrail.update(this.ship.x, this.ship.y, this.ship.visualRotation, false, 0);
     // Puffs already in flight would drift down over the blanket and the hint bar: remove them at once.
     this.thrustTrail.clear();
   }
@@ -589,7 +589,7 @@ export class LandingScene extends Phaser.Scene {
         { y: impactY + config.hardDropImpactPx, duration: 92, ease: "Quad.easeIn" },
         {
           y: impactY - config.hardDropBouncePx,
-          rotation: this.landingState.rotation + direction * 0.34,
+          visualRotation: this.landingState.rotation + direction * 0.34,
           duration: 230,
           ease: "Back.easeOut",
           onStart: () => {
@@ -623,7 +623,7 @@ export class LandingScene extends Phaser.Scene {
       targets: this.ship,
       x: endX,
       y: startY + 8,
-      rotation: this.landingState.rotation + direction * 1.18,
+      visualRotation: this.landingState.rotation + direction * 1.18,
       duration: 470,
       ease: "Cubic.easeOut",
       onComplete: () => this.createThrusterMisfire(),
@@ -643,12 +643,12 @@ export class LandingScene extends Phaser.Scene {
     this.tweens.chain({
       targets: this.ship,
       tweens: [
-        { rotation: direction * 0.62, duration: 160, ease: "Quad.easeOut" },
-        { rotation: direction * 0.42, duration: 120, ease: "Sine.easeInOut" },
+        { visualRotation: direction * 0.62, duration: 160, ease: "Quad.easeOut" },
+        { visualRotation: direction * 0.42, duration: 120, ease: "Sine.easeInOut" },
         {
           x: clamp(startX + direction * config.tipShiftPx, this.playMinX, this.playMaxX),
           y: startY + 18,
-          rotation: direction * 1.42,
+          visualRotation: direction * 1.42,
           duration: 300,
           ease: "Back.easeOut",
           onComplete: () => {
@@ -675,7 +675,7 @@ export class LandingScene extends Phaser.Scene {
       targets: this.ship,
       x: clamp(startX + direction * config.offPadShiftPx, this.playMinX, this.playMaxX),
       y: startY + 14,
-      rotation: this.landingState.rotation + direction * 0.72,
+      visualRotation: this.landingState.rotation + direction * 0.72,
       duration: 520,
       ease: "Quad.easeIn",
       onComplete: () => {
@@ -714,7 +714,7 @@ export class LandingScene extends Phaser.Scene {
 
   /** The bottom thruster coughs a few pixel sparks out of the nozzle (shared fx burst, no vectors). */
   private createThrusterMisfire(): void {
-    const bottom = bottomVector(this.ship.rotation);
+    const bottom = bottomVector(this.ship.visualRotation);
     const nozzle = this.shipLayout.footPx;
     burstIncident(this, this.ship.x + bottom.x * nozzle, this.ship.y + bottom.y * nozzle, { count: 8, spread: 60, depth: depth.shipFx });
   }
@@ -922,11 +922,11 @@ export class LandingScene extends Phaser.Scene {
     const active = frame > 0 && this.phase.kind === "descending";
     const tip = frame > 0 ? (this.shipLayout.flameTipsPx[frame - 1] ?? this.shipLayout.flameTipPx) : this.shipLayout.footPx;
     const distance = Math.max(this.shipLayout.footPx, tip - landingScenery.thrust.trailInsetPx);
-    const bottom = bottomVector(this.ship.rotation);
+    const bottom = bottomVector(this.ship.visualRotation);
     this.thrustTrail.update(
       this.ship.x + bottom.x * distance,
       this.ship.y + bottom.y * distance,
-      this.ship.rotation,
+      this.ship.visualRotation,
       active,
       this.thrustPower * landingScenery.thrust.trailIntensity,
     );

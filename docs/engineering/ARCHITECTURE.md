@@ -207,3 +207,11 @@ Later waves re-assign ownership explicitly in `docs/STATUS.json`.
 2. `node e2e/capture.mjs` for the module's showcase states at `desktop` and `phoneLandscape` (plus `phonePortrait`/`wide` for UI).
 3. `node e2e/playtest.mjs` for flow changes.
 4. A separate critic inspects the PNGs and JSON; no visual quality claim is valid without captured evidence. Scores and open issues live in `docs/STATUS.json`.
+
+## 11. Ship Rotation Contract (2026-10-02)
+
+Pixel art is never rotated at runtime. Every ship frame is also baked at `SHIP_ROTATION.angles` (32) clockwise angles by `tools/art/rotsprite.py` (RotSprite-style: Scale2x x3, nearest rotate, centre-sample downscale) into 112×112 cells centred on the saucer pivot (`public/assets/ship/rot/*-rot.png`, 8×4 grids). `GyozaShip.visualRotation` (get/set, radians, 0 = nose up, clockwise) selects the nearest cell and keeps Phaser's `rotation` at 0. Read and tween `visualRotation`, never `rotation`, for the ship. `setKinematicState` clears any scripted override. Regenerate the sheets whenever a ship frame changes:
+
+```bash
+python tools/art/rotsprite.py public/assets/ship/gyoza-idle.png public/assets/ship/rot/gyoza-idle-rot.png --pivot 32,34 --cell 112 --angles 32 --columns 8
+```

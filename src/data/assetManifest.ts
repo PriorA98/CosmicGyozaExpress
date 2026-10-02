@@ -30,6 +30,8 @@ export type SpritesheetAssetEntry = AssetBase & {
   readonly frameWidth: number;
   readonly frameHeight: number;
   readonly frameCount: number;
+  /** Frames per row. Omitted = one horizontal strip (frameCount columns). */
+  readonly columns?: number;
 };
 
 export type AssetEntry = ImageAssetEntry | SpritesheetAssetEntry;
@@ -81,6 +83,16 @@ export const ASSET = {
   shipIncident3: "ship-incident-3",
   shipIncident4: "ship-incident-4",
   shipIncident5: "ship-incident-5",
+  // Pre-rotated ship sheets (tools/art/rotsprite.py): one per frame above, SHIP_ROTATION.angles cells each
+  shipIdleRot: "ship-idle-rot",
+  shipFly1Rot: "ship-fly-1-rot",
+  shipFly2Rot: "ship-fly-2-rot",
+  shipFly3Rot: "ship-fly-3-rot",
+  shipIncident1Rot: "ship-incident-1-rot",
+  shipIncident2Rot: "ship-incident-2-rot",
+  shipIncident3Rot: "ship-incident-3-rot",
+  shipIncident4Rot: "ship-incident-4-rot",
+  shipIncident5Rot: "ship-incident-5-rot",
   // Celestial
   celestialTeaMoon: "celestial-tea-moon",
   planetFarPlum: "planet-far-plum",
@@ -159,6 +171,42 @@ export const SHIP_ART = { width: 64, height: 80, artScale: 2, saucerCenterX: 32,
 const SHIP_W = SHIP_ART.width;
 const SHIP_H = SHIP_ART.height;
 
+/**
+ * Ship rotation contract: every ship frame is also baked at SHIP_ROTATION.angles clockwise angles
+ * (angle 0 = upright) into square cells centred on the saucer pivot, packed row-major in a grid.
+ * GyozaShip shows the nearest baked angle instead of rotating pixel art at runtime.
+ */
+export const SHIP_ROTATION = { angles: 32, columns: 8, cell: 112 } as const;
+
+const SHIP_ROTATED_SHEETS: readonly (readonly [string, string])[] = [
+  [ASSET.shipIdleRot, "gyoza-idle"],
+  [ASSET.shipFly1Rot, "gyoza-fly-01"],
+  [ASSET.shipFly2Rot, "gyoza-fly-02"],
+  [ASSET.shipFly3Rot, "gyoza-fly-03"],
+  [ASSET.shipIncident1Rot, "gyoza-incident-01"],
+  [ASSET.shipIncident2Rot, "gyoza-incident-02"],
+  [ASSET.shipIncident3Rot, "gyoza-incident-03"],
+  [ASSET.shipIncident4Rot, "gyoza-incident-04"],
+  [ASSET.shipIncident5Rot, "gyoza-incident-05"],
+];
+
+function rotatedShipSheet(key: string, path: string): SpritesheetAssetEntry {
+  const { angles, columns, cell } = SHIP_ROTATION;
+  return {
+    kind: "spritesheet",
+    key,
+    path,
+    width: columns * cell,
+    height: Math.ceil(angles / columns) * cell,
+    frameWidth: cell,
+    frameHeight: cell,
+    frameCount: angles,
+    columns,
+    artScale: SHIP_ART.artScale,
+    fallback: { color: "#D4A055", shape: "circle" },
+  };
+}
+
 export const ASSET_MANIFEST: readonly AssetEntry[] = [
   image(ASSET.shipIdle, "assets/ship/gyoza-idle.png", SHIP_W, SHIP_H, 2, "#D4A055", "circle"),
   image(ASSET.shipFly1, "assets/ship/gyoza-fly-01.png", SHIP_W, SHIP_H, 2, "#D4A055", "circle"),
@@ -169,6 +217,7 @@ export const ASSET_MANIFEST: readonly AssetEntry[] = [
   image(ASSET.shipIncident3, "assets/ship/gyoza-incident-03.png", SHIP_W, SHIP_H, 2, "#C26954", "circle"),
   image(ASSET.shipIncident4, "assets/ship/gyoza-incident-04.png", SHIP_W, SHIP_H, 2, "#C26954", "circle"),
   image(ASSET.shipIncident5, "assets/ship/gyoza-incident-05.png", SHIP_W, SHIP_H, 2, "#C26954", "circle"),
+  ...SHIP_ROTATED_SHEETS.map(([key, file]) => rotatedShipSheet(key, `assets/ship/rot/${file}-rot.png`)),
 
   image(ASSET.celestialTeaMoon, "assets/celestial/tea-moon.png", 192, 192, 2, "#C2CFAE", "circle"),
   image(ASSET.planetFarPlum, "assets/celestial/planet-far-plum.png", 96, 96, 2, "#9B8FB8", "circle"),

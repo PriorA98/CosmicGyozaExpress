@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { ASSET, ASSET_MANIFEST, SHIP_ART } from "../data/assetManifest";
+import { ASSET, ASSET_MANIFEST, SHIP_ART, SHIP_ROTATION } from "../data/assetManifest";
 import { shipSpeed } from "../systems/ShipMovementSystem";
 import type { ShipKinematicState } from "../types/flight";
 
@@ -15,6 +15,26 @@ const INCIDENT_FRAMES = [
 const FLY_FRAME_SPEEDS = { small: 90, medium: 210 } as const;
 
 const TAU = Math.PI * 2;
+
+/** Base frame -> its pre-rotated sheet (tools/art/rotsprite.py, see SHIP_ROTATION). */
+const ROTATED_SHEET: Readonly<Record<string, string>> = {
+  [ASSET.shipIdle]: ASSET.shipIdleRot,
+  [ASSET.shipFly1]: ASSET.shipFly1Rot,
+  [ASSET.shipFly2]: ASSET.shipFly2Rot,
+  [ASSET.shipFly3]: ASSET.shipFly3Rot,
+  [ASSET.shipIncident1]: ASSET.shipIncident1Rot,
+  [ASSET.shipIncident2]: ASSET.shipIncident2Rot,
+  [ASSET.shipIncident3]: ASSET.shipIncident3Rot,
+  [ASSET.shipIncident4]: ASSET.shipIncident4Rot,
+  [ASSET.shipIncident5]: ASSET.shipIncident5Rot,
+};
+
+/** Nearest baked angle cell (0 = upright, clockwise) for a rotation in radians. */
+export function rotationCellIndex(rotation: number, angles: number = SHIP_ROTATION.angles): number {
+  const step = TAU / angles;
+  const index = Math.round(rotation / step) % angles;
+  return (index + angles) % angles;
+}
 
 /** Squash timing as shares of the caller's duration: hold at full squash, then spring back. */
 const SQUASH_HOLD_SHARE = 0.6;
@@ -71,6 +91,10 @@ export class GyozaShip extends Phaser.GameObjects.Sprite {
   private squashTween: Phaser.Tweens.Tween | undefined;
   private flashTimer: Phaser.Time.TimerEvent | undefined;
   private baseScale = 1;
+  private baseKey: string = ASSET.shipIdle;
+  private rotationOverride: number | undefined;
+  private layoutOriginX = 0.5;
+  private layoutOriginY = 0.5;
 
   constructor(scene: Phaser.Scene, state: ShipKinematicState) {
     super(scene, state.x, state.y, ASSET.shipIdle);
@@ -92,14 +116,31 @@ export class GyozaShip extends Phaser.GameObjects.Sprite {
 
   setKinematicState(state: ShipKinematicState, thrusting: boolean): void {
     this.kinematicState = state;
+    this.rotationOverride = undefined;
+    this.baseKey = this.pickTextureKey(thrusting);
     this.applyStateToSprite();
-    this.setTexture(this.pickTextureKey(thrusting));
   }
 
   /** Incident frames are 1-based (1..5); out-of-range values clamp to the nearest frame. */
   setIncidentFrame(frame: number): void {
     const index = Phaser.Math.Clamp(Math.round(frame), 1, INCIDENT_FRAMES.length) - 1;
-    this.setTexture(INCIDENT_FRAMES[index] ?? ASSET.shipIncident1);
+    this.baseKey = INCIDENT_FRAMES[index] ?? ASSET.shipIncident1;
+    this.renderFrame();
+  }
+
+  /**
+   * The ship's on-screen rotation in radians (0 = nose up, clockwise). Pixel art is never rotated
+   * at runtime: the nearest pre-rotated cell is shown instead, and Phaser's own `rotation` stays 0.
+   * Read this (not `rotation`) for the visible heading; tween it for scripted spins. Setting it
+   * overrides the kinematic heading until the next `setKinematicState`.
+   */
+  get visualRotation(): number {
+    return this.rotationOverride ?? this.kinematicState.rotation + this.visualTilt;
+  }
+
+  set visualRotation(value: number) {
+    this.rotationOverride = value;
+    this.renderFrame();
   }
 
   speed(): number {
@@ -138,8 +179,11 @@ export class GyozaShip extends Phaser.GameObjects.Sprite {
 
   /** Applies a resolved art layout: saucer-centre pivot and integer scale for contract art. */
   applyArtLayout(layout: ShipArtLayout): this {
-    this.setOrigin(layout.originX, layout.originY);
-    return this.setBaseScale(layout.scale);
+    this.layoutOriginX = layout.originX;
+    this.layoutOriginY = layout.originY;
+    this.setBaseScale(layout.scale);
+    this.renderFrame();
+    return this;
   }
 
   /**
@@ -192,6 +236,21 @@ export class GyozaShip extends Phaser.GameObjects.Sprite {
 
   private applyStateToSprite(): void {
     this.setPosition(this.kinematicState.x + this.visualOffsetX, this.kinematicState.y + this.visualOffsetY);
-    this.rotation = this.kinematicState.rotation + this.visualTilt;
+    this.renderFrame();
+  }
+
+  /** Shows `baseKey` at `visualRotation`: a baked angle cell when available, runtime rotation otherwise. */
+  private renderFrame(): void {
+    const rotatedKey = ROTATED_SHEET[this.baseKey];
+    if (rotatedKey !== undefined && this.scene.textures.exists(rotatedKey)) {
+      // Rotated cells are square and centred on the saucer pivot.
+      this.setTexture(rotatedKey, rotationCellIndex(this.visualRotation));
+      this.setOrigin(0.5, 0.5);
+      this.rotation = 0;
+      return;
+    }
+    this.setTexture(this.baseKey);
+    this.setOrigin(this.layoutOriginX, this.layoutOriginY);
+    this.rotation = this.visualRotation;
   }
 }

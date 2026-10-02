@@ -110,23 +110,25 @@ export class PreloadScene extends Phaser.Scene {
     const frameWidth = entry.kind === "spritesheet" ? entry.frameWidth : entry.width;
     const frameHeight = entry.kind === "spritesheet" ? entry.frameHeight : entry.height;
     const frameCount = entry.kind === "spritesheet" ? entry.frameCount : 1;
+    const columns = entry.kind === "spritesheet" ? (entry.columns ?? entry.frameCount) : 1;
 
     context.clearRect(0, 0, entry.width, entry.height);
     context.fillStyle = entry.fallback.color;
     context.globalAlpha = 0.85;
 
     for (let frame = 0; frame < frameCount; frame += 1) {
-      const x = frame * frameWidth;
+      const x = (frame % columns) * frameWidth;
+      const y = Math.floor(frame / columns) * frameHeight;
       if (entry.fallback.shape === "circle") {
         context.beginPath();
-        context.ellipse(x + frameWidth / 2, frameHeight / 2, frameWidth * 0.45, frameHeight * 0.45, 0, 0, Math.PI * 2);
+        context.ellipse(x + frameWidth / 2, y + frameHeight / 2, frameWidth * 0.45, frameHeight * 0.45, 0, 0, Math.PI * 2);
         context.fill();
       } else {
-        context.fillRect(x, 0, frameWidth, frameHeight);
+        context.fillRect(x, y, frameWidth, frameHeight);
       }
 
       if (entry.kind === "spritesheet") {
-        texture.add(frame, 0, x, 0, frameWidth, frameHeight);
+        texture.add(frame, 0, x, y, frameWidth, frameHeight);
       }
     }
 

@@ -543,7 +543,7 @@ export class FlightScene extends Phaser.Scene {
       { bobPx: shipVisualStyle.bobPx, bobPeriodMs: shipVisualStyle.bobPeriodMs, tiltRadians: shipVisualStyle.tiltBobRadians },
       bobStrength,
     );
-    this.engine.update(this.ship.visualX, this.ship.visualY, this.ship.rotation, controls.thrust, speed, time, delta, !incident);
+    this.engine.update(this.ship.visualX, this.ship.visualY, this.ship.visualRotation, controls.thrust, speed, time, delta, !incident);
 
     for (const asteroid of this.asteroids.values()) asteroid.update(time);
 
