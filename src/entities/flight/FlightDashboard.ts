@@ -1,5 +1,7 @@
 import Phaser from "phaser";
+import { ASSET } from "../../data/assetManifest";
 import {
+  campaignFlightStyle,
   destinationIndicatorStyle,
   flightHudCopy,
   flightHudLayout,
@@ -42,6 +44,32 @@ export type FlightDashboardView = {
   readonly note: string;
 };
 
+/** Route-specific panel copy (Tea Moon uses the slice defaults). */
+export type FlightDashboardCopy = { readonly title: string; readonly distance: string };
+
+/** Small HUD chip shown while an environmental force acts on the ship (display only). */
+export type FlightForceCue = {
+  readonly label: string;
+  /** Unit direction of the push in screen space (+Y down); zero when calm. */
+  readonly directionX: number;
+  readonly directionY: number;
+  /** 0..1 push strength relative to the route cap. */
+  readonly strength: number;
+  /** Windsock strip frame for gust zones, else null. */
+  readonly windsockFrame: number | null;
+};
+
+type ForceGauge = {
+  readonly container: Phaser.GameObjects.Container;
+  readonly arrow: Phaser.GameObjects.Graphics;
+  readonly windsock: Phaser.GameObjects.Image | undefined;
+  readonly text: Phaser.GameObjects.Text;
+  readonly arrowX: number;
+  readonly arrowY: number;
+};
+
+const DEFAULT_COPY: FlightDashboardCopy = { title: flightHudCopy.title, distance: flightHudCopy.distance };
+
 type TouchZoneId = keyof ShipControls;
 
 /** Axis-aligned screen rectangle (scroll-factor-0 HUD space, top-left origin). */
@@ -77,8 +105,14 @@ export class FlightDashboard {
   private lastNote = "";
   private lastPill = "";
   private avoidRects: readonly HudScreenRect[] = [];
+  private gauge: ForceGauge | undefined;
+  private forceCue: FlightForceCue | null = null;
+  private lastGaugeKey = "";
 
-  constructor(private readonly scene: Phaser.Scene) {
+  constructor(
+    private readonly scene: Phaser.Scene,
+    private readonly copy: FlightDashboardCopy = DEFAULT_COPY,
+  ) {
     this.build();
     const onResize = (): void => this.rebuild();
     scene.scale.on(Phaser.Scale.Events.RESIZE, onResize);
@@ -140,6 +174,79 @@ export class FlightDashboard {
     }
   }
 
+  /** Shows / hides the force chip under the arrival pill (call at ≤ 10 Hz). */
+  setForceCue(cue: FlightForceCue | null): void {
+    this.forceCue = cue;
+    this.renderGauge();
+  }
+
+  private buildGauge(x: number, y: number, s: number): ForceGauge {
+    const style = campaignFlightStyle.gauge;
+    const width = Math.round(style.width * s);
+    const height = Math.round(style.height * s);
+    const bg = this.scene.add.graphics();
+    bg.fillStyle(colorNumber(colors.cosmosDeep), 0.82).fillRect(0, 2, width, height - 4).fillRect(2, 0, width - 4, height);
+    bg.lineStyle(2, colorNumber(colors.duskBlue), 0.45).strokeRect(1, 1, width - 2, height - 2);
+    const arrowX = Math.round(height / 2);
+    const arrowY = Math.round(height / 2);
+    const arrow = this.scene.add.graphics();
+    const windsock = this.scene.textures.exists(ASSET.campaignWindsock)
+      ? this.scene.add.image(arrowX, arrowY, ASSET.campaignWindsock, 0).setVisible(false)
+      : undefined;
+    if (windsock) windsock.setScale(Math.max(1, Math.floor((height - 4) / 32)));
+    const text = this.scene.add
+      .text(Math.round(height + 2 * s), Math.round(height / 2), "", monoStyle({ size: Math.round(typeScale.sm * s), bold: true, color: colors.plaster }))
+      .setOrigin(0, 0.5);
+    const parts: Phaser.GameObjects.GameObject[] = [bg, arrow, text];
+    if (windsock) parts.push(windsock);
+    const container = this.scene.add.container(x, y, parts).setScrollFactor(0).setDepth(depth.hud).setVisible(false);
+    return { container, arrow, windsock, text, arrowX, arrowY };
+  }
+
+  private renderGauge(): void {
+    const gauge = this.gauge;
+    if (!gauge) return;
+    const cue = this.forceCue;
+    if (!cue) {
+      if (this.lastGaugeKey !== "hidden") gauge.container.setVisible(false);
+      this.lastGaugeKey = "hidden";
+      return;
+    }
+    const octant = Math.abs(cue.directionX) + Math.abs(cue.directionY) > 0 ? ((Math.round(Math.atan2(cue.directionY, cue.directionX) / (Math.PI / 4)) % 8) + 8) % 8 : -1;
+    const level = Math.min(3, Math.round(cue.strength * 3));
+    const key = `${cue.label}:${octant}:${level}:${cue.windsockFrame ?? "-"}`;
+    if (key === this.lastGaugeKey) return;
+    this.lastGaugeKey = key;
+    gauge.container.setVisible(true);
+    gauge.text.setText(cue.label);
+    const g = gauge.arrow;
+    g.clear();
+    if (cue.windsockFrame !== null && gauge.windsock) {
+      gauge.windsock.setVisible(true).setFrame(cue.windsockFrame);
+      return;
+    }
+    gauge.windsock?.setVisible(false);
+    // Pixel arrow: a 2px-dot shaft and head along the octant direction, brighter as the push grows.
+    const size = campaignFlightStyle.gauge.arrowPx;
+    const alpha = 0.45 + 0.18 * level;
+    g.fillStyle(colorNumber(colors.amber), alpha);
+    if (octant < 0) {
+      g.fillRect(gauge.arrowX - 2, gauge.arrowY - 2, 4, 4);
+      return;
+    }
+    const angle = (octant * Math.PI) / 4;
+    const dx = Math.cos(angle);
+    const dy = Math.sin(angle);
+    const dot = (px: number, py: number): void => {
+      g.fillRect(Math.round((gauge.arrowX + px) / 2) * 2 - 1, Math.round((gauge.arrowY + py) / 2) * 2 - 1, 3, 3);
+    };
+    for (let t = -size; t <= size; t += 2) dot(dx * t, dy * t);
+    for (let t = 2; t <= 6; t += 2) {
+      dot(dx * (size - t) - dy * t, dy * (size - t) + dx * t);
+      dot(dx * (size - t) + dy * t, dy * (size - t) - dx * t);
+    }
+  }
+
   private rebuild(): void {
     this.destroyObjects();
     this.lastPill = "";
@@ -161,7 +268,7 @@ export class FlightDashboard {
     // Every row stays on phones too: the bottom heading is the docking mechanic.
     const rows: readonly HudRow[] = [
       { id: ROW.speed, label: flightHudCopy.speed, value: "" },
-      { id: ROW.distance, label: flightHudCopy.distance, value: "" },
+      { id: ROW.distance, label: this.copy.distance, value: "" },
       { id: ROW.bottom, label: flightHudCopy.bottom, value: "" },
       { kind: "meter", id: ROW.package, label: flightHudCopy.package, value: 1, accent: "sage", segments: 10 },
     ];
@@ -193,6 +300,12 @@ export class FlightDashboard {
     this.ticker = ticker;
 
     this.objects = [panel, pill, ticker];
+
+    const gauge = this.buildGauge(margin, Math.round(pill.y + pill.pillHeight + campaignFlightStyle.gauge.gap * s), s);
+    this.gauge = gauge;
+    this.objects.push(gauge.container);
+    this.lastGaugeKey = "";
+    this.renderGauge();
 
     const avoid: HudScreenRect[] = [];
     // Keyboard devices always get the keycap strip (phones included), so keys stay discoverable.
@@ -261,6 +374,7 @@ export class FlightDashboard {
     this.pill = undefined;
     this.ticker = undefined;
     this.touch = undefined;
+    this.gauge = undefined;
   }
 }
 

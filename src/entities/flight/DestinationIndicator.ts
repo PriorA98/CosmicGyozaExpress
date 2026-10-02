@@ -28,12 +28,13 @@ export class DestinationIndicator {
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly destination: Point,
+    label: string = flightHudCopy.indicatorLabel,
   ) {
     const style = destinationIndicatorStyle;
     this.graphics = scene.add.graphics();
     this.pill = scene.add.graphics();
     this.name = scene.add
-      .text(0, 0, flightHudCopy.indicatorLabel, monoStyle({ size: typeScale.sm, color: colors.parchmentDeep }))
+      .text(0, 0, label, monoStyle({ size: typeScale.sm, color: colors.parchmentDeep }))
       .setOrigin(0.5, 0);
     this.readout = scene.add.text(0, 0, "", monoStyle({ size: typeScale.base, bold: true, color: colors.plaster })).setOrigin(0.5, 0);
     this.container = scene.add

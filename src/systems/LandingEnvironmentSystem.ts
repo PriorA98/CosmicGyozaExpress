@@ -3,8 +3,10 @@
  * LandingScene and the landing aids consume the same sample, so gauges never disagree with physics.
  */
 import type { GustPhase, LandingDefinition, LandingWindDefinition, Vector2 } from "../types/campaign";
-import type { LandingKinematicState, LandingPadDefinition } from "../types/landing";
+import type { LandingTuning } from "../data/landingTuning";
+import type { LandingKinematicState, LandingPadDefinition, LandingTouchdownResult } from "../types/landing";
 import { clamp } from "../utils/math";
+import { classifyLandingTouchdown, readLandingZone, type LandingZoneReading } from "./LandingSystem";
 import { sampleGustCycle } from "./ForceFieldSystem";
 import { sampleMotionPath } from "./MotionPathSystem";
 
@@ -77,4 +79,97 @@ export function sampleLandingEnvironment(
 /** Ship state expressed in the pad's frame (velocity minus pad velocity) for relative-pad classification. */
 export function padRelativeState(state: LandingKinematicState, pad: LandingPadSample): LandingKinematicState {
   return { ...state, velocityX: state.velocityX - pad.velocity.x, velocityY: state.velocityY - pad.velocity.y };
+}
+
+// --- Contact model helpers (plan §3 "Moving collisions and landing contact") -----------------------
+
+/**
+ * The ship state the touchdown rules and the landing aids measure. Tea Moon (`legacy-horizontal`) keeps the
+ * world-frame state; new landings subtract the sampled pad velocity so drift is judged against the pad.
+ */
+export function landingContactState(
+  model: LandingDefinition["collisionModel"],
+  state: LandingKinematicState,
+  pad: LandingPadSample,
+): LandingKinematicState {
+  return model === "legacy-horizontal" ? state : padRelativeState(state, pad);
+}
+
+/** Touchdown classification in the contact model's frame (same soft / bumpy / incident thresholds). */
+export function classifyPadTouchdown(
+  model: LandingDefinition["collisionModel"],
+  state: LandingKinematicState,
+  pad: LandingPadSample,
+  tuning: LandingTuning,
+): LandingTouchdownResult {
+  return classifyLandingTouchdown(landingContactState(model, state, pad), pad.pad, tuning);
+}
+
+/** Live gauge reading from exactly the metrics `classifyPadTouchdown` would use right now. */
+export function readPadLandingZone(
+  model: LandingDefinition["collisionModel"],
+  state: LandingKinematicState,
+  pad: LandingPadSample,
+  tuning: LandingTuning,
+): LandingZoneReading {
+  return readLandingZone(landingContactState(model, state, pad), pad.pad, tuning);
+}
+
+/** Tangent offset (px from the pad centre) stored when a touchdown is accepted; clamped onto the pad. */
+export function acceptedPadOffset(state: LandingKinematicState, pad: LandingPadDefinition): number {
+  const half = pad.width / 2;
+  return clamp(state.x - pad.centerX, -half, half);
+}
+
+/** Settling on a (moving) pad: the resting ship is rebuilt from the sampled pad and the accepted offset. */
+export function rideLandingPad(offsetX: number, pad: LandingPadDefinition, tuning: LandingTuning): LandingKinematicState {
+  const half = pad.width / 2;
+  return {
+    x: pad.centerX + clamp(offsetX, -half, half),
+    y: pad.surfaceY - tuning.shipRadius,
+    rotation: 0,
+    velocityX: 0,
+    velocityY: 0,
+    angularVelocity: 0,
+  };
+}
+
+/** Windsock strip frame for a wind sample (the sock and the force read the same sample). */
+export type WindsockFrame = "calm" | "warning" | "medium" | "strong";
+
+export function windsockFrameFor(wind: LandingWindSample, peakMagnitude: number): WindsockFrame {
+  const magnitude = Math.hypot(wind.acceleration.x, wind.acceleration.y);
+  if (magnitude <= 1e-6) return wind.phase === "warning" ? "warning" : "calm";
+  const share = peakMagnitude > 0 ? magnitude / peakMagnitude : 1;
+  return share >= 0.55 ? "strong" : "medium";
+}
+
+/** Peak wind magnitude a landing can produce (px/s²); 0 for still air. */
+export function landingWindPeak(wind: LandingWindDefinition): number {
+  if (wind.kind === "none") return 0;
+  if (wind.kind === "steady") return Math.hypot(wind.acceleration.x, wind.acceleration.y);
+  return Math.hypot(wind.peakAcceleration.x, wind.peakAcceleration.y);
+}
+
+/** Which mission dashboard line (MissionDashboardCopy) the landing HUD should show; null = generic chatter. */
+export type CampaignLandingNote = "landingIntro" | "landingTwist" | "gustWarning" | "landingCalm";
+
+export function campaignLandingNote(input: {
+  readonly definition: LandingDefinition;
+  readonly clockMs: number;
+  readonly wind: LandingWindSample;
+  readonly altitude: number;
+  readonly introNoteMs: number;
+  readonly calmAltitude: number;
+}): CampaignLandingNote | null {
+  const { definition, wind } = input;
+  if (definition.wind.kind === "gust") {
+    if (wind.phase === "warning") return "gustWarning";
+    if (wind.exposure <= 0) return "landingCalm";
+    if (input.clockMs < input.introNoteMs) return "landingIntro";
+    return wind.envelope > 0 ? "landingTwist" : null;
+  }
+  if (input.clockMs < input.introNoteMs) return "landingIntro";
+  if (definition.wind.kind === "steady" || definition.padMotion.kind === "path") return "landingTwist";
+  return input.altitude < input.calmAltitude ? "landingCalm" : "landingTwist";
 }

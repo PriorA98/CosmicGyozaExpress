@@ -101,7 +101,11 @@ describe("SaveSystem.load", () => {
   });
 
   it("returns a valid stored save unchanged and does not rewrite it", () => {
-    const original = { ...createDefaultSave(new Date("2026-05-29T00:00:00.000Z")), completedMissions: ["tea-moon"] };
+    const original = {
+      ...createDefaultSave(new Date("2026-05-29T00:00:00.000Z")),
+      completedMissions: ["tea-moon"],
+      unlockedMissions: ["tea-moon", "bento-belt"],
+    };
     storage.values.set(SAVE_KEY, JSON.stringify(original));
 
     const save = SaveSystem.load();
@@ -138,7 +142,7 @@ describe("SaveSystem.load", () => {
     const save = SaveSystem.load();
 
     expect(save.completedMissions).toEqual(["tea-moon"]);
-    expect(save.unlockedMissions).toEqual(["tea-moon"]);
+    expect(save.unlockedMissions).toEqual(["tea-moon", "bento-belt"]);
     expect(save.settings).toEqual(createDefaultSave().settings);
     expect(save.stats.totalDeliveries).toBe(0);
     expect(SaveSystem.lastLoadOutcome().kind).toBe("repaired");

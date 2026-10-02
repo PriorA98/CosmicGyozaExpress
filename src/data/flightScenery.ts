@@ -471,3 +471,66 @@ export const flightLines = {
   debugOff: "debug vectors tucked away",
   arrival: "landing window open. here we go",
 } as const;
+
+// --- Campaign routes (non-legacy themes) -------------------------------------------------
+
+/** Generic flight copy for campaign destinations (Tea Moon keeps `flightHudCopy`). */
+export const campaignFlightCopy = {
+  distance: "dock",
+  beaconLabel: "bottom to dock",
+  forceLabel: { "radial-gravity": "pull", "directional-current": "drift", gust: "gust" },
+  gustWarningLabel: "gust soon",
+} as const;
+
+/** Route rock textures and their canvas size in art px (contract: body diameter in art px == radius). */
+export const campaignRockTextures: readonly { readonly key: AssetKey; readonly canvasArtPx: number }[] = [
+  { key: ASSET.asteroidSleepy, canvasArtPx: 76 },
+  { key: ASSET.asteroidRice, canvasArtPx: 92 },
+  { key: ASSET.asteroidTea, canvasArtPx: 100 },
+  { key: ASSET.asteroidMochi, canvasArtPx: 84 },
+  { key: ASSET.asteroidCrumb, canvasArtPx: 66 },
+];
+
+/** Presentation for campaign route mechanics. Colours default to the route theme palette at runtime. */
+export const campaignFlightStyle = {
+  destination: {
+    /** Destination art is 160 art px square at 2x. */
+    halfSizePx: 160,
+    /** Gap between the arrival ring and the body centre offset (px), like the Tea Moon limb. */
+    gapPx: 30,
+    haloRadiusArt: 60,
+    haloSteps: [4, 9, 15, 22] as const,
+    haloAlpha: 0.05,
+    breathAlpha: 0.3,
+  },
+  rockBob: { bobArtPx: 2, basePeriodMs: 3400, periodStepMs: 380 },
+  track: { alpha: 0.42, orbitAlpha: 0.26, dashPx: 8, gapPx: 10, dotPx: 4, bulbRadiusPx: 7, bulbAlpha: 0.7 },
+  flow: { spacingPx: 200, alpha: 0.38, speedPxPerSecond: 34, edgeInsetPx: 40 },
+  gust: { calmAlpha: 0.14, warningAlpha: 0.78, activeAlpha: 0.5, speedPxPerSecond: 90, windsockInsetPx: 70 },
+  gravity: {
+    ringFractions: [0.92, 0.64, 0.38] as const,
+    ringAlphas: [0.16, 0.22, 0.3] as const,
+    dotPx: 4,
+    dotSpacingPx: 14,
+    arrowsPerRing: 8,
+    arrowSizePx: 14,
+    breathAlpha: 0.25,
+    breathMs: 2600,
+  },
+  fog: { bands: 3, bandInsetPx: 90, driftScale: 1 },
+  pickup: { bobArtPx: 2, bobPeriodMs: 2600, haloRadiusArt: 10, haloSteps: [2, 5] as const, haloAlpha: 0.12 },
+  lantern: { bodyColor: "#3A2E2A", glowRadiusArt: 10, glowSteps: [3, 7, 12] as const, glowAlpha: 0.08, idleAlpha: 0.7 },
+  gauge: { width: 112, height: 36, gap: 6, arrowPx: 9 },
+} as const;
+
+/** Static rock look for a campaign route obstacle: deterministic texture by size, gentle bob. */
+export function campaignAsteroidVisual(obstacleId: string, radius: number, index: number, textureKey: AssetKey): AsteroidVisualDefinition {
+  const bob = campaignFlightStyle.rockBob;
+  return {
+    obstacleId,
+    textureKey,
+    bobArtPx: bob.bobArtPx,
+    bobPeriodMs: bob.basePeriodMs + (index % 4) * bob.periodStepMs + Math.round(radius),
+    flipX: index % 2 === 1,
+  };
+}

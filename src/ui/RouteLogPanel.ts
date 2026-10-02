@@ -11,6 +11,9 @@ import { hasAuthoredTexture } from "./uiTextures";
 
 export type RouteLogStat = { readonly label: string; readonly value: string };
 
+/** One delivered stop in the optional history list (e.g. "Bento Belt" · "Mallow"). */
+export type RouteLogEntry = { readonly title: string; readonly detail: string };
+
 export type RouteLogPanelCopy = {
   readonly title: string;
   readonly entryTitle: string;
@@ -23,6 +26,10 @@ export type RouteLogPanelOptions = {
   readonly copy: RouteLogPanelCopy;
   /** Texture key of the collected postcard (96x64 art, shown at 2x). Missing art draws a stamp. */
   readonly postcardKey: string;
+  /** Frame inside `postcardKey` (sprite-sheet postcards); scaled by an integer to fill the frame. */
+  readonly postcardFrame?: number;
+  /** Optional delivery history below the entry, two columns of short lines. Omitted: no list. */
+  readonly history?: { readonly title: string; readonly entries: readonly RouteLogEntry[] };
   readonly stats: readonly RouteLogStat[];
   /** Compact-display multiplier (see `compactUiScale`). Default 1. */
   readonly uiScale?: number;
@@ -72,9 +79,14 @@ export class RouteLogPanel {
     const statsGap = uiScaled(14, s);
     const columnHeight = entryTitle.height + metaGap + meta.height + captionGap + caption.height + statsGap + options.stats.length * statRow;
     const bodyHeight = Math.ceil(Math.max(frameHeight, columnHeight));
+    const history = options.history && options.history.entries.length > 0 ? options.history : undefined;
+    const historyRows = history ? Math.ceil(history.entries.length / 2) : 0;
+    const historyGap = uiScaled(18, s);
+    const historyTitleHeight = uiScaled(26, s);
+    const historyHeight = history ? historyGap + historyTitleHeight + historyRows * statRow : 0;
     const contentTop = uiScaled(CARD_HEADER_HEIGHT, s) + uiScaled(12, s);
     const footerGap = uiScaled(PANEL.footerGap, s);
-    const height = contentTop + bodyHeight + footerGap + closeHeight + uiScaled(3, s) + pad;
+    const height = contentTop + bodyHeight + historyHeight + footerGap + closeHeight + uiScaled(3, s) + pad;
 
     this.modal = new Modal(scene, {
       width,
@@ -92,7 +104,11 @@ export class RouteLogPanel {
     card.addContent(frame);
     const cx = pad + Math.round(frameWidth / 2);
     const cy = top + Math.round(frameHeight / 2);
-    if (hasAuthoredTexture(scene, options.postcardKey)) {
+    if (hasAuthoredTexture(scene, options.postcardKey) && options.postcardFrame !== undefined) {
+      const image = scene.add.image(cx, cy, options.postcardKey, options.postcardFrame);
+      const fit = Math.floor(Math.min((frameWidth - framePad * 2) / Math.max(1, image.width), (frameHeight - framePad * 2) / Math.max(1, image.height)));
+      card.addContent(image.setScale(Math.max(1, fit)));
+    } else if (hasAuthoredTexture(scene, options.postcardKey)) {
       card.addContent(scene.add.image(cx, cy, options.postcardKey).setScale(postcardScale));
     } else {
       card.addContent(addUiIcon(scene, cx, cy, "memory", { scale: uiIconScale(s) + 1 }));
@@ -117,10 +133,34 @@ export class RouteLogPanel {
       );
     });
 
+    if (history) {
+      const historyTop = top + bodyHeight + historyGap;
+      const historyRule = scene.add.graphics();
+      historyRule.fillStyle(colorNumber(colors.border), 1);
+      for (let x = pad; x < width - pad; x += 6) historyRule.fillRect(x, historyTop - uiScaled(8, s), 2, 2);
+      card.addContent(
+        historyRule,
+        scene.add.text(pad, historyTop, history.title, monoStyle({ size: uiSecondaryTextSize(typeScale.sm, s), bold: true, color: colors.sageDeep })),
+      );
+      const cellWidth = Math.floor((width - pad * 2) / 2);
+      history.entries.forEach((entry, index) => {
+        const x = pad + (index % 2) * cellWidth;
+        const y = historyTop + historyTitleHeight + Math.floor(index / 2) * statRow + Math.round(statRow / 2);
+        const title = scene.add.text(x, y, `✓ ${entry.title}`, monoStyle({ size: uiSecondaryTextSize(typeScale.sm, s), bold: true, color: colors.ink })).setOrigin(0, 0.5);
+        const detail = scene.add
+          .text(Math.ceil(title.x + title.width + uiScaled(8, s)), y, `· ${entry.detail}`, monoStyle({ size: uiSecondaryTextSize(typeScale.sm, s), color: colors.inkSoft }))
+          .setOrigin(0, 0.5);
+        // Keep each line inside its column; the recipient is the part that gives way.
+        const room = x + cellWidth - uiScaled(8, s) - detail.x;
+        if (detail.width > room) detail.setVisible(room > uiScaled(40, s)).setCrop(0, 0, Math.max(0, room), detail.height);
+        card.addContent(title, detail);
+      });
+    }
+
     const closeWidth = uiScaled(PANEL.closeWidth, s);
     const close = new Button(scene, {
       x: width - pad - closeWidth,
-      y: top + bodyHeight + footerGap,
+      y: top + bodyHeight + historyHeight + footerGap,
       label: options.copy.close,
       width: closeWidth,
       height: closeHeight,

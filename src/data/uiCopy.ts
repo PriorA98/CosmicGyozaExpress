@@ -1,3 +1,4 @@
+import type { MissionId } from "../types/campaign";
 import type { UiState } from "../ui/statePalette";
 
 /** Player-facing UI copy (lowercase, short, warm). Owner: ui package. */
@@ -34,6 +35,17 @@ export const titleCopy = {
     { key: "M", label: "sound" },
   ] satisfies readonly KeyHintCopy[],
   touchHint: "tap the button to start",
+  /** Secondary action that opens the delivery board (fresh saves: a preview of the route). */
+  boardButton: "delivery board",
+  /** Primary action once any delivery is saved: opens the board on the next suggested stop. */
+  nextDeliveryButton: (shortTitle: string): string => `next: ${shortTitle.toLowerCase()}`,
+  /** Primary action once every delivery is stamped. */
+  boardPrimaryButton: "open the delivery board",
+  /** Key hints once the primary action opens the board. */
+  hintsReturning: [
+    { key: "enter", label: "board" },
+    { key: "M", label: "sound" },
+  ] satisfies readonly KeyHintCopy[],
   /** Gentle one-line notes when the save could not be read as-is (never alarming). */
   saveNotice: {
     corrupt: "your old save was crumpled, so we kept a copy and started fresh",
@@ -74,6 +86,35 @@ export const routeLogCopy = {
   deliveriesLabel: "deliveries",
   empty: "no postcards yet. the moon is waiting.",
   close: "close",
+  /** Heading of the delivery history list (shown once more than one stop is delivered). */
+  historyTitle: "delivered so far",
+  /** Per-mission headline captions for the latest delivered stop. */
+  captions: {
+    "tea-moon": "a postcard from the sleepy moon rabbit, mid-sip",
+    "bento-belt": "mallow's lunch break, finally with lunch in it",
+    "matcha-nebula": "a green hush and one listening lantern",
+    "black-hole-bakery": "pip's oven window, glowing at the edge of everything",
+    "im-fine": "one lit window, and a second spoon on the sill",
+    "home-delivery": "the porch light, left on for you",
+  } satisfies Readonly<Record<MissionId, string>>,
+} as const;
+
+/** Delivery board (MissionSelectScene) copy. */
+export const boardCopy = {
+  title: "delivery board",
+  subtitle: "six warm stops, one little ship",
+  back: "back",
+  launch: "fly this delivery",
+  replay: "fly it again",
+  carrying: "carrying",
+  deliveredStamp: "✓ delivered",
+  /** Locked node caption: "After <previous delivery>". */
+  lockedAfter: (shortTitle: string): string => `After ${shortTitle}`,
+  hints: [
+    { key: "←→", label: "choose" },
+    { key: "enter", label: "fly" },
+    { key: "esc", label: "back" },
+  ] satisfies readonly KeyHintCopy[],
 } as const;
 
 export const soundToastCopy = {

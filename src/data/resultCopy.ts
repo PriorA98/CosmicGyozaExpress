@@ -1,6 +1,7 @@
 import type { UiIconName } from "./assetManifest";
 import type { typeScale } from "../game/designTokens";
 import type { PackageConditionLabel } from "../types/flight";
+import type { MissionId } from "../types/campaign";
 import type { LandingResultKind } from "../types/landing";
 
 /**
@@ -241,6 +242,8 @@ export type ResultCardLayout = {
   /** Even screen px (whole art pixels); the bottom 4 art px are the button's hard lip. */
   readonly buttonHeight: number;
   readonly buttonMinWidth: number;
+  /** Minimum width when the footer holds three campaign actions (non-legacy themes). */
+  readonly campaignButtonMinWidth: number;
   readonly buttonGap: number;
   readonly statGap: number;
   readonly statMinGap: number;
@@ -293,6 +296,7 @@ export const resultCardLayouts = {
     stampHeight: 36,
     buttonHeight: 56,
     buttonMinWidth: 236,
+    campaignButtonMinWidth: 200,
     buttonGap: 18,
     statGap: 40,
     statMinGap: 34,
@@ -335,6 +339,7 @@ export const resultCardLayouts = {
     stampHeight: 46,
     buttonHeight: 72,
     buttonMinWidth: 280,
+    campaignButtonMinWidth: 236,
     buttonGap: 20,
     statGap: 44,
     statMinGap: 38,
@@ -377,6 +382,7 @@ export const resultCardLayouts = {
     stampHeight: 60,
     buttonHeight: 96,
     buttonMinWidth: 360,
+    campaignButtonMinWidth: 300,
     buttonGap: 24,
     statGap: 0,
     statMinGap: 0,
@@ -398,3 +404,117 @@ export const resultCardLayouts = {
     },
   },
 } as const satisfies Record<ResultLayoutTier, ResultCardLayout>;
+
+/** Per-mission result card copy. Tea Moon's entry reuses the slice strings above, so its card is unchanged. */
+export type MissionResultCopy = {
+  /** Kicker suffix: `delivery accepted · {place}`. */
+  readonly place: string;
+  readonly recipientCaption: string;
+  readonly postcardTitle: string;
+  /** `{n}` in `repeat` is replaced with the delivery number. */
+  readonly deliveryNote: { readonly first: string; readonly repeat: string };
+  /** Spoken by the recipient; picked deterministically like Tea Moon's. */
+  readonly reactionLines: Readonly<Record<LandingResultKind, readonly string[]>>;
+  readonly landingTries: CountPhrase;
+  /** One line on the final card's thank-you notes (only for completed deliveries). */
+  readonly thankYouNote: string;
+};
+
+function triesPhrase(who: string): CountPhrase {
+  return {
+    zero: "landed on the first try",
+    one: `landed on try 2 · ${who} waited`,
+    many: `landed on try {n} · ${who} waited`,
+  };
+}
+
+export const missionResultCopy: Readonly<Record<MissionId, MissionResultCopy>> = {
+  "tea-moon": {
+    place: "tea moon",
+    recipientCaption: resultCopy.recipientCaption,
+    postcardTitle: resultCopy.postcard.title,
+    deliveryNote: { first: resultCopy.deliveryNote.first, repeat: resultCopy.deliveryNote.repeat },
+    reactionLines: resultCopy.reactionLines,
+    landingTries: resultCopy.stats.landingTries.phrase,
+    thankYouNote: "the moon rabbit · the tea is still warm",
+  },
+  "bento-belt": {
+    place: "bento belt",
+    recipientCaption: "mallow the mechanic",
+    postcardTitle: "bento belt postcard",
+    deliveryNote: { first: "first delivery to the bento belt", repeat: "delivery no. {n} to the bento belt" },
+    reactionLines: {
+      soft: ["“Not a single grain moved. I’m framing this lunch.”", "“Right on my break. You fly neater than I weld.”"],
+      bumpy: ["“The tiers did a little dance. Lunch with a show!”", "“A clunk! Sounds just like my workshop.”"],
+      incident: ["“You came back around for it. That’s proper service.”", "“Rearranged bento is still bento. Thank you.”"],
+    },
+    landingTries: triesPhrase("mallow"),
+    thankYouNote: "mallow · lunch has never been so on time",
+  },
+  "matcha-nebula": {
+    place: "matcha nebula",
+    recipientCaption: "nori the moth",
+    postcardTitle: "matcha nebula postcard",
+    deliveryNote: { first: "first delivery to the matcha nebula", repeat: "delivery no. {n} to the matcha nebula" },
+    reactionLines: {
+      soft: ["“Still steaming. I heard you coming the whole way.”", "“You drifted in like a quiet song.”"],
+      bumpy: ["“A wobbly arrival! The flask kept every drop.”", "“The listening post felt that one. It smiled.”"],
+      incident: ["“You tried again for me. I’ll remember that tune.”", "“Extra stirred. Matcha likes a little stirring.”"],
+    },
+    landingTries: triesPhrase("nori"),
+    thankYouNote: "nori · I hum your flight home every night",
+  },
+  "black-hole-bakery": {
+    place: "black hole bakery",
+    recipientCaption: "pip the tiny baker",
+    postcardTitle: "bakery postcard",
+    deliveryNote: { first: "first delivery to the bakery", repeat: "delivery no. {n} to the bakery" },
+    reactionLines: {
+      soft: ["“The starter didn’t even wake up. Perfect.”", "“You flew so gently the oven purred.”"],
+      bumpy: ["“A bounce! Starter loves a bounce. Bubbles everywhere.”", "“Spirited! The bakery smells like adventure now.”"],
+      incident: ["“You looped back for it. The dough will rise extra proud.”", "“A little shuffled, still bubbling. Thank you.”"],
+    },
+    landingTries: triesPhrase("pip"),
+    thankYouNote: "pip · the starter named a loaf after you",
+  },
+  "im-fine": {
+    place: "planet i’m fine",
+    recipientCaption: "iona of the lit window",
+    postcardTitle: "i’m fine postcard",
+    deliveryNote: { first: "first delivery to planet i’m fine", repeat: "delivery no. {n} to planet i’m fine" },
+    reactionLines: {
+      soft: ["“Oh. You actually came. The soup is still warm.”", "“I left the window lit, just in case.”"],
+      bumpy: ["“A thump at the door. Somehow that helped.”", "“The spoon rattled hello. I needed that.”"],
+      incident: ["“You kept trying. I forget people do that.”", "“Soup sloshes. It still tastes like someone cared.”"],
+    },
+    landingTries: triesPhrase("iona"),
+    thankYouNote: "iona · the window stays lit for you",
+  },
+  "home-delivery": {
+    place: "home",
+    recipientCaption: "you, the gyoza ship",
+    postcardTitle: "home postcard",
+    deliveryNote: { first: "first delivery home", repeat: "delivery no. {n} home" },
+    reactionLines: {
+      soft: ["“Welcome home. Everyone wanted to say it first.”", "“There you are. The kettle never quite cooled.”"],
+      bumpy: ["“Home with a familiar little thump. We cheered.”", "“That bump? We counted it as a hug.”"],
+      incident: ["“One more try, and here you are. Come in.”", "“Home doesn’t mind how you arrive.”"],
+    },
+    landingTries: triesPhrase("home"),
+    thankYouNote: "everyone · welcome home",
+  },
+};
+
+/** Campaign-only result card copy (non-legacy themes and the final card). */
+export const campaignResultCopy = {
+  notesTitle: "thank-you notes",
+  /** Shown on the final card when no earlier delivery has been completed yet. */
+  noNotes: "the notes are still on their way",
+  buttons: {
+    nextDelivery: { label: "next delivery", key: "enter" },
+    deliveryBoard: { label: "delivery board", key: "esc" },
+    flyAgain: { label: "fly again", key: "r" },
+    readNotes: { label: "read the notes again", key: "n" },
+    flyHome: { label: "fly home again", key: "r" },
+  },
+} as const;

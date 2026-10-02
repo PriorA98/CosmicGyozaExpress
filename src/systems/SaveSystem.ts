@@ -1,5 +1,10 @@
+import type Phaser from "phaser";
+import { COLLECTIBLE_MEMORY_IDS, MISSION_MEMORY_IDS, isMissionId } from "../data/campaign";
+import { onGameEvent } from "../game/events";
 import type { InputScheme, MissionResultSummary, SaveDataV1 } from "../types/save";
+import { normalizeCampaignProgress, type CampaignProgress } from "./CampaignSystem";
 import { pickWarmerResult } from "./MissionResultSystem";
+import { isPackageConditionLabel } from "./PackageConditionSystem";
 
 export const SAVE_KEY = "cosmic-gyoza-express.save.v1";
 /**
@@ -96,14 +101,17 @@ export function sanitizeSave(value: unknown, now = new Date()): SaveDataV1 {
   const source = isRecord(value) ? value : {};
   const stats = isRecord(source.stats) ? source.stats : {};
   const createdAt = sanitizeTimestamp(source.createdAt, defaults.createdAt);
+  // Campaign interpretation runs after schema validation: allowlist + dedupe, Tea Moon always open,
+  // every completed mission (and its declared next missions) unlocked. Completion is never inferred.
+  const progress = normalizeCampaignProgress(sanitizeIdList(source.completedMissions), sanitizeIdList(source.unlockedMissions));
 
   return {
     version: 1,
     createdAt,
     updatedAt: sanitizeTimestamp(source.updatedAt, createdAt),
-    completedMissions: sanitizeIdList(source.completedMissions),
-    unlockedMissions: mergeUnique(defaults.unlockedMissions, sanitizeIdList(source.unlockedMissions)),
-    collectedMemories: sanitizeIdList(source.collectedMemories),
+    completedMissions: [...progress.completedMissions],
+    unlockedMissions: mergeUnique(defaults.unlockedMissions, progress.unlockedMissions),
+    collectedMemories: sanitizeIdList(source.collectedMemories).filter(isKnownMemoryId),
     unlockedCosmetics: sanitizeIdList(source.unlockedCosmetics),
     equippedCosmetics: sanitizeIdList(source.equippedCosmetics),
     settings: sanitizeSettings(source.settings, defaults.settings),
@@ -142,6 +150,11 @@ let lastOutcome: SaveLoadOutcome = { kind: "memory" };
 let firstOutcome: SaveLoadOutcome | null = null;
 /** Last storage access problem seen this session; cleared by a successful write. */
 let storageProblem: "unavailable" | "write-failed" | null = null;
+/**
+ * Delivery attempts already committed this session (keyed by the result scene's init data object), so
+ * recreating the result scene or a double tap can never count one delivery twice.
+ */
+let committedAttempts = new WeakSet<object>();
 
 export class SaveSystem {
   static load(): SaveDataV1 {
@@ -219,7 +232,19 @@ export class SaveSystem {
     return this.commit(createDefaultSave(), true);
   }
 
-  static completeMission(missionId: string, result: MissionResultSummary, memoryRewardId: string): SaveDataV1 {
+  /**
+   * Records a finished delivery: completion, the mission's memory, its declared unlocks (via
+   * normalization), stats, and the warmer best result. Pass `attempt` (any object unique to one
+   * delivery attempt) to make the call idempotent for that attempt.
+   */
+  static completeMission(
+    missionId: string,
+    result: MissionResultSummary,
+    memoryRewardId: string,
+    attempt?: object,
+  ): SaveDataV1 {
+    if (attempt !== undefined && committedAttempts.has(attempt)) return this.load();
+    if (attempt !== undefined) committedAttempts.add(attempt);
     const current = this.load();
     const previousBest = ownValue(current.stats.bestMissionResults, missionId);
     const bestMissionResults: Record<string, MissionResultSummary> = { ...current.stats.bestMissionResults };
@@ -236,6 +261,29 @@ export class SaveSystem {
         bestMissionResults,
       },
     });
+  }
+
+  /** Normalized campaign progress (completed + unlocked missions, board order). */
+  static campaignProgress(): CampaignProgress {
+    const current = this.load();
+    return normalizeCampaignProgress(current.completedMissions, current.unlockedMissions);
+  }
+
+  /**
+   * Keeps an optional postcard/memory. Idempotent; unknown ids are ignored. Updates the session save
+   * immediately and persists through the guarded boundary (never throws).
+   */
+  static collectMemory(memoryId: string): SaveDataV1 {
+    const current = this.load();
+    if (!isKnownMemoryId(memoryId) || current.collectedMemories.includes(memoryId)) return current;
+    return this.save({ ...current, collectedMemories: addUnique(current.collectedMemories, memoryId) });
+  }
+
+  /** Marks the final card as shown. Idempotent. */
+  static markEndingSeen(): SaveDataV1 {
+    const current = this.load();
+    if (current.endingSeen) return current;
+    return this.save({ ...current, endingSeen: true });
   }
 
   static updateSettings(partial: Partial<SaveSettings>): SaveDataV1 {
@@ -293,6 +341,7 @@ export class SaveSystem {
     lastOutcome = { kind: "memory" };
     firstOutcome = null;
     storageProblem = null;
+    committedAttempts = new WeakSet<object>();
   }
 
   /** Makes sure storage was inspected (and a future-version lock detected) before any write. */
@@ -307,6 +356,27 @@ export class SaveSystem {
     memoryAhead = storageLocked ? true : !writeToStorage(next);
     return cloneSave(next);
   }
+}
+
+/**
+ * Keeps campaign pickups in the save: `flight:collectible` → `SaveSystem.collectMemory`. Call once from
+ * main.ts after the game is created; returns the unsubscribe function.
+ */
+export function installCampaignSaveListeners(game: Phaser.Game): () => void {
+  return onGameEvent(game, (event) => {
+    if (event.type !== "flight:collectible") return;
+    try {
+      SaveSystem.collectMemory(event.memoryId);
+    } catch {
+      // SaveSystem degrades to memory on its own; a pickup must never interrupt the flight.
+    }
+  });
+}
+
+const KNOWN_MEMORY_IDS: ReadonlySet<string> = new Set([...MISSION_MEMORY_IDS, ...COLLECTIBLE_MEMORY_IDS]);
+
+function isKnownMemoryId(value: string): boolean {
+  return KNOWN_MEMORY_IDS.has(value);
 }
 
 type StorageRead = { readonly kind: "unavailable" } | { readonly kind: "ok"; readonly raw: string | null };
@@ -470,7 +540,7 @@ function sanitizeBestResults(value: unknown): Record<string, MissionResultSummar
   let count = 0;
   for (const [missionId, entry] of Object.entries(value)) {
     if (count >= SAVE_LIMITS.maxBestResults) break;
-    if (!isSafeId(missionId)) continue;
+    if (!isSafeId(missionId) || !isMissionId(missionId)) continue;
     const summary = sanitizeResultSummary(entry);
     if (!summary) continue;
     out[missionId] = summary;
@@ -482,7 +552,7 @@ function sanitizeBestResults(value: unknown): Record<string, MissionResultSummar
 function sanitizeResultSummary(value: unknown): MissionResultSummary | undefined {
   if (!isRecord(value)) return undefined;
   const label = value.conditionLabel;
-  if (typeof label !== "string" || label.length === 0 || label.length > SAVE_LIMITS.maxIdLength) return undefined;
+  if (typeof label !== "string" || !isPackageConditionLabel(label)) return undefined;
   const completedAt = sanitizeTimestamp(value.completedAt, "");
   if (completedAt === "") return undefined;
   return {

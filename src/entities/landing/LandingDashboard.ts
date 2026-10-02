@@ -21,6 +21,8 @@ export type LandingDashboardOptions = {
   readonly compact: boolean;
   /** HUD scale (compactUiScale, boosted on compact displays); HudPanel renders its text at this size. */
   readonly scale: number;
+  /** Panel title; omitted = the Tea Moon title. */
+  readonly title?: string;
 };
 
 type ReadoutRowId = "descent" | "drift" | "tilt" | "altitude" | "pad";
@@ -53,7 +55,7 @@ export class LandingDashboard {
       { id: "package", label: landingCopy.rows.package, value: "" },
     ];
 
-    this.panel = new HudPanel(scene, { x: 0, y: 0, width, title: landingCopy.dashboardTitle, icon: "moon", rows, uiScale: options.scale });
+    this.panel = new HudPanel(scene, { x: 0, y: 0, width, title: options.title ?? landingCopy.dashboardTitle, icon: "moon", rows, uiScale: options.scale });
     const backing = scene.add.graphics();
     backing.fillStyle(colorNumber(colors.cosmosPanel), 1);
     const inset = config.backingInsetPx;

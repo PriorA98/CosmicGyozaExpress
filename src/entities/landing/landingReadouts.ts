@@ -7,6 +7,7 @@ import {
   type LandingZone,
   type LandingZoneReading,
 } from "../../systems/LandingSystem";
+import type { LandingTuning } from "../../data/landingTuning";
 import type { LandingIncidentKind } from "../../types/landing";
 
 /**
@@ -55,20 +56,20 @@ export function formatSpeedNumber(pxPerSecond: number, units: ReadoutUnits = DEF
   return (Math.round(value * 10) / 10).toFixed(1);
 }
 
-export function formatDescentReadout(velocityY: number, units: ReadoutUnits = DEFAULT_UNITS): LandingReadout {
+export function formatDescentReadout(velocityY: number, units: ReadoutUnits = DEFAULT_UNITS, tuning?: LandingTuning): LandingReadout {
   const number = formatSpeedNumber(velocityY, units);
   const unit = landingCopy.units.speed;
   if (velocityY < -units.risingDeadbandPxPerSecond) {
     const word = landingCopy.risingWord;
     return { word, number, unit, zone: "soft", text: `${word} ${landingCopy.risingArrow} ${number} ${unit}` };
   }
-  const zone = descentZone(velocityY);
+  const zone = descentZone(velocityY, tuning);
   const word = landingCopy.descentWords[zone];
   return { word, number, unit, zone, text: `${word} ${number} ${unit}` };
 }
 
-export function formatDriftReadout(velocityX: number, units: ReadoutUnits = DEFAULT_UNITS): LandingReadout {
-  const zone = driftZone(velocityX);
+export function formatDriftReadout(velocityX: number, units: ReadoutUnits = DEFAULT_UNITS, tuning?: LandingTuning): LandingReadout {
+  const zone = driftZone(velocityX, tuning);
   const word = landingCopy.driftWords[zone];
   const number = formatSpeedNumber(velocityX, units);
   const unit = landingCopy.units.speed;
@@ -161,10 +162,12 @@ export function buildLandingReadouts(
   velocityX: number,
   velocityY: number,
   units: ReadoutUnits = DEFAULT_UNITS,
+  /** The landing's own tuning (zones use its limits); omitted = Tea Moon tuning. */
+  tuning?: LandingTuning,
 ): LandingReadouts {
   return {
-    descent: formatDescentReadout(velocityY, units),
-    drift: formatDriftReadout(velocityX, units),
+    descent: formatDescentReadout(velocityY, units, tuning),
+    drift: formatDriftReadout(velocityX, units, tuning),
     tilt: formatTiltReadout(reading.angleDegrees),
     altitude: formatAltitudeReadout(reading.altitude, reading.onPad, units),
     pad: formatPadReadout(reading.onPad),

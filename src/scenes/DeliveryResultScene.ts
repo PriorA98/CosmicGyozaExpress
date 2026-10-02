@@ -1,7 +1,8 @@
 import Phaser from "phaser";
-import { ASSET, RABBIT_PORTRAIT_FRAME } from "../data/assetManifest";
-import { TEA_MOON_MISSION_ID } from "../data/missions";
+import { ASSET, CAMPAIGN_PORTRAIT_FRAME, RABBIT_PORTRAIT_FRAME } from "../data/assetManifest";
+import { themeFor, type CampaignThemeDefinition } from "../data/campaign/themes";
 import {
+  campaignResultCopy,
   resultCardLayouts,
   resultCopy,
   resultRevealTiming,
@@ -26,9 +27,12 @@ import {
   persistenceNotice,
   pickResultLayoutTier,
   type DeliveryResultPresentation,
+  type ResultAction,
   type ResultStamp,
 } from "../systems/MissionResultSystem";
 import { SaveSystem, type SavePersistenceStatus } from "../systems/SaveSystem";
+import type { MissionSelectSceneData } from "../types/campaign";
+import type { SceneKey } from "../game/events";
 import type { DeliveryResultSceneData } from "../types/landing";
 import { KEYCAP_HEIGHT, Keycap, addUiIcon } from "../ui";
 
@@ -155,6 +159,10 @@ const ENTRY = {
   hop: 8,
 } as const;
 const DASH = { length: 8, gap: 6, width: 2, alpha: 0.8 } as const;
+/** Campaign (non-legacy) card art: recipient portraits are 48 art px, cargo 32, postcards 48x32 (half the slice postcard). */
+const CAMPAIGN_ART = { portraitExtraScale: 1, homeFill: 0.78, postcardScaleFactor: 2, minNoteWidth: 120 } as const;
+/** Thank-you notes on the final card. */
+const NOTES = { titleGap: 8, lineGap: 6, bullet: "✦ " } as const;
 
 type StageProps = {
   alpha: number;
@@ -190,6 +198,8 @@ type RevealStep = {
   readonly onPlay?: (instant: boolean) => void;
   played: boolean;
 };
+
+type FooterButton = { readonly action: ResultAction; readonly button: ResultButton };
 
 type ResultButton = {
   readonly root: Phaser.GameObjects.Container;
@@ -238,7 +248,13 @@ export class DeliveryResultScene extends Phaser.Scene {
   private blinkTimer?: Phaser.Time.TimerEvent;
   private happyTimer?: Phaser.Time.TimerEvent;
   private twinkles: Phaser.GameObjects.Sprite[] = [];
-  private buttons: { fly?: ResultButton; back?: ResultButton } = {};
+  private buttons: FooterButton[] = [];
+  /** Identity of this delivery attempt (the init data object) so completion is committed once. */
+  private attempt: object = {};
+  private theme: CampaignThemeDefinition = themeFor("teaMoon");
+  /** Campaign recipient portrait (non-legacy themes); switches to its welcome frame with the postcard. */
+  private recipient?: Phaser.GameObjects.Sprite;
+  private endingMarked = false;
   private skipHint?: Phaser.GameObjects.Text;
   /** Wall-clock start of the reveal, so a stalled tab still settles within the reveal budget. */
   private revealStartedAt = 0;
@@ -249,6 +265,9 @@ export class DeliveryResultScene extends Phaser.Scene {
 
   init(data: Partial<DeliveryResultSceneData> | undefined): void {
     this.resultData = normalizeDeliveryResultData(data);
+    this.attempt = data ?? {};
+    this.endingMarked = false;
+    this.recipient = undefined;
     this.view = undefined;
     this.persistence = { kind: "persistent" };
     this.saved = false;
@@ -256,7 +275,7 @@ export class DeliveryResultScene extends Phaser.Scene {
     this.leaving = false;
     this.steps = [];
     this.stepTimers = [];
-    this.buttons = {};
+    this.buttons = [];
     this.twinkles = [];
     this.rabbitHappy = false;
     this.blinkTimer = undefined;
@@ -273,6 +292,7 @@ export class DeliveryResultScene extends Phaser.Scene {
     void playEnterTransition(this, { kind: "warm-fade" });
 
     this.view = this.recordDelivery();
+    this.theme = themeFor(this.view.themeId);
     this.persistence = SaveSystem.persistenceStatus();
     this.reducedMotion = isReducedMotion() || SaveSystem.load().settings.reducedMotion;
     this.tier = this.pickTier();
@@ -295,6 +315,10 @@ export class DeliveryResultScene extends Phaser.Scene {
       layoutTier: this.tier,
       persistence: this.persistence,
       liveTwinkles: this.twinkles.length,
+      missionId: this.view?.missionId,
+      isEnding: this.view?.isEnding,
+      actions: this.view?.actions.map((action) => action.kind),
+      endingMarked: this.endingMarked,
     }));
     registerDevState("save", () => SaveSystem.diagnostics());
 
@@ -326,11 +350,12 @@ export class DeliveryResultScene extends Phaser.Scene {
       previousDeliveries: before.completedMissions.includes(missionId) ? before.stats.totalDeliveries : 0,
       previousBest: SaveSystem.getBestResult(missionId),
       memoryAlreadyCollected: before.collectedMemories.includes(memoryRewardId),
+      progress: SaveSystem.campaignProgress(),
     });
 
     if (!this.saved) {
       try {
-        SaveSystem.completeMission(missionId, createMissionResultSummary(view.content), view.content.memoryRewardId);
+        SaveSystem.completeMission(missionId, createMissionResultSummary(view.content), view.content.memoryRewardId, this.attempt);
       } catch {
         // SaveSystem already degrades to memory; this guard keeps the celebration on screen regardless.
       }
@@ -392,16 +417,20 @@ export class DeliveryResultScene extends Phaser.Scene {
       .setAlpha(this.isFallback(ASSET.planetFarPlum) ? MOON.fallbackAlpha : PLUM.alpha)
       .setDepth(depth.parallax);
 
-    // Warm halo so the tea moon glows into the dusk, with or without its final art.
+    // Warm halo so the destination glows into the dusk, with or without its final art.
+    const legacy = this.theme.legacy;
     const halo = this.add.graphics().setDepth(depth.parallax);
     MOON.rings.forEach(({ radius, alpha }) => {
-      halo.fillStyle(colorNumber(colors.amber), alpha);
+      halo.fillStyle(legacy ? colorNumber(colors.amber) : colorNumber(this.theme.palette.light), alpha);
       halo.fillCircle(MOON.x, MOON.y, radius);
     });
 
-    const moon = this.isFallback(ASSET.celestialTeaMoon)
-      ? this.createPlaceholderMoon()
-      : this.add.image(MOON.x, MOON.y, ASSET.celestialTeaMoon).setScale(ART_SCALE).setDepth(depth.parallax);
+    // Tea Moon keeps its moon; campaign deliveries show their destination vignette in the same spot.
+    const moon = !legacy
+      ? this.add.image(MOON.x, MOON.y, this.theme.destinationTexture).setScale(ART_SCALE).setDepth(depth.parallax)
+      : this.isFallback(ASSET.celestialTeaMoon)
+        ? this.createPlaceholderMoon()
+        : this.add.image(MOON.x, MOON.y, ASSET.celestialTeaMoon).setScale(ART_SCALE).setDepth(depth.parallax);
     if (!this.reducedMotion) {
       this.tweens.add({
         targets: moon,
@@ -473,8 +502,12 @@ export class DeliveryResultScene extends Phaser.Scene {
     this.createLeftColumn(card, frame, view);
     const postcard = this.createPostcard(card, frame, view);
     const copyBottom = this.createHeadline(card, frame, view);
-    const stampsBottom = this.createStamps(card, frame, view, copyBottom, postcard);
-    if (layout.showStats) this.createStats(card, frame, view, stampsBottom, postcard);
+    if (view.isEnding) {
+      this.createThankYouNotes(card, frame, view, copyBottom, postcard);
+    } else {
+      const stampsBottom = this.createStamps(card, frame, view, copyBottom, postcard);
+      if (layout.showStats) this.createStats(card, frame, view, stampsBottom, postcard);
+    }
     this.createFooter(card, frame, view);
     if (layout.showSkipHint && !this.revealComplete) this.createSkipHint();
   }
@@ -538,15 +571,100 @@ export class DeliveryResultScene extends Phaser.Scene {
     const available = frame.contentBottom - frame.innerTop;
     const top = Math.round(frame.innerTop + Math.max(SPACING.portraitTop, (available - stackHeight) / 2));
 
-    this.createPortrait(card, layout, x, top);
-    if (layout.showItems) this.createItems(card, layout, view, x, top + size + tagH / 2 + SPACING.trayGap);
+    if (view.legacy) this.createPortrait(card, layout, x, top);
+    else this.createCampaignPortrait(card, layout, view, x, top);
+    if (!layout.showItems) return;
+    const trayTop = top + size + tagH / 2 + SPACING.trayGap;
+    if (view.legacy) this.createItems(card, layout, view, x, trayTop);
+    else this.createCargo(card, layout, view, x, trayTop);
   }
 
   private createPortrait(card: Phaser.GameObjects.Container, layout: ResultCardLayout, x: number, top: number): void {
     const size = layout.portraitFrame;
-    const left = Math.round(x - size / 2);
     const centerY = top + size / 2;
+    const frame = this.drawPortraitFrame(x, top, size);
 
+    this.rabbitRestY = Math.round(centerY + layout.portraitScale * 2);
+    const rabbit = this.add
+      .sprite(x, this.rabbitRestY, ASSET.rabbitPortrait, RABBIT_PORTRAIT_FRAME.idle)
+      .setScale(layout.portraitScale);
+    this.rabbit = rabbit;
+
+    const { tag, name } = this.createNameTag(layout, x, top + size, resultCopy.recipientCaption);
+
+    card.add([frame, rabbit, tag, name]);
+    this.stage(resultRevealTiming.portrait, motion.slow, "Back.easeOut", [
+      this.part(frame, { alpha: 0 }),
+      this.part(rabbit, { alpha: 0, scale: layout.portraitScale * ENTRY.rabbitScaleFactor }),
+      this.part(tag, { alpha: 0, dy: 8 }),
+      this.part(name, { alpha: 0, dy: 8 }),
+    ], (instant) => {
+      if (!instant) this.time.delayedCall(motion.slow + motion.base, () => this.blinkOnce());
+    });
+  }
+
+  /**
+   * Campaign recipient: the theme portrait (idle, then its welcome frame with the postcard). Home has no
+   * recipient portrait, so the frame holds the gyoza ship itself at the largest whole-pixel scale that fits.
+   */
+  private createCampaignPortrait(
+    card: Phaser.GameObjects.Container,
+    layout: ResultCardLayout,
+    view: DeliveryResultPresentation,
+    x: number,
+    top: number,
+  ): void {
+    const size = layout.portraitFrame;
+    const centerY = Math.round(top + size / 2);
+    const frame = this.drawPortraitFrame(x, top, size);
+    const portraitKey = this.theme.portraitTexture;
+    let figure: Phaser.GameObjects.Image | Phaser.GameObjects.Sprite;
+    let scale: number;
+    if (portraitKey !== null) {
+      scale = layout.portraitScale + CAMPAIGN_ART.portraitExtraScale;
+      const sprite = this.add.sprite(x, centerY, portraitKey, CAMPAIGN_PORTRAIT_FRAME.idle).setScale(scale);
+      this.recipient = sprite;
+      figure = sprite;
+    } else {
+      const ship = this.add.image(x, centerY, ASSET.shipIdle);
+      scale = Math.max(1, Math.floor((size * CAMPAIGN_ART.homeFill) / Math.max(ship.width, ship.height, 1)));
+      figure = ship.setScale(scale);
+    }
+
+    const { tag, name } = this.createNameTag(layout, x, top + size, view.recipientCaption);
+    card.add([frame, figure, tag, name]);
+    this.stage(resultRevealTiming.portrait, motion.slow, "Back.easeOut", [
+      this.part(frame, { alpha: 0 }),
+      this.part(figure, { alpha: 0, scale: scale * ENTRY.rabbitScaleFactor }),
+      this.part(tag, { alpha: 0, dy: 8 }),
+      this.part(name, { alpha: 0, dy: 8 }),
+    ]);
+  }
+
+  private createNameTag(
+    layout: ResultCardLayout,
+    x: number,
+    y: number,
+    caption: string,
+  ): { readonly tag: Phaser.GameObjects.Graphics; readonly name: Phaser.GameObjects.Text } {
+    const name = this.add
+      .text(x, y, caption, {
+        color: colors.plaster,
+        fontFamily: fontStacks.mono,
+        fontSize: `${typeScale[layout.type.caption]}px`,
+        fontStyle: "700",
+      })
+      .setOrigin(0.5);
+    const tagW = evenCeil(name.width + SPACING.tagPadX * 2);
+    const tagH = layout.nameTagHeight;
+    const tag = this.add.graphics();
+    tag.fillStyle(colorNumber(colors.ink), 1);
+    fillStepped(tag, Math.round(x - tagW / 2), Math.round(y - tagH / 2), tagW, tagH, [6, 4, 2]);
+    return { tag, name };
+  }
+
+  private drawPortraitFrame(x: number, top: number, size: number): Phaser.GameObjects.Graphics {
+    const left = Math.round(x - size / 2);
     const frame = this.add.graphics();
     frame.fillStyle(colorNumber(colors.ink), 1);
     fillStepped(frame, left + 4, top + 4, size, size, [4, 2]);
@@ -558,36 +676,7 @@ export class DeliveryResultScene extends Phaser.Scene {
     fillStepped(frame, left + size * 0.12, top + size * 0.14, size * 0.76, size * 0.76, [16, 10, 6, 4, 2, 2]);
     frame.fillStyle(colorNumber(colors.plaster), 0.07);
     fillStepped(frame, left + size * 0.22, top + size * 0.24, size * 0.56, size * 0.56, [12, 8, 4, 2, 2]);
-
-    this.rabbitRestY = Math.round(centerY + layout.portraitScale * 2);
-    const rabbit = this.add
-      .sprite(x, this.rabbitRestY, ASSET.rabbitPortrait, RABBIT_PORTRAIT_FRAME.idle)
-      .setScale(layout.portraitScale);
-    this.rabbit = rabbit;
-
-    const name = this.add
-      .text(x, top + size, resultCopy.recipientCaption, {
-        color: colors.plaster,
-        fontFamily: fontStacks.mono,
-        fontSize: `${typeScale[layout.type.caption]}px`,
-        fontStyle: "700",
-      })
-      .setOrigin(0.5);
-    const tagW = evenCeil(name.width + SPACING.tagPadX * 2);
-    const tagH = layout.nameTagHeight;
-    const tag = this.add.graphics();
-    tag.fillStyle(colorNumber(colors.ink), 1);
-    fillStepped(tag, Math.round(x - tagW / 2), Math.round(top + size - tagH / 2), tagW, tagH, [6, 4, 2]);
-
-    card.add([frame, rabbit, tag, name]);
-    this.stage(resultRevealTiming.portrait, motion.slow, "Back.easeOut", [
-      this.part(frame, { alpha: 0 }),
-      this.part(rabbit, { alpha: 0, scale: layout.portraitScale * ENTRY.rabbitScaleFactor }),
-      this.part(tag, { alpha: 0, dy: 8 }),
-      this.part(name, { alpha: 0, dy: 8 }),
-    ], (instant) => {
-      if (!instant) this.time.delayedCall(motion.slow + motion.base, () => this.blinkOnce());
-    });
+    return frame;
   }
 
   private createItems(
@@ -603,22 +692,7 @@ export class DeliveryResultScene extends Phaser.Scene {
     const trayH = SPACING.trayHeight;
     const restLine = Math.round(trayTop + trayH * 0.62);
     const itemOffset = Math.round(trayWidth * 0.2);
-    const tray = this.add.graphics();
-    tray.fillStyle(colorNumber(colors.borderStrong), 1);
-    fillStepped(tray, trayLeft, trayTop + 4, trayWidth, trayH, [4, 2]);
-    tray.fillStyle(colorNumber(colors.borderStrong), 1);
-    fillStepped(tray, trayLeft - 2, trayTop - 2, trayWidth + 4, trayH + 4, [4, 2]);
-    tray.fillStyle(colorNumber(colors.wallpaper), 1);
-    fillStepped(tray, trayLeft, trayTop, trayWidth, trayH, [2]);
-    tray.fillStyle(colorNumber(colors.plaster), 0.45);
-    tray.fillRect(trayLeft + 4, trayTop + 2, trayWidth - 8, 2);
-    // Contact shadows under each item: flat pixel bands, not soft ellipses.
-    tray.fillStyle(colorNumber(colors.borderStrong), 0.55);
-    for (const [cx, w] of [[x - itemOffset, 60], [x + itemOffset, 56]] as const) {
-      tray.fillRect(cx - w / 2 + 4, restLine - 2, w - 8, 2);
-      tray.fillRect(cx - w / 2, restLine, w, 4);
-      tray.fillRect(cx - w / 2 + 4, restLine + 4, w - 8, 2);
-    }
+    const tray = this.drawTray(trayLeft, trayTop, trayWidth, restLine, [[x - itemOffset, 60], [x + itemOffset, 56]]);
 
     const tea = this.add.image(x - itemOffset, restLine + 2, ASSET.itemTea).setOrigin(0.5, 1).setScale(ART_SCALE);
     const mochi = this.add.image(x + itemOffset, restLine + 2, ASSET.itemMochi).setOrigin(0.5, 1).setScale(ART_SCALE);
@@ -652,6 +726,69 @@ export class DeliveryResultScene extends Phaser.Scene {
     ], () => this.startSteam([steamA, steamB]));
   }
 
+  /** Campaign cargo: the theme's cargo icon set down on the same wooden tray. */
+  private createCargo(
+    card: Phaser.GameObjects.Container,
+    layout: ResultCardLayout,
+    view: DeliveryResultPresentation,
+    x: number,
+    trayTop: number,
+  ): void {
+    const trayWidth = layout.leftColumnWidth - SPACING.trayInsetX * 2;
+    const trayLeft = Math.round(x - trayWidth / 2);
+    const restLine = Math.round(trayTop + SPACING.trayHeight * 0.62);
+    const tray = this.drawTray(trayLeft, trayTop, trayWidth, restLine, [[x, 60]]);
+    const cargo = this.add
+      .image(x, restLine + 2, ASSET.campaignCargo, this.theme.cargoFrame ?? 0)
+      .setOrigin(0.5, 1)
+      .setScale(ART_SCALE);
+    const caption = this.add
+      .text(x, trayTop + SPACING.trayHeight + SPACING.captionGap, view.content.deliveryItemName, {
+        color: colors.inkSoft,
+        fontFamily: fontStacks.ui,
+        fontSize: `${typeScale[layout.type.caption]}px`,
+        fontStyle: "600",
+        align: "center",
+        wordWrap: { width: trayWidth },
+      })
+      .setOrigin(0.5, 0);
+
+    card.add([tray, cargo, caption]);
+    this.stage(resultRevealTiming.items, motion.slow, "Back.easeOut", [
+      this.part(tray, { alpha: 0 }),
+      this.part(cargo, { alpha: 0, dy: -16 }),
+      this.part(caption, { alpha: 0 }),
+    ]);
+  }
+
+  /** A low wooden serving tray plus flat pixel contact shadows at `[centerX, width]` spots. */
+  private drawTray(
+    trayLeft: number,
+    trayTop: number,
+    trayWidth: number,
+    restLine: number,
+    shadows: readonly (readonly [number, number])[],
+  ): Phaser.GameObjects.Graphics {
+    const trayH = SPACING.trayHeight;
+    const tray = this.add.graphics();
+    tray.fillStyle(colorNumber(colors.borderStrong), 1);
+    fillStepped(tray, trayLeft, trayTop + 4, trayWidth, trayH, [4, 2]);
+    tray.fillStyle(colorNumber(colors.borderStrong), 1);
+    fillStepped(tray, trayLeft - 2, trayTop - 2, trayWidth + 4, trayH + 4, [4, 2]);
+    tray.fillStyle(colorNumber(colors.wallpaper), 1);
+    fillStepped(tray, trayLeft, trayTop, trayWidth, trayH, [2]);
+    tray.fillStyle(colorNumber(colors.plaster), 0.45);
+    tray.fillRect(trayLeft + 4, trayTop + 2, trayWidth - 8, 2);
+    // Contact shadows under each item: flat pixel bands, not soft ellipses.
+    tray.fillStyle(colorNumber(colors.borderStrong), 0.55);
+    for (const [cx, w] of shadows) {
+      tray.fillRect(cx - w / 2 + 4, restLine - 2, w - 8, 2);
+      tray.fillRect(cx - w / 2, restLine, w, 4);
+      tray.fillRect(cx - w / 2 + 4, restLine + 4, w - 8, 2);
+    }
+    return tray;
+  }
+
   private startSteam(wisps: readonly Phaser.GameObjects.Sprite[]): void {
     if (!this.anims.exists(STEAM_ANIM_KEY)) {
       this.anims.create({
@@ -683,7 +820,7 @@ export class DeliveryResultScene extends Phaser.Scene {
       const kickerSize = typeScale[layout.type.kicker];
       const onGrid = kickerSize % PIXEL_FONT_GRID === 0;
       kicker = this.add
-        .text(x, cursor, `${view.kicker}  ·  tea moon`, {
+        .text(x, cursor, `${view.kicker}  ·  ${view.kickerPlace}`, {
           color: colors.terracottaDeep,
           fontFamily: onGrid ? fontStacks.pixel : fontStacks.mono,
           fontSize: `${kickerSize}px`,
@@ -714,7 +851,18 @@ export class DeliveryResultScene extends Phaser.Scene {
     cursor += Math.round(reaction.height) + layout.blockGap;
 
     let report: Phaser.GameObjects.Text | undefined;
-    if (layout.showReport) {
+    if (view.closingLine !== null) {
+      // Authored closing line (I'm Fine, Home) always shows, in place of the condition report.
+      report = this.add.text(x, cursor, view.closingLine, {
+        color: colors.terracottaDeep,
+        fontFamily: fontStacks.ui,
+        fontSize: `${typeScale[layout.type.body]}px`,
+        fontStyle: "italic 600",
+        lineSpacing: 2,
+        wordWrap: { width },
+      });
+      cursor += Math.round(report.height);
+    } else if (layout.showReport) {
       report = this.add.text(x, cursor, view.content.reportLine, {
         color: colors.inkSoft,
         fontFamily: fontStacks.ui,
@@ -853,6 +1001,52 @@ export class DeliveryResultScene extends Phaser.Scene {
   }
 
   /** Postcard pinned bottom-right of the copy column; returns its rect (card-local) for flow layout. */
+  /**
+   * Final card: one thank-you line per completed delivery (never collectible counts or quality), beside
+   * the postcard. Lines that would run into the footer are left out rather than shrunk.
+   */
+  private createThankYouNotes(
+    card: Phaser.GameObjects.Container,
+    frame: CardFrame,
+    view: DeliveryResultPresentation,
+    top: number,
+    postcard: Rect,
+  ): void {
+    const layout = frame.layout;
+    const x = frame.rightX;
+    const width = Math.max(CAMPAIGN_ART.minNoteWidth, postcard.left - SPACING.postcardClearance - x);
+    const title = this.add.text(x, Math.round(top), campaignResultCopy.notesTitle, {
+      color: colors.terracottaDeep,
+      fontFamily: fontStacks.mono,
+      fontSize: `${typeScale[layout.type.caption]}px`,
+      fontStyle: "700",
+    });
+    let cursor = Math.round(top + title.height + NOTES.titleGap);
+    const notes = view.thankYouNotes.length > 0 ? view.thankYouNotes : [campaignResultCopy.noNotes];
+    const lines: Phaser.GameObjects.Text[] = [];
+    for (const note of notes) {
+      const line = this.add.text(x, cursor, `${NOTES.bullet}${note}`, {
+        color: colors.ink,
+        fontFamily: fontStacks.ui,
+        fontSize: `${typeScale[layout.type.stat]}px`,
+        wordWrap: { width },
+      });
+      if (cursor + line.height > frame.contentBottom) {
+        line.destroy();
+        break;
+      }
+      cursor += Math.round(line.height) + NOTES.lineGap;
+      lines.push(line);
+    }
+
+    card.add([title, ...lines]);
+    this.stage(resultRevealTiming.landingStamp, motion.slow, "Cubic.easeOut", [this.part(title, { alpha: 0, dy: 6 })]);
+    lines.forEach((line, index) => {
+      const at = Math.min(resultRevealTiming.stats, resultRevealTiming.conditionStamp + index * 60);
+      this.stage(at, motion.slow, "Cubic.easeOut", [this.part(line, { alpha: 0, dx: -8 })]);
+    });
+  }
+
   private createPostcard(card: Phaser.GameObjects.Container, frame: CardFrame, view: DeliveryResultPresentation): Rect {
     const layout = frame.layout;
     const scale = layout.postcardScale;
@@ -889,7 +1083,11 @@ export class DeliveryResultScene extends Phaser.Scene {
     const shadow = this.add.graphics();
     shadow.fillStyle(colorNumber(colors.ink), POSTCARD_SHADOW.alpha);
     shadow.fillRect(-w / 2 + POSTCARD_SHADOW.x, -h / 2 + POSTCARD_SHADOW.y, w, h);
-    const postcard = this.add.image(0, 0, ASSET.memoryPostcard).setScale(scale);
+    const postcard = view.legacy
+      ? this.add.image(0, 0, ASSET.memoryPostcard).setScale(scale)
+      : this.add
+          .image(0, 0, ASSET.campaignPostcards, this.theme.postcardFrame ?? 0)
+          .setScale(scale * CAMPAIGN_ART.postcardScaleFactor);
     const corners = this.add.graphics();
     drawPhotoCorners(corners, -w / 2, -h / 2, w, h);
     holder.add([shadow, postcard, corners]);
@@ -904,6 +1102,7 @@ export class DeliveryResultScene extends Phaser.Scene {
     ], (instant) => {
       if (!instant) this.playTwinkles(card, rect);
       this.cheerRabbit(instant);
+      this.welcomeRecipient();
     });
 
     return rect;
@@ -952,17 +1151,26 @@ export class DeliveryResultScene extends Phaser.Scene {
     const divider = this.add.graphics();
     drawDashedLine(divider, frame.innerLeft, frame.footerY, frame.innerRight, colors.borderStrong);
 
-    const fly = this.createButton(layout, "primary", resultCopy.buttons.flyAgain, () => this.flyAgain());
-    const back = this.createButton(layout, "secondary", resultCopy.buttons.backToTitle, () => this.backToTitle());
-    fly.root.setPosition(frame.innerRight - fly.width, frame.buttonTop);
-    back.root.setPosition(frame.innerRight - fly.width - layout.buttonGap - back.width, frame.buttonTop);
-    this.buttons = { fly, back };
+    // Actions read left to right; they are laid out from the right edge so the primary keeps its slot.
+    const minWidth = view.legacy ? layout.buttonMinWidth : layout.campaignButtonMinWidth;
+    const footer: FooterButton[] = view.actions.map((action) => {
+      const button = this.createButton(layout, action.variant, action, () => this.activate(action), minWidth);
+      return { action, button };
+    });
+    let right = frame.innerRight;
+    for (const { button } of [...footer].reverse()) {
+      button.root.setPosition(right - button.width, frame.buttonTop);
+      right -= button.width + layout.buttonGap;
+    }
+    this.buttons = footer;
+    const leftmost = footer[0]?.button.root.x ?? frame.innerRight;
 
     // Note column: the delivery note plus, when progress can't be kept, a kind footnote.
     const noteX = frame.innerLeft + SPACING.notePadX;
-    const noteWidth = back.root.x - layout.buttonGap - noteX;
+    const noteWidth = leftmost - layout.buttonGap - noteX;
+    const roomForNotes = view.legacy || noteWidth >= CAMPAIGN_ART.minNoteWidth;
     const lines: Phaser.GameObjects.Text[] = [];
-    if (layout.showDeliveryNote) {
+    if (layout.showDeliveryNote && roomForNotes) {
       lines.push(
         this.add.text(noteX, 0, view.deliveryNote, {
           color: view.isNewWarmest ? colors.terracottaDeep : colors.inkSoft,
@@ -974,7 +1182,7 @@ export class DeliveryResultScene extends Phaser.Scene {
       );
     }
     const notice = persistenceNotice(this.persistence);
-    if (notice) {
+    if (notice && roomForNotes) {
       lines.push(
         this.add.text(noteX, 0, notice, {
           color: colors.inkSoft,
@@ -994,12 +1202,11 @@ export class DeliveryResultScene extends Phaser.Scene {
       y += Math.round(line.height) + SPACING.noteGap;
     }
 
-    card.add([divider, ...lines, back.root, fly.root]);
+    card.add([divider, ...lines, ...footer.map(({ button }) => button.root)]);
     this.stage(resultRevealTiming.footer, motion.base, "Cubic.easeOut", [
       this.part(divider, { alpha: 0 }),
       ...lines.map((line) => this.part(line, { alpha: 0 })),
-      this.part(back.root, { alpha: 0, dy: 12 }),
-      this.part(fly.root, { alpha: 0, dy: 12 }),
+      ...footer.map(({ button }) => this.part(button.root, { alpha: 0, dy: 12 })),
     ]);
   }
 
@@ -1009,6 +1216,7 @@ export class DeliveryResultScene extends Phaser.Scene {
     variant: ButtonVariant,
     copy: { readonly label: string; readonly key: string },
     onActivate: () => void,
+    minWidth: number = layout.buttonMinWidth,
   ): ResultButton {
     const palette = BUTTON_PALETTE[variant];
     const height = layout.buttonHeight;
@@ -1025,7 +1233,7 @@ export class DeliveryResultScene extends Phaser.Scene {
     const keycap = layout.showKeycaps ? new Keycap(this, { x: 0, y: 0, label: copy.key }) : undefined;
     const border = BUTTON_ART.border * ART_SCALE;
     const keycapSpace = keycap ? keycap.keyWidth + SPACING.keycapPadRight + SPACING.buttonLabelPad : 0;
-    const width = evenCeil(Math.max(layout.buttonMinWidth, label.width + keycapSpace + (border + SPACING.buttonLabelPad) * 2));
+    const width = evenCeil(Math.max(minWidth, label.width + keycapSpace + (border + SPACING.buttonLabelPad) * 2));
     const centerY = ((height / ART_SCALE - BUTTON_ART.lip) / 2) * ART_SCALE;
 
     label.setPosition(keycap ? border + SPACING.buttonLabelPad : Math.round((width - label.width) / 2), centerY);
@@ -1203,6 +1411,15 @@ export class DeliveryResultScene extends Phaser.Scene {
       this.skipHint = undefined;
     }
     emitGameEvent(this, { type: "result:shown", landingResult: this.resultData.landingResult });
+    if (this.view?.isEnding && !this.endingMarked) {
+      // Only once the final card has actually been shown.
+      this.endingMarked = true;
+      try {
+        SaveSystem.markEndingSeen();
+      } catch {
+        // SaveSystem degrades to memory; the ending stays on screen regardless.
+      }
+    }
   }
 
   private clearCardTimers(): void {
@@ -1233,6 +1450,10 @@ export class DeliveryResultScene extends Phaser.Scene {
     this.blinkTimer?.remove();
     const delay = Phaser.Math.Between(resultRevealTiming.blinkMinMs, resultRevealTiming.blinkMaxMs);
     this.blinkTimer = this.time.delayedCall(delay, () => this.blinkOnce());
+  }
+
+  private welcomeRecipient(): void {
+    if (this.recipient?.active) this.recipient.setFrame(CAMPAIGN_PORTRAIT_FRAME.welcome);
   }
 
   private cheerRabbit(instant: boolean): void {
@@ -1271,8 +1492,8 @@ export class DeliveryResultScene extends Phaser.Scene {
           this.finishReveal();
           return;
         }
-        if (event.code === "Enter" || event.code === "NumpadEnter") this.flyAgain();
-        else if (event.code === "Escape") this.backToTitle();
+        const action = this.view?.actions.find((candidate) => candidate.codes.includes(event.code));
+        if (action) this.activate(action);
       };
       keyboard.on("keydown", onKey);
       this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => keyboard.off("keydown", onKey));
@@ -1286,20 +1507,45 @@ export class DeliveryResultScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.input.off(Phaser.Input.Events.POINTER_DOWN, onPointer));
   }
 
-  private flyAgain(): void {
-    this.leave(this.buttons.fly, "ui:confirm", "FlightScene", { missionId: this.resultData.missionId || TEA_MOON_MISSION_ID });
+  private activate(action: ResultAction): void {
+    if (this.leaving) return;
+    const button = this.buttons.find((candidate) => candidate.action === action)?.button;
+    switch (action.kind) {
+      case "fly-again":
+      case "next-delivery":
+        this.leave(button, "ui:confirm", "FlightScene", { missionId: action.missionId });
+        return;
+      case "delivery-board": {
+        const data: MissionSelectSceneData = { focusMissionId: action.missionId };
+        this.leave(button, action.variant === "primary" ? "ui:confirm" : "ui:back", "MissionSelectScene", data);
+        return;
+      }
+      case "back-to-title":
+        this.leave(button, "ui:back", "TitleScene");
+        return;
+      case "read-notes":
+        this.replayNotes();
+        return;
+    }
   }
 
-  private backToTitle(): void {
-    this.leave(this.buttons.back, "ui:back", "TitleScene");
+  /** Final card: plays the reveal again in place (no save writes; the delivery is already kept). */
+  private replayNotes(): void {
+    if (!this.view || this.leaving || !this.revealComplete) return;
+    emitGameEvent(this, { type: "ui:confirm" });
+    this.clearCardTimers();
+    for (const step of this.steps) for (const { target } of step.parts) this.tweens.killTweensOf(target);
+    this.clearTwinkles();
+    this.card?.destroy();
+    this.steps = [];
+    this.recipient = undefined;
+    this.revealComplete = false;
+    this.buildCard(this.view);
+    this.revealStartedAt = performance.now();
+    this.scheduleReveal();
   }
 
-  private leave(
-    button: ResultButton | undefined,
-    eventType: "ui:confirm" | "ui:back",
-    target: "FlightScene" | "TitleScene",
-    data?: object,
-  ): void {
+  private leave(button: ResultButton | undefined, eventType: "ui:confirm" | "ui:back", target: SceneKey, data?: object): void {
     if (this.leaving) return;
     this.leaving = true;
     emitGameEvent(this, { type: eventType });

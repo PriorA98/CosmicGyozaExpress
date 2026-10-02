@@ -133,3 +133,36 @@ export const landingCopy = {
     thrust: "thrust",
   },
 } as const;
+
+/**
+ * Campaign landing copy (theme.legacy === false). Mission-specific teaching lines come from
+ * `MissionDefinitionV2.dashboard`; these are the neutral fallbacks that replace Tea Moon's blanket jokes.
+ */
+export const campaignLandingCopy = {
+  /** Dashboard / intro card title: `${shortTitle} · landing`, lowercase like Tea Moon's. */
+  titleSuffix: " · landing",
+  /** Intro card subtitle: `${recipient first name} is waving you in`. */
+  wavingSuffix: " is waving you in",
+  /** Intro card subtitle when the destination has no recipient portrait (home). */
+  homeSubtitle: "the wide berth is open",
+  /** Small welcome banner standing by a portrait-less pad (home). */
+  homeBanner: "welcome home",
+  notes: {
+    offPad: "line up over the lit berth",
+    settling: "berth clamps engaged",
+  },
+  incidentNotes: {
+    "hard-drop": "the berth says: softer, please",
+    skid: "sideways soup maneuver detected",
+    "tilt-tip": "bottom thruster lost to geometry",
+    "off-pad": "the berth missed the snack",
+  } satisfies Record<LandingIncidentKind, string>,
+  wind: {
+    label: "wind",
+    steady: "steady",
+    gathering: "gathering",
+    gusting: "gusting",
+    sheltered: "sheltered",
+    calm: "calm",
+  },
+} as const;

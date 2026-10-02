@@ -64,6 +64,7 @@ export class ArrivalBeacon {
     private readonly scene: Phaser.Scene,
     private readonly destination: FlightDestinationDefinition,
     shipLayout: ShipArtLayout,
+    private readonly beaconLabel: string = flightHudCopy.beaconLabel,
   ) {
     const style = arrivalBeaconStyle;
     const bottom = directionVector(destination.requiredBottomFacingRadians);
@@ -175,7 +176,7 @@ export class ArrivalBeacon {
     const ringOuter = destination.radius + style.ringShadowThickness * ART + style.labelGap;
     this.labelBelowY = y + ringOuter;
     this.labelAboveBaseY = y - ringOuter;
-    this.label = this.createLabel("idle", flightHudCopy.beaconLabel);
+    this.label = this.createLabel("idle", this.beaconLabel);
     this.centreLabel();
   }
 
@@ -190,7 +191,7 @@ export class ArrivalBeacon {
     this.uiScale = scale;
     const kind = this.lastKind ?? "too-far";
     this.label.destroy();
-    this.label = this.createLabel(PILL_STATE[kind], kind === "ready" ? flightHudCopy.ready : flightHudCopy.beaconLabel);
+    this.label = this.createLabel(PILL_STATE[kind], kind === "ready" ? flightHudCopy.ready : this.beaconLabel);
     this.centreLabel();
   }
 
@@ -208,7 +209,7 @@ export class ArrivalBeacon {
       this.chevrons.setTint(color);
       this.progressTrack.setTint(color).setVisible(ready);
       this.progressShadow.setVisible(ready);
-      this.label.setPillState(PILL_STATE[docking.kind], ready ? flightHudCopy.ready : flightHudCopy.beaconLabel);
+      this.label.setPillState(PILL_STATE[docking.kind], ready ? flightHudCopy.ready : this.beaconLabel);
       this.centreLabel();
       this.lastProgressCount = -1;
     }

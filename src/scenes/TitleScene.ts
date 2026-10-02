@@ -1,5 +1,7 @@
 import Phaser from "phaser";
 import { ASSET, RABBIT_PORTRAIT_FRAME, SHIP_ART } from "../data/assetManifest";
+import { resolveMission } from "../data/campaign";
+import { themeFor } from "../data/campaign/themes";
 import { TEA_MOON_MISSION_ID, teaMoonMission } from "../data/missions";
 import { routeLogCopy, settingsCopy, titleCopy } from "../data/uiCopy";
 import { createDevSceneLauncherPanel, installDevSceneHotkeys } from "../dev/DevSceneLauncher";
@@ -9,14 +11,16 @@ import { playEnterTransition, transitionToScene } from "../fx/transitions";
 import { compactUiScale, isCompactDisplay } from "../game/displayScale";
 import { colorNumber, colors, depth, motion, typeScale } from "../game/designTokens";
 import { emitGameEvent } from "../game/events";
+import { isCampaignComplete, nextSuggestedMission, normalizeCampaignProgress, type CampaignProgress } from "../systems/CampaignSystem";
 import { SaveSystem } from "../systems/SaveSystem";
+import type { MissionSelectSceneData } from "../types/campaign";
 import type { FlightSceneData } from "../types/flight";
 import { Button } from "../ui/Button";
 import { addUiIcon } from "../ui/icons";
 import { Keycap } from "../ui/Keycap";
 import { dotsAlongQuadratic, quadraticPoint, uiScaled, uiSecondaryTextSize, uiTextSize, type Point } from "../ui/layout";
 import { ParchmentCard } from "../ui/ParchmentCard";
-import { RouteLogPanel, type RouteLogStat } from "../ui/RouteLogPanel";
+import { RouteLogPanel, type RouteLogPanelOptions, type RouteLogStat } from "../ui/RouteLogPanel";
 import { SettingsPanel } from "../ui/SettingsPanel";
 import { installSoundToast } from "../ui/SoundToast";
 import { CollectedStamp, SaveNoticeChip } from "../ui/NoticeChips";
@@ -173,6 +177,8 @@ export class TitleScene extends Phaser.Scene {
   private compact = false;
   private touch = false;
   private teaMoonDelivered = false;
+  /** Campaign progress (normalized); any completion turns the primary action into the board. */
+  private progress: CampaignProgress = normalizeCampaignProgress([], []);
   private saveNotice: SaveNoticeKind | null = null;
   private starting = false;
   private elapsedMs = 0;
@@ -203,7 +209,8 @@ export class TitleScene extends Phaser.Scene {
     this.layout = this.compact ? COMPACT_LAYOUT : DESKTOP_LAYOUT;
     this.layoutKey = layoutKeyFor(this.compact, this.uiScale);
     this.touch = detectTouchDevice();
-    this.teaMoonDelivered = readTeaMoonDelivered();
+    this.progress = readProgress();
+    this.teaMoonDelivered = this.progress.completedMissions.includes(TEA_MOON_MISSION_ID);
     this.saveNotice = readSaveNotice();
 
     installSoundToast(this.game);
@@ -223,13 +230,16 @@ export class TitleScene extends Phaser.Scene {
 
     registerDevState("title", () => ({
       teaMoonDelivered: this.teaMoonDelivered,
+      completedMissions: this.progress.completedMissions,
+      primaryAction: this.anyDelivered ? "board" : "launch-tea",
+      suggestedMissionId: nextSuggestedMission(this.progress).id,
       layout: this.compact ? "compact" : "desktop",
       uiScale: Number(this.uiScale.toFixed(2)),
       touch: this.touch,
       focus: this.focusables[this.focusIndex]?.name ?? null,
       keyboardNav: this.keyboardNav,
       buttonFocused: this.focusables[0]?.isFocused ?? false,
-      ctaLabel: this.teaMoonDelivered ? titleCopy.startAgainButton : titleCopy.startButton,
+      ctaLabel: this.primaryLabel,
       settingsOpen: this.settingsPanel?.isOpen ?? false,
       settingsRow: this.settingsPanel?.selectedRow ?? null,
       routeLogOpen: this.routeLog?.isOpen ?? false,
@@ -249,7 +259,7 @@ export class TitleScene extends Phaser.Scene {
     if (!panel) return;
     this.time.delayedCall(OPEN_PANEL_DELAY_MS, () => {
       if (panel === "settings") this.openSettings();
-      else if (this.teaMoonDelivered) this.openRouteLog();
+      else if (this.anyDelivered) this.openRouteLog();
     });
   }
 
@@ -508,35 +518,45 @@ export class TitleScene extends Phaser.Scene {
       .setDepth(depth.hud);
   }
 
+  /** True once any campaign delivery is saved: the primary action then opens the board. */
+  private get anyDelivered(): boolean {
+    return this.progress.completedMissions.length > 0;
+  }
+
+  private get primaryLabel(): string {
+    if (!this.anyDelivered) return titleCopy.startButton;
+    return isCampaignComplete(this.progress) ? titleCopy.boardPrimaryButton : titleCopy.nextDeliveryButton(nextSuggestedMission(this.progress).shortTitle);
+  }
+
   private createActions(): void {
     const s = this.uiScale;
     const { marginX: x, ctaY, ctaWidth, ctaHeight } = this.layout;
     const cta = new Button(this, {
       x,
       y: ctaY,
-      label: this.teaMoonDelivered ? titleCopy.startAgainButton : titleCopy.startButton,
+      label: this.primaryLabel,
       width: uiScaled(ctaWidth, this.compact ? 1 : s),
       height: uiScaled(ctaHeight, s),
-      icon: "tea",
+      icon: this.anyDelivered ? "package" : "tea",
       uiScale: s,
-      onActivate: () => this.startMission(),
+      onActivate: () => (this.anyDelivered ? this.openBoard() : this.startMission()),
     });
     cta.setName("start").setDepth(depth.hud);
     this.focusables.push(cta);
 
-    // Secondary row: settings, plus the route log once a postcard exists. Both share the raised ink
-    // style so they read as one tier under the ember CTA.
+    // Secondary row: settings, plus the delivery board (fresh) or the route log (after a delivery).
+    // Both share the raised ink style so they read as one tier under the ember CTA.
     const rowY = ctaY + uiScaled(ctaHeight, s) + uiScaled(this.layout.rowGap, s);
     const secondaryHeight = uiScaled(this.layout.secondaryHeight, s);
     const ctaWidthPx = cta.buttonWidth;
     const gap = uiScaled(this.layout.secondaryGap, s);
     // With two secondary actions they split the CTA width exactly, so the column edges line up.
-    const pairWidth = this.teaMoonDelivered ? Math.floor((ctaWidthPx - gap) / 2) : undefined;
+    const pairWidth = Math.floor((ctaWidthPx - gap) / 2);
     const settings = new Button(this, {
       x,
       y: rowY,
       label: titleCopy.settingsButton,
-      ...(pairWidth ? { width: pairWidth } : {}),
+      width: pairWidth,
       height: secondaryHeight,
       variant: "ink",
       icon: "settings",
@@ -546,7 +566,21 @@ export class TitleScene extends Phaser.Scene {
     settings.setName("settings").setDepth(depth.hud);
     this.focusables.push(settings);
 
-    if (this.teaMoonDelivered) {
+    if (!this.anyDelivered) {
+      const board = new Button(this, {
+        x: x + ctaWidthPx - settings.buttonWidth,
+        y: rowY,
+        label: titleCopy.boardButton,
+        width: settings.buttonWidth,
+        height: secondaryHeight,
+        variant: "ink",
+        icon: "radar",
+        uiScale: s,
+        onActivate: () => this.openBoard(),
+      });
+      board.setName("board").setDepth(depth.hud);
+      this.focusables.push(board);
+    } else {
       const routeLog = new Button(this, {
         x: x + ctaWidthPx - settings.buttonWidth,
         y: rowY,
@@ -567,7 +601,7 @@ export class TitleScene extends Phaser.Scene {
     if (!this.touch) {
       let cursor = x;
       let keyHeight = 0;
-      for (const hint of titleCopy.hints) {
+      for (const hint of this.anyDelivered ? titleCopy.hintsReturning : titleCopy.hints) {
         const keycap = new Keycap(this, { x: cursor, y: nextY, label: hint.key, uiScale: s }).setDepth(depth.hud);
         keyHeight = keycap.keyHeight;
         const label = this.add
@@ -813,14 +847,21 @@ export class TitleScene extends Phaser.Scene {
   private openRouteLog(): void {
     if (this.panelOpen || this.starting) return;
     this.routeLog = new RouteLogPanel(this, {
-      copy: routeLogCopy,
-      postcardKey: ASSET.memoryPostcard,
-      stats: readRouteStats(),
+      ...routeLogOptions(this.progress),
       uiScale: this.uiScale,
       onClose: () => {
         this.routeLog = undefined;
       },
     });
+  }
+
+  /** Opens the delivery board focused on the next suggested stop. */
+  private openBoard(): void {
+    if (this.starting || this.panelOpen) return;
+    this.starting = true;
+    this.focusables.forEach((button) => button.setEnabled(false));
+    const data: MissionSelectSceneData = { focusMissionId: nextSuggestedMission(this.progress).id };
+    transitionToScene(this, "MissionSelectScene", data, { kind: "warm-fade" });
   }
 
   private startMission(): void {
@@ -836,13 +877,15 @@ function layoutKeyFor(compact: boolean, uiScale: number): string {
   return `${compact ? "compact" : "desktop"}:${uiScale.toFixed(1)}`;
 }
 
-function readTeaMoonDelivered(): boolean {
+function readProgress(): CampaignProgress {
   try {
     const save = SaveSystem.load();
-    return Array.isArray(save.completedMissions) && save.completedMissions.includes(TEA_MOON_MISSION_ID);
+    const completed: readonly unknown[] = Array.isArray(save.completedMissions) ? save.completedMissions : [];
+    const unlocked: readonly unknown[] = Array.isArray(save.unlockedMissions) ? save.unlockedMissions : [];
+    return normalizeCampaignProgress(completed, unlocked);
   } catch {
     // Storage may be unavailable or the save unreadable; the title still works without it.
-    return false;
+    return normalizeCampaignProgress([], []);
   }
 }
 
@@ -874,10 +917,41 @@ function readSaveNotice(): SaveNoticeKind | null {
   }
 }
 
-function readRouteStats(): RouteLogStat[] {
+/**
+ * Route log contents: the furthest delivered stop is the headline entry (postcard + gentle stats);
+ * with more than one delivery, a short history lists each stop and its recipient. Unknown ids were
+ * already dropped by campaign normalization.
+ */
+function routeLogOptions(progress: CampaignProgress): Omit<RouteLogPanelOptions, "uiScale" | "onClose"> {
+  const delivered = progress.completedMissions.map((id) => resolveMission(id));
+  const headline = delivered[delivered.length - 1] ?? resolveMission(TEA_MOON_MISSION_ID);
+  const legacyPostcard = headline.id === TEA_MOON_MISSION_ID;
+  const postcardFrame = themeFor(headline.themeId).postcardFrame;
+  const campaignCard = !legacyPostcard && postcardFrame !== null;
+  const options: Omit<RouteLogPanelOptions, "uiScale" | "onClose"> = {
+    copy: {
+      ...routeLogCopy,
+      entryTitle: legacyPostcard ? routeLogCopy.entryTitle : headline.shortTitle.toLowerCase(),
+      postcardCaption: routeLogCopy.captions[headline.id],
+    },
+    postcardKey: campaignCard ? ASSET.campaignPostcards : ASSET.memoryPostcard,
+    ...(campaignCard ? { postcardFrame } : {}),
+    stats: readRouteStats(headline.id),
+  };
+  if (delivered.length < 2) return options;
+  return {
+    ...options,
+    history: {
+      title: routeLogCopy.historyTitle,
+      entries: delivered.map((mission) => ({ title: mission.shortTitle, detail: mission.recipientName.split(",")[0] ?? mission.recipientName })),
+    },
+  };
+}
+
+function readRouteStats(missionId: string): RouteLogStat[] {
   try {
     const save = SaveSystem.load();
-    const best = SaveSystem.getBestResult(TEA_MOON_MISSION_ID);
+    const best = SaveSystem.getBestResult(missionId);
     const stats: RouteLogStat[] = [{ label: routeLogCopy.deliveriesLabel, value: String(save.stats.totalDeliveries) }];
     if (best) {
       stats.push({ label: routeLogCopy.bestLabel, value: best.conditionLabel.toLowerCase() });

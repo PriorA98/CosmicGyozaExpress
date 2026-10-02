@@ -97,3 +97,29 @@ export const flightNoteTuning = {
   startMs: 2200,
   incidentExtraMs: 1200,
 } as const;
+
+/** Campaign route mechanics (moving rocks, force zones, pickups). Tea Moon never reads these. */
+export const campaignFlightTuning = {
+  /** The route's simulation clock never advances more than one ship integration step per frame. */
+  maxSimStepMs: shipTuning.maxDeltaSeconds * 1000,
+  /** Dominant zone influence that counts as "first felt" for the mechanic intro line. */
+  mechanicIntroInfluence: 0.15,
+  /** A moving rock this close (edge to edge, px) introduces the moving-rock mechanic. */
+  movingIntroDistancePx: 520,
+  /** Environmental push above this fraction of the route cap repeats the "mechanic active" line. */
+  mechanicActiveFraction: 0.45,
+  mechanicActiveIntervalMs: 7000,
+  /** Gust warning line repeats at most this often while the ship is inside the band. */
+  gustWarningIntervalMs: 6000,
+  /** A moving rock may damage again only after the ship separates by this margin (px). */
+  movingContactReleasePx: 10,
+  /** HUD force gauge refresh (≤ 10 Hz). */
+  hudCueIntervalMs: 100,
+  /** Below this push (px/s²) the HUD gauge reads calm. */
+  forceCueMinMagnitude: 3,
+  /** Dashboard hold for beacon notes and postcard pickups (ms). */
+  beaconNoteMs: 3400,
+  collectibleNoteMs: 2600,
+  checkpointNoteMs: 2400,
+  mechanicNoteMs: 2600,
+} as const;

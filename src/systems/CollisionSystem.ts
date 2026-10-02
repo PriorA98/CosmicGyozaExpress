@@ -116,3 +116,38 @@ function collisionRestitution(
       return tuning.incidentBounce;
   }
 }
+
+export type MovingCollisionResolution = {
+  readonly state: ShipKinematicState;
+  /** Classified from the ship's speed relative to the rock (a rock drifting into a parked ship is a soft bump). */
+  readonly severity: CollisionSeverity;
+  readonly relativeSpeed: number;
+};
+
+/**
+ * Contact with a moving rock: severity and bounce use the ship velocity RELATIVE to the rock, then the
+ * rock's velocity is added back so the ship leaves with it. The ship is always separated, even when the
+ * relative speed is ~0 (resting against a rock that carries it).
+ */
+export function resolveMovingCollision(
+  state: ShipKinematicState,
+  contact: CollisionContact,
+  obstacleVelocity: { readonly x: number; readonly y: number },
+  tuning = collisionTuning,
+): MovingCollisionResolution {
+  const relativeX = state.velocityX - obstacleVelocity.x;
+  const relativeY = state.velocityY - obstacleVelocity.y;
+  const relativeSpeed = vectorLength(relativeX, relativeY);
+  const severity = classifyCollision(relativeSpeed, tuning);
+  const relative = resolveCircleCollision(
+    { ...state, velocityX: relativeX, velocityY: relativeY },
+    contact,
+    severity === "none" ? "soft-bump" : severity,
+    tuning,
+  );
+  return {
+    state: { ...relative, velocityX: relative.velocityX + obstacleVelocity.x, velocityY: relative.velocityY + obstacleVelocity.y },
+    severity,
+    relativeSpeed,
+  };
+}

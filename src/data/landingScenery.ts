@@ -1,5 +1,6 @@
 import { ASSET } from "./assetManifest";
 import { colors } from "../game/designTokens";
+import type { ThemeId } from "../types/campaign";
 import type { LandingIncidentKind } from "../types/landing";
 
 export { landingCopy } from "./landingCopy";
@@ -409,3 +410,71 @@ export const landingZoneTextColors = {
   bumpy: colors.amber,
   rough: colors.ember,
 } as const satisfies Record<LandingZoneCopyKey, string>;
+
+/**
+ * Generic campaign landing presentation (theme.legacy === false). Everything is derived from the landing
+ * definition + theme palette; the per-theme record only holds decoration that has no gameplay meaning.
+ * Screen px unless noted; art px are multiplied by LANDING_ART_SCALE.
+ */
+export const campaignLandingScenery = {
+  /** Top of the ground band (world y); pads at y 612 sit on it, the raised home berth stands above it on legs. */
+  groundTopY: 648,
+  skyBands: 9,
+  starCount: 26,
+  landmark: { x: 1040, y: 250, scrollFactor: 0.45 },
+  silhouette: { scrollFactor: 0.7, baseOffsetPx: 10, stepPx: 8 },
+  berth: {
+    key: ASSET.campaignBerthTiles,
+    tileArtWidth: 32,
+    tileArtHeight: 24,
+    /** Walkable top face row inside the tile art (aligned to pad.surfaceY). */
+    surfaceRowArtPx: 2,
+    /** Row where feet and the contact shadow visually rest. */
+    contactRowArtPx: 4,
+    lampInsetPx: 12,
+    lampSizePx: 6,
+    /** Raised berths (bottom above the ground band) get legs this far apart and an underside beam. */
+    legSpacingPx: 112,
+    legWidthPx: 10,
+    beamPx: 8,
+  },
+  rail: { heightPx: 6, tieSpacingPx: 24, bulbRadiusPx: 6, overhangPx: 20 },
+  recipient: { x: 1080, touchX: 1010, frameIdle: 0, frameWelcome: 1, waveSwaps: 5, waveStepMs: 180 },
+  homeBanner: { width: 132, height: 36, postHeight: 54 },
+  windsock: { key: ASSET.campaignWindsock, poleWidthPx: 4 },
+  awning: { overhangPastPadPx: 20, depthPx: 18, stripePx: 16, postSpacingPx: 36 },
+  flour: { count: 28, riseSpeedPx: 9, swayPx: 10, sizePx: 4, alpha: 0.6, topY: 90 },
+  /** Light-gravity landings (gravity below this, px/s²) show floating flour specks. */
+  lowGravityBelow: 120,
+  windIndicator: { topPx: 14, width: 150, height: 34 },
+  /** Dashboard: the mission's landingIntro line shows for this long after descent starts. */
+  introNoteMs: 3600,
+  /** Below this altitude (px) fixed-pad landings show the mission's landingCalm line. */
+  calmNoteAltitude: 150,
+} as const;
+
+/** Per-theme decoration (no collision). Windsock altitudes are px above the pad surface. */
+export type CampaignLandingDecor = {
+  /** Far silhouette hump heights (px), repeated across the width. */
+  readonly silhouette: readonly number[];
+  readonly windsocks: readonly { readonly x: number; readonly altitude: number }[];
+  /** Porch awning + windbreak on the windward side (shelter landings). */
+  readonly shelter: { readonly windbreakX: number; readonly windbreakWidth: number } | null;
+  readonly canopy: { readonly x0: number; readonly x1: number; readonly y: number } | null;
+};
+
+export const campaignLandingDecor: Readonly<Record<Exclude<ThemeId, "teaMoon">, CampaignLandingDecor>> = {
+  bentoBelt: { silhouette: [46, 70, 38, 88, 54, 30, 76, 44], windsocks: [], shelter: null, canopy: null },
+  matchaNebula: { silhouette: [60, 92, 70, 40, 84, 110, 52, 66], windsocks: [{ x: 300, altitude: 150 }], shelter: null, canopy: null },
+  blackHoleBakery: { silhouette: [36, 36, 64, 64, 30, 96, 40, 40], windsocks: [], shelter: null, canopy: null },
+  imFine: {
+    silhouette: [50, 64, 44, 72, 58, 48, 80, 54],
+    windsocks: [
+      { x: 1000, altitude: 236 },
+      { x: 382, altitude: 44 },
+    ],
+    shelter: { windbreakX: 300, windbreakWidth: 120 },
+    canopy: null,
+  },
+  home: { silhouette: [40, 56, 72, 48, 64, 36, 58, 44], windsocks: [], shelter: null, canopy: { x0: 120, x1: 380, y: 300 } },
+};

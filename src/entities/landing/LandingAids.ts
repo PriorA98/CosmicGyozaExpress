@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { ASSET } from "../../data/assetManifest";
-import { landingTuning } from "../../data/landingTuning";
+import { landingTuning, type LandingTuning } from "../../data/landingTuning";
 import { LANDING_ART_SCALE, landingScenery, landingZoneColors } from "../../data/landingScenery";
 import { burstDust } from "../../fx/feedback";
 import { colorNumber, colors, depth, fontStacks, typeScale } from "../../game/designTokens";
@@ -51,7 +51,8 @@ const SHADOW_STEP_PX = CELL * 2;
  */
 export class LandingAids {
   private readonly scene: Phaser.Scene;
-  private readonly pad: LandingPadDefinition;
+  private pad: LandingPadDefinition;
+  private readonly tuning: LandingTuning;
   /** Where feet and the contact shadow visually rest on the blanket's top face. */
   private readonly contactY: number;
   private readonly shadow: Phaser.GameObjects.Graphics;
@@ -81,9 +82,10 @@ export class LandingAids {
   private lastDustMs = 0;
   private visible = true;
 
-  constructor(scene: Phaser.Scene, pad: LandingPadDefinition, contactY: number) {
+  constructor(scene: Phaser.Scene, pad: LandingPadDefinition, contactY: number, tuning: LandingTuning = landingTuning) {
     this.scene = scene;
     this.pad = pad;
+    this.tuning = tuning;
     this.contactY = contactY;
 
     this.shadow = scene.add.graphics().setDepth(depth.world + 5);
@@ -109,6 +111,11 @@ export class LandingAids {
     this.speedText = parts.speedText;
     this.zoneText = parts.zoneText;
     this.zoneChip = parts.zoneChip;
+  }
+
+  /** Moving pads: the aids follow the sampled pad (same sample the touchdown rules use). Level pads keep contactY. */
+  setPad(pad: LandingPadDefinition): void {
+    this.pad = pad;
   }
 
   /** The gauge scales with the compact HUD so its readout stays legible on phones. */
@@ -375,9 +382,9 @@ export class LandingAids {
 
     // Bands top -> bottom: soft (slow) -> bumpy -> too fast, proportional to the real thresholds.
     const bands = this.scene.add.graphics();
-    const max = landingTuning.descentGaugeMaxSpeed;
-    const softEnd = snapToGrid((landingTuning.safeVerticalSpeed / max) * config.barHeight, CELL);
-    const bumpyEnd = snapToGrid((landingTuning.bumpyVerticalSpeed / max) * config.barHeight, CELL);
+    const max = this.tuning.descentGaugeMaxSpeed;
+    const softEnd = snapToGrid((this.tuning.safeVerticalSpeed / max) * config.barHeight, CELL);
+    const bumpyEnd = snapToGrid((this.tuning.bumpyVerticalSpeed / max) * config.barHeight, CELL);
     const barX = -config.barWidth / 2 - 6;
     const segments: readonly [number, number, LandingZone][] = [
       [0, softEnd, "soft"],

@@ -1,7 +1,10 @@
 import type { UiIconName } from "../data/assetManifest";
-import { missions, teaMoonMission } from "../data/missions";
+import { campaignMissions, resolveMission } from "../data/campaign";
+import { themeFor } from "../data/campaign/themes";
 import {
   RESULT_TINY_DISPLAY_SCALE,
+  campaignResultCopy,
+  missionResultCopy,
   resultCopy,
   type CountPhrase,
   type ResultLayoutTier,
@@ -9,9 +12,10 @@ import {
 } from "../data/resultCopy";
 import type { PackageConditionLabel } from "../types/flight";
 import type { DeliveryResultContent, DeliveryResultSceneData, LandingResultKind } from "../types/landing";
-import type { MissionDefinition } from "../types/mission";
+import type { MissionDefinitionV2, MissionId, ThemeId } from "../types/campaign";
 import type { MissionResultSummary } from "../types/save";
 import type { SavePersistenceStatus } from "./SaveSystem";
+import { nextMissionAfter, normalizeCampaignProgress, type CampaignProgress } from "./CampaignSystem";
 import { normalizePackageCondition, packageConditionLabel, packageConditionWarmth } from "./PackageConditionSystem";
 
 const MS_PER_SECOND = 1000;
@@ -33,6 +37,21 @@ export type DeliveryHistory = {
   readonly previousDeliveries: number;
   readonly previousBest?: MissionResultSummary;
   readonly memoryAlreadyCollected: boolean;
+  /** Campaign progress before this delivery (drives actions and the final thank-you notes). Defaults to a fresh save. */
+  readonly progress?: CampaignProgress;
+};
+
+export type ResultActionKind = "next-delivery" | "delivery-board" | "fly-again" | "read-notes" | "back-to-title";
+
+/** One footer action, in left-to-right order. `codes` are KeyboardEvent.code values that trigger it. */
+export type ResultAction = {
+  readonly kind: ResultActionKind;
+  readonly label: string;
+  readonly key: string;
+  readonly codes: readonly string[];
+  readonly variant: "primary" | "secondary";
+  /** Mission to launch (next delivery / fly again) or to focus on the delivery board. */
+  readonly missionId: MissionId;
 };
 
 export type DeliveryResultPresentation = {
@@ -47,6 +66,19 @@ export type DeliveryResultPresentation = {
   readonly postcardCaption: string;
   readonly deliveryNote: string;
   readonly isNewWarmest: boolean;
+  readonly missionId: MissionId;
+  readonly themeId: ThemeId;
+  /** Tea Moon keeps the slice card art (rabbit, tea + mochi tray, moon backdrop). */
+  readonly legacy: boolean;
+  readonly kickerPlace: string;
+  readonly recipientCaption: string;
+  /** Authored closing line (I'm Fine, Home); shown in place of the condition report line. */
+  readonly closingLine: string | null;
+  /** The final delivery: thank-you notes replace the stamps and stats. */
+  readonly isEnding: boolean;
+  /** One line per completed earlier delivery (completed missions only). */
+  readonly thankYouNotes: readonly string[];
+  readonly actions: readonly ResultAction[];
 };
 
 /**
@@ -55,7 +87,7 @@ export type DeliveryResultPresentation = {
  */
 export function normalizeDeliveryResultData(data: Partial<DeliveryResultSceneData> | undefined): DeliveryResultSceneData {
   const source = data ?? {};
-  const mission = findMission(source.missionId);
+  const mission = resolveMission(source.missionId);
   return {
     missionId: mission.id,
     packageCondition: normalizePackageCondition(typeof source.packageCondition === "number" ? source.packageCondition : Number.NaN),
@@ -68,7 +100,7 @@ export function normalizeDeliveryResultData(data: Partial<DeliveryResultSceneDat
 
 export function createDeliveryResultContent(data: DeliveryResultSceneData): DeliveryResultContent {
   const safe = normalizeDeliveryResultData(data);
-  const mission = findMission(safe.missionId);
+  const mission = resolveMission(safe.missionId);
   const conditionLabel = packageConditionLabel(safe.packageCondition);
 
   return {
@@ -79,7 +111,7 @@ export function createDeliveryResultContent(data: DeliveryResultSceneData): Deli
     conditionLabel,
     landingLabel: mission.landingLines[safe.landingResult],
     reportLine: mission.resultLines[conditionLabel],
-    reactionLine: reactionLineFor(safe.landingResult, conditionLabel, safe.routeCrashes + safe.landingIncidents),
+    reactionLine: reactionLineFor(mission.id, safe.landingResult, conditionLabel, safe.routeCrashes + safe.landingIncidents),
     memoryRewardId: mission.memoryRewardId,
     totalCrashes: safe.routeCrashes + safe.landingIncidents,
     durationMs: safe.routeDurationMs,
@@ -106,6 +138,12 @@ export function createDeliveryResultPresentation(
   const previousDeliveries = countOrZero(history.previousDeliveries);
   const isNewWarmest = history.previousBest !== undefined && isWarmerResult(summary, history.previousBest);
   const deliveryNumber = previousDeliveries + 1;
+  const mission = resolveMission(safe.missionId);
+  const copy = missionResultCopy[mission.id];
+  const theme = themeFor(mission.themeId);
+  const before = history.progress ?? normalizeCampaignProgress([], []);
+  const after = normalizeCampaignProgress([...before.completedMissions, mission.id], before.unlockedMissions);
+  const isEnding = isEndingMission(mission);
 
   return {
     content,
@@ -121,18 +159,27 @@ export function createDeliveryResultPresentation(
       { icon: resultCopy.stats.bumps.icon, text: phraseCount(resultCopy.stats.bumps.phrase, safe.routeCrashes) },
       {
         icon: resultCopy.stats.landingTries.icon,
-        text: phraseCount(resultCopy.stats.landingTries.phrase, safe.landingIncidents, safe.landingIncidents + 1),
+        text: phraseCount(copy.landingTries, safe.landingIncidents, safe.landingIncidents + 1),
       },
     ],
     postcardLabel: history.memoryAlreadyCollected ? resultCopy.postcard.repeatLabel : resultCopy.postcard.firstLabel,
-    postcardTitle: resultCopy.postcard.title,
+    postcardTitle: copy.postcardTitle,
     postcardCaption: resultCopy.postcard.caption,
     deliveryNote: isNewWarmest
       ? resultCopy.deliveryNote.warmestPage
       : deliveryNumber <= 1
-        ? resultCopy.deliveryNote.first
-        : resultCopy.deliveryNote.repeat.replace("{n}", String(deliveryNumber)),
+        ? copy.deliveryNote.first
+        : copy.deliveryNote.repeat.replace("{n}", String(deliveryNumber)),
     isNewWarmest,
+    missionId: mission.id,
+    themeId: mission.themeId,
+    legacy: theme.legacy,
+    kickerPlace: copy.place,
+    recipientCaption: copy.recipientCaption,
+    closingLine: mission.closingLine,
+    isEnding,
+    thankYouNotes: isEnding ? thankYouNotes(before) : [],
+    actions: resultActionsFor(mission.id, after),
   };
 }
 
@@ -198,14 +245,69 @@ export function phraseCount(phrase: CountPhrase, count: number, shown: number = 
   return phrase.many.replace("{n}", String(countOrZero(shown)));
 }
 
-function reactionLineFor(landingResult: LandingResultKind, conditionLabel: PackageConditionLabel, bumps: number): string {
-  const lines = resultCopy.reactionLines[landingResult];
-  const index = (packageConditionWarmth(conditionLabel) + bumps) % lines.length;
-  return lines[index] ?? lines[0];
+/** The final delivery: a mission that unlocks nothing further. */
+export function isEndingMission(mission: MissionDefinitionV2): boolean {
+  return mission.unlocksMissionIds.length === 0;
 }
 
-function findMission(missionId: unknown): MissionDefinition {
-  return missions.find((candidate) => candidate.id === missionId) ?? teaMoonMission;
+/** Thank-you notes for every completed delivery before the ending, in board order. Never counts collectibles. */
+export function thankYouNotes(progress: CampaignProgress): readonly string[] {
+  return campaignMissions
+    .filter((mission) => !isEndingMission(mission) && progress.completedMissions.includes(mission.id))
+    .map((mission) => missionResultCopy[mission.id].thankYouNote);
+}
+
+const ENTER_CODES = ["Enter", "NumpadEnter"] as const;
+
+/**
+ * Footer actions for a finished delivery, left to right. `progress` is the campaign state after this
+ * delivery. Tea Moon keeps the slice pair (back to title, fly again); campaign cards offer a replay,
+ * the delivery board and the next delivery; the final card offers the notes, the board and the flight home.
+ */
+export function resultActionsFor(missionId: MissionId, progress: CampaignProgress): readonly ResultAction[] {
+  const mission = resolveMission(missionId);
+  const buttons = campaignResultCopy.buttons;
+  const id = mission.id;
+  if (themeFor(mission.themeId).legacy) {
+    return [
+      { kind: "back-to-title", ...resultCopy.buttons.backToTitle, codes: ["Escape"], variant: "secondary", missionId: id },
+      { kind: "fly-again", ...resultCopy.buttons.flyAgain, codes: ENTER_CODES, variant: "primary", missionId: id },
+    ];
+  }
+  const boardAsPrimary: ResultAction = {
+    kind: "delivery-board",
+    label: buttons.deliveryBoard.label,
+    key: buttons.nextDelivery.key,
+    codes: [...ENTER_CODES, "Escape"],
+    variant: "primary",
+    missionId: id,
+  };
+  if (isEndingMission(mission)) {
+    return [
+      { kind: "read-notes", ...buttons.readNotes, codes: ["KeyN"], variant: "secondary", missionId: id },
+      boardAsPrimary,
+      { kind: "fly-again", ...buttons.flyHome, codes: ["KeyR"], variant: "secondary", missionId: id },
+    ];
+  }
+  const flyAgain: ResultAction = { kind: "fly-again", ...buttons.flyAgain, codes: ["KeyR"], variant: "secondary", missionId: id };
+  const next = nextMissionAfter(id, progress);
+  if (!next) return [flyAgain, boardAsPrimary];
+  return [
+    flyAgain,
+    { kind: "delivery-board", ...buttons.deliveryBoard, codes: ["Escape"], variant: "secondary", missionId: next.id },
+    { kind: "next-delivery", ...buttons.nextDelivery, codes: ENTER_CODES, variant: "primary", missionId: next.id },
+  ];
+}
+
+function reactionLineFor(
+  missionId: MissionId,
+  landingResult: LandingResultKind,
+  conditionLabel: PackageConditionLabel,
+  bumps: number,
+): string {
+  const lines = missionResultCopy[missionId].reactionLines[landingResult];
+  const index = (packageConditionWarmth(conditionLabel) + bumps) % lines.length;
+  return lines[index] ?? lines[0] ?? "";
 }
 
 function isLandingResult(value: unknown): value is LandingResultKind {

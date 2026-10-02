@@ -474,6 +474,30 @@ export const SHOWCASE_STATES: readonly ShowcaseStateDefinition[] = [
   },
 
   {
+    id: "bakery-flight-start",
+    sceneKey: "FlightScene",
+    description: "Black Hole Bakery start: the well ahead",
+    settleMs: 1500,
+    save: "campaign-all-unlocked",
+    data: flight({ missionId: "black-hole-bakery" }),
+  },
+  {
+    id: "im-fine-flight-start",
+    sceneKey: "FlightScene",
+    description: "Planet I'm Fine start: storm band ahead",
+    settleMs: 1500,
+    save: "campaign-all-unlocked",
+    data: flight({ missionId: "im-fine" }),
+  },
+  {
+    id: "home-flight-start",
+    sceneKey: "FlightScene",
+    description: "Home route start",
+    settleMs: 1500,
+    save: "campaign-all-unlocked",
+    data: flight({ missionId: "home-delivery" }),
+  },
+  {
     id: "home-notes",
     sceneKey: "FlightScene",
     description: "Home route: first thank-you beacon note",

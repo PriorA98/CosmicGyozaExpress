@@ -27,6 +27,8 @@ export class Asteroid {
   private flashUntilMs = 0;
   private flashSettleAtMs = 0;
   private reactionTween: Phaser.Tweens.Tween | undefined;
+  private baseX: number;
+  private baseY: number;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -35,6 +37,8 @@ export class Asteroid {
     index: number,
   ) {
     this.id = obstacle.id;
+    this.baseX = obstacle.x;
+    this.baseY = obstacle.y;
     const textureKey = visual?.textureKey ?? asteroidArt.fallbackTextureKey;
     const legacyScale = (obstacle.radius * 2) / (asteroidArt.legacyCanvasPx * asteroidArt.legacyBodyFillRatio);
     this.baseScale = contractScale(scene, textureKey, legacyScale);
@@ -53,7 +57,7 @@ export class Asteroid {
     const bobPeriod = this.visual?.bobPeriodMs ?? 1;
     const bob = Math.round(Math.sin((timeMs / bobPeriod + this.phase) * TAU) * bobArtPx) * FLIGHT_ART_SCALE;
 
-    this.image.setPosition(this.obstacle.x + Math.round(this.nudgeX), this.obstacle.y + bob + Math.round(this.nudgeY));
+    this.image.setPosition(this.baseX + Math.round(this.nudgeX), this.baseY + bob + Math.round(this.nudgeY));
     if (this.squash !== 0) {
       this.image.setScale(this.baseScale * (1 + this.squash), this.baseScale * (1 - this.squash));
     } else if (this.image.scaleX !== this.baseScale || this.image.scaleY !== this.baseScale) {
@@ -70,6 +74,15 @@ export class Asteroid {
       this.image.clearTint();
       this.image.setTintMode(Phaser.TintModes.MULTIPLY);
     }
+  }
+
+  /**
+   * Moving rocks: the scene places the body at the sampled path position each frame (whole screen
+   * pixels), so the drawn rock always sits on its collision circle. Static rocks never call this.
+   */
+  moveTo(x: number, y: number): void {
+    this.baseX = Math.round(x);
+    this.baseY = Math.round(y);
   }
 
   /** Squash away from the hit, brief two-step warm flash, tiny nudge along the contact normal. */
