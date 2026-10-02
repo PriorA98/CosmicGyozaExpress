@@ -1,6 +1,6 @@
 # UI chrome provenance
 
-Date: 2026-10-01. Folder owner: wave-1 UI asset package.
+Date: 2026-10-01 (wave 1), revised 2026-10-02 (wave 2 round 2). Folder owner: UI asset package.
 
 All five production files are authored **programmatically at exact art resolution** by
 Claude-side Pillow scripts in `art-src/ui/scripts/`. No image-generation output and no
@@ -77,3 +77,78 @@ The contact sheet is `e2e/out/contact-ui.png`. The in-game capture
 (`e2e/out/w1-assets-ui/title@desktop.json`) lists no `ui-*` keys in `assetFailures`.
 
 Manual edits: none outside the scripts. Previews are in `art-src/ui/previews/`.
+
+## Wave 2 revision (2026-10-02)
+
+Source: programmatic Claude-side Pillow scripts again (no Codex dispatch this wave). These are
+1px-exact 16x16 glyphs and nine-slices, which image generation cannot hit cleanly. The
+round-1 v1/v2 Codex attempts were blocked by usage limits (see above). Nothing is in `raw/`.
+Previous versions are kept for comparison: `scripts/make_icons_v2.py`,
+`scripts/make_nineslices_v1.py`, `previews/icons-v2.png`, `previews/button-v1.png`,
+`previews/keycap-v1.png`.
+
+Commands (exactly what produced the shipped files):
+
+```
+python art-src/ui/scripts/make_icons.py public/assets/ui/icons.png art-src/ui/previews/icons.preview.png
+python art-src/ui/scripts/make_nineslices.py public/assets/ui
+python tools/art/contact_sheet.py public/assets/ui --out e2e/out/contact-ui.png
+```
+
+`panel-parchment.png` and `panel-dark.png` are byte-identical to wave 1 (md5 checked before
+and after the rerun).
+
+### icons.png v3 (critic round 1: assets 7.6)
+
+`make_icons.py` now also supports per-glyph **overlays**. These pixels are drawn after the
+automatic 4-neighbour ink outline, so thin ink or amber detail does not get its own
+outline and turn into a blob.
+
+- **1 package**: redrawn as the `items/package.png` furoshiki. Two broad cloth ears flare out
+  of a pinched deep-terracotta knot over a round body. The body has a diagonal deep fold and
+  five *scattered* cream dots. The v2 dots sat in an eye-like pair, which made it read as a
+  horned bug face.
+- **2 radar**: a satellite dish (in v2 it was a teal disc and read as a coin or clock). The dish
+  is a 3/4-view ellipse facing up-right: a lit plaster and dusk-blue concave face inside a
+  shaded back rim, an ink feed mount, a 1px parchment-shadow feed arm (overlay), an outlined
+  amber knob, a stand with a base plate, and two ember signal ticks.
+- **12 sound-on**: a narrower speaker with two clean arcs (overlay). Each arc is 1px ink on
+  the inner edge and 1px amber on the outer edge, with a clear gap between the speaker, arc 1
+  and arc 2. On parchment they read as ink arcs, and on dark HUD panels they read as amber
+  arcs. In v2 the waves blurred into a dark burst.
+- **15 touch**: a pointing hand. It has a tall index finger, two folded fingers separated by
+  shade columns, and a thumb split from the index by a gap. It also has a terracotta cuff and
+  three ember tap rays (overlay) around the fingertip.
+- Glyphs stay within x 1..14 so neighbouring frames never touch.
+
+### button.png / keycap.png v2 (outer outline for very dark backgrounds)
+
+- In v1 the depth was a 2px ink border plus a 3-5 row pure-ink lip. On cosmos `#1A1B2E` the
+  lip disappeared and the button looked flat and floating.
+- Now a **single 1px ink outer outline wraps the whole silhouette** (face + lip), with
+  chunky 2px-clipped corners. The lip is a coloured slab side, so depth reads on dark
+  backgrounds and the outline frames the shape on parchment.
+- **Button** (48x24 frames, 6px insets, unchanged sizes):
+  - Rows: outline 0, highlight 1, face 2..17, bevel shade 18, side 19..21, side-dark 22,
+    outline 23.
+  - Pressed sinks the face 2px (outline top at row 2, face to row 20, side shrinks to 1 row +
+    side-dark).
+  - Sides: normal `#8C503E` / `#6E3D30`, hover `#985843` / `#784334`.
+  - Faces: normal `#C97B5A`, hover `#D98C62`, pressed `#BB7052`.
+- **Keycap** (16x16 frames, 4px insets, unchanged sizes): 1px ink outer outline, plaster face
+  rows 1..10, warm skirt `#D7CDB5` rows 11..13, skirt-dark `#B9AB8B` row 14, outline 15.
+  Pressed sinks the face 2px onto the skirt.
+- Every edge band is still constant along its stretch axis. The glint is corner-only.
+
+Validation:
+- `previews/stretch-test.png`: Pillow nine-slice mock at 64x22, 120x30 and 26x16 on cosmos
+  and parchment. No seams or smearing.
+- `previews/focus.png`: 12x crops of the redrawn icons.
+- `e2e/out/contact-ui.png`: contact sheet.
+- `node e2e/capture.mjs --states=title --label=w2-assets-ui`: `probe.assetFailures` is `[]`.
+- File sizes are 216 B to 2.1 KB.
+
+Manual edits: none outside the scripts.
+
+Known weaker point: the package ears are still a symmetric pair. The glyph now reads as a
+cloth bundle, but at 16 px it can still suggest bunny ears.

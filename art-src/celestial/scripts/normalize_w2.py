@@ -285,6 +285,16 @@ CONFIGS["tea-moon"] = {
     "windows": [(113, 46), (133, 49)],
 }
 
+# ringless Codex body (v4) -> normalized 96x96 body; ring added by compose_plum.py
+CONFIGS["planet-far-plum-body"] = {
+    "size": (96, 96),
+    "raw_disc": (626.0, 626.0, 914.0),
+    "art_disc": (48.0, 49.0, 60.0),
+    "regions": [("body", 20)],
+    "region_of": lambda x, y, c=None: "body",
+    "shade": ((0x5A, 0x50, 0x78), 0.35, -0.05, 0.5),
+}
+
 
 if __name__ == "__main__":
     asset = sys.argv[1]

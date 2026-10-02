@@ -83,6 +83,7 @@ const FOCUS_WIDTH = 2;
 const ICON_GAP = 10;
 const ICON_ART_PX = 16;
 const LABEL_PADDING_X = 24;
+const MIN_LABEL_PADDING_X = 12;
 const DEFAULT_HEIGHT = 56;
 const FOCUS_PULSE_ALPHA = 0.55;
 
@@ -122,7 +123,10 @@ export class Button extends Phaser.GameObjects.Container {
     const label = scene.add.text(0, 0, options.label, pixelLabelStyle({ size: uiPixelLabelSize(uiScale), color: palette.label }));
     const iconScale = uiIconScale(uiScale);
     this.iconWidth = options.icon ? ICON_ART_PX * iconScale + uiScaled(ICON_GAP, uiScale) : 0;
-    this.buttonWidth = Math.max(options.width ?? 0, Math.ceil(label.width + this.iconWidth + uiScaled(LABEL_PADDING_X, uiScale) * 2));
+    // Auto-sized buttons get comfortable padding; a requested width only grows when even the
+    // minimum padding cannot fit the label, so fixed-width grids stay aligned.
+    const padding = uiScaled(options.width === undefined ? LABEL_PADDING_X : MIN_LABEL_PADDING_X, uiScale);
+    this.buttonWidth = Math.max(options.width ?? 0, Math.ceil(label.width + this.iconWidth + padding * 2));
     this.buttonHeight = options.height ?? uiScaled(DEFAULT_HEIGHT, uiScale);
 
     this.focusRing = scene.add.graphics();

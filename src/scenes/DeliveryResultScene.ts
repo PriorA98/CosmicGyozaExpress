@@ -13,7 +13,7 @@ import {
 } from "../data/resultCopy";
 import { installDevSceneHotkeys } from "../dev/DevSceneLauncher";
 import { registerDevState } from "../dev/devProbe";
-import { burstDust, isReducedMotion } from "../fx/feedback";
+import { burstDust, isReducedMotion, settleBursts } from "../fx/feedback";
 import { playEnterTransition, transitionToScene } from "../fx/transitions";
 import { colorNumber, colors, depth, fontStacks, motion, typeScale } from "../game/designTokens";
 import { displayScale, isCompactDisplay } from "../game/displayScale";
@@ -31,7 +31,6 @@ import {
 import { SaveSystem, type SavePersistenceStatus } from "../systems/SaveSystem";
 import type { DeliveryResultSceneData } from "../types/landing";
 import { KEYCAP_HEIGHT, Keycap, addUiIcon } from "../ui";
-import { addNineSlicePanel } from "../ui/surfaces";
 
 type TypeToken = keyof typeof typeScale;
 
@@ -39,14 +38,18 @@ type TypeToken = keyof typeof typeScale;
 const CANVAS_CENTER_X = 640;
 /** Display scale for pixel art (manifest artScale). Every pixel asset here uses an integer multiple. */
 const ART_SCALE = 2;
+/** The pixel display face is drawn on an 8px grid; other sizes fall back to the mono face. */
+const PIXEL_FONT_GRID = 8;
 const STEAM_ANIM_KEY = "result-item-steam";
 const STEAM_FRAME_RATE = 6;
 /** Art sizes in art pixels (assetManifest). */
 const ART = {
   postcard: { width: 96, height: 64 },
   portrait: 64,
-  /** item-tea is 32 art px tall; steam rises from its spout. */
-  teaHeight: 32,
+  /** item-tea is 32 art px; steam rises from the lid knob and the spout tip (art px from top-left). */
+  teaSize: 32,
+  teaLid: { x: 15, y: 8 },
+  teaSpout: { x: 2, y: 14 },
 } as const;
 
 /** Shared spacing (screen px) that does not change between tiers. */
@@ -56,7 +59,8 @@ const SPACING = {
   tagPadX: 18,
   trayHeight: 62,
   trayInsetX: 26,
-  trayGap: 26,
+  /** Leaves room above the teapot for its 24 art px steam wisps to clear the name tag. */
+  trayGap: 56,
   captionGap: 12,
   kickerGap: 6,
   reportGap: 14,
@@ -110,7 +114,7 @@ const CARD_SURFACE = { shadowX: 6, shadowY: 10, shadowAlpha: 0.5, bandAlpha: 0.7
  * 2 px ink border, and a 4 px hard ink lip under the face that the face sinks onto when pressed.
  */
 const BUTTON_ART = { notch: 1, border: 2, lip: 4, pressSink: 2 } as const;
-const BUTTON_FRAME = { idle: 0, hover: 1, pressed: 2 } as const;
+type ButtonState = "idle" | "hover" | "pressed";
 const BUTTON_PALETTE = {
   primary: {
     fill: colors.terracotta,
@@ -132,7 +136,6 @@ const BUTTON_PALETTE = {
   },
 } as const;
 type ButtonVariant = keyof typeof BUTTON_PALETTE;
-type ButtonState = keyof typeof BUTTON_FRAME;
 
 /** Stamp pills: 1 art px border, 1 art px lip, and a 4x4 art px pixel dot. */
 const STAMP_ART = { dotSize: 4, dotLeft: 4, lip: 1 } as const;
@@ -192,7 +195,6 @@ type ResultButton = {
   readonly root: Phaser.GameObjects.Container;
   readonly face: Phaser.GameObjects.Container;
   readonly graphics: Phaser.GameObjects.Graphics;
-  readonly art: Phaser.GameObjects.NineSlice | undefined;
   readonly variant: ButtonVariant;
   readonly width: number;
   readonly height: number;
@@ -238,6 +240,8 @@ export class DeliveryResultScene extends Phaser.Scene {
   private twinkles: Phaser.GameObjects.Sprite[] = [];
   private buttons: { fly?: ResultButton; back?: ResultButton } = {};
   private skipHint?: Phaser.GameObjects.Text;
+  /** Wall-clock start of the reveal, so a stalled tab still settles within the reveal budget. */
+  private revealStartedAt = 0;
 
   constructor() {
     super("DeliveryResultScene");
@@ -275,6 +279,7 @@ export class DeliveryResultScene extends Phaser.Scene {
 
     this.createBackdrop();
     this.buildCard(this.view);
+    this.revealStartedAt = performance.now();
     this.scheduleReveal();
     this.bindInput();
 
@@ -300,6 +305,11 @@ export class DeliveryResultScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
+    // The scene clock smooths over long frames (tab stalls, busy devices); the reveal promise is
+    // in real time, so settle it once the wall-clock budget is spent.
+    if (!this.revealComplete && performance.now() - this.revealStartedAt >= resultRevealTiming.maxRealMs) {
+      this.finishReveal();
+    }
     if (this.stars && !this.reducedMotion) {
       this.stars.tilePositionX += delta * resultRevealTiming.starDriftPerMs;
     }
@@ -612,9 +622,17 @@ export class DeliveryResultScene extends Phaser.Scene {
 
     const tea = this.add.image(x - itemOffset, restLine + 2, ASSET.itemTea).setOrigin(0.5, 1).setScale(ART_SCALE);
     const mochi = this.add.image(x + itemOffset, restLine + 2, ASSET.itemMochi).setOrigin(0.5, 1).setScale(ART_SCALE);
-    const steamTop = restLine - ART.teaHeight * ART_SCALE + 10;
-    const steamA = this.add.sprite(x - itemOffset - 4, steamTop, ASSET.itemSteam, 0).setOrigin(0.5, 1).setScale(ART_SCALE).setAlpha(0);
-    const steamB = this.add.sprite(x - itemOffset + 12, steamTop + 4, ASSET.itemSteam, 2).setOrigin(0.5, 1).setScale(ART_SCALE).setAlpha(0);
+    // Wisps sit on whole art pixels of the teapot: one over the lid knob, one off the spout tip.
+    const teaLeft = x - itemOffset - (ART.teaSize * ART_SCALE) / 2;
+    const teaTop = restLine + 2 - ART.teaSize * ART_SCALE;
+    const wisp = (art: { readonly x: number; readonly y: number }, frame: number): Phaser.GameObjects.Sprite =>
+      this.add
+        .sprite(teaLeft + art.x * ART_SCALE, teaTop + art.y * ART_SCALE, ASSET.itemSteam, frame)
+        .setOrigin(0.5, 1)
+        .setScale(ART_SCALE)
+        .setAlpha(0);
+    const steamA = wisp(ART.teaLid, 0);
+    const steamB = wisp(ART.teaSpout, 2);
 
     const caption = this.add
       .text(x, trayTop + trayH + SPACING.captionGap, view.content.deliveryItemName, {
@@ -662,11 +680,14 @@ export class DeliveryResultScene extends Phaser.Scene {
 
     let kicker: Phaser.GameObjects.Text | undefined;
     if (layout.showKicker) {
+      const kickerSize = typeScale[layout.type.kicker];
+      const onGrid = kickerSize % PIXEL_FONT_GRID === 0;
       kicker = this.add
         .text(x, cursor, `${view.kicker}  ·  tea moon`, {
           color: colors.terracottaDeep,
-          fontFamily: fontStacks.pixel,
-          fontSize: `${typeScale[layout.type.kicker]}px`,
+          fontFamily: onGrid ? fontStacks.pixel : fontStacks.mono,
+          fontSize: `${kickerSize}px`,
+          fontStyle: onGrid ? "400" : "700",
         })
         .setLetterSpacing(1);
       cursor += Math.round(kicker.height) + SPACING.kickerGap;
@@ -1014,14 +1035,11 @@ export class DeliveryResultScene extends Phaser.Scene {
       face.add(keycap);
     }
 
+    // Both variants share one drawn silhouette (ink border + solid ink lip) so the pair reads as a set.
     const graphics = this.add.graphics();
-    const art =
-      variant === "primary"
-        ? addNineSlicePanel(this, ASSET.uiButton, width, height, BUTTON_ART.lip + BUTTON_ART.border, BUTTON_FRAME.idle)
-        : undefined;
     const zone = this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
-    const root = this.add.container(0, 0, [art ?? graphics, face, zone]);
-    const button: ResultButton = { root, face, graphics, art, variant, width, height, state: "idle" };
+    const root = this.add.container(0, 0, [graphics, face, zone]);
+    const button: ResultButton = { root, face, graphics, variant, width, height, state: "idle" };
     this.drawButton(button);
 
     zone.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OVER, () => {
@@ -1055,10 +1073,6 @@ export class DeliveryResultScene extends Phaser.Scene {
     const pressed = button.state === "pressed";
     const sink = pressed ? BUTTON_ART.pressSink : 0;
     button.face.setY(sink * ART_SCALE);
-    if (button.art) {
-      button.art.setFrame(BUTTON_FRAME[button.state]);
-      return;
-    }
 
     const palette = BUTTON_PALETTE[button.variant];
     const fill = button.state === "hover" ? palette.hover : pressed ? palette.pressed : palette.fill;
@@ -1175,6 +1189,8 @@ export class DeliveryResultScene extends Phaser.Scene {
     if (this.revealComplete) return;
     this.settleSteps();
     this.clearTwinkles();
+    // Stamp dust is gone the moment the card settles, so the resting frame is always clean.
+    settleBursts(this, 0);
     this.completeReveal();
   }
 

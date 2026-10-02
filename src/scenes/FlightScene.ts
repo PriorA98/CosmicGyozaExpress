@@ -178,8 +178,12 @@ export class FlightScene extends Phaser.Scene {
 
     this.indicator = new DestinationIndicator(this, route.destination);
     this.hud = new FlightDashboard(this);
-    this.indicator.setUiScale(this.hud.uiScale);
-    const onResize = (): void => this.indicator.setUiScale(this.hud.uiScale);
+    const applyUiScale = (): void => {
+      this.indicator.setUiScale(this.hud.uiScale);
+      this.beacon.setUiScale(this.hud.uiScale);
+    };
+    applyUiScale();
+    const onResize = (): void => applyUiScale();
     this.scale.on(Phaser.Scale.Events.RESIZE, onResize);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off(Phaser.Scale.Events.RESIZE, onResize));
     this.debugGraphics = import.meta.env.DEV ? this.add.graphics().setDepth(depth.foreground) : undefined;
@@ -396,7 +400,7 @@ export class FlightScene extends Phaser.Scene {
 
     if (contact) this.asteroids.get(contact.obstacleId)?.react(severity, contact.normalX, contact.normalY, time);
     this.ship.playSquash(shipVisualStyle.squash[severity], shipVisualStyle.squashMs);
-    this.ship.flashHull(colorNumber(shipVisualStyle.bumpFlashColor), shipVisualStyle.bumpFlashMs[severity]);
+    this.ship.flashHull(colorNumber(shipVisualStyle.bumpFlashColor), shipVisualStyle.bumpFlashMs[severity], shipVisualStyle.bumpFlashMode);
     burstDust(this, hitX, hitY, { count: severity === "soft-bump" ? 12 : 16, spread: severity === "soft-bump" ? 48 : 70, depth: depth.shipFx });
     if (severity === "dramatic-bump") shakeCamera(this, "soft");
   }
@@ -463,8 +467,9 @@ export class FlightScene extends Phaser.Scene {
     if (this.ship) {
       this.ship.setKinematicState(start, false);
       this.lookAhead.set(0, 0);
-      this.cameraTarget.set(start.x, start.y);
-      this.cameras.main.centerOn(start.x, start.y);
+      // Start already composed (e.g. a restart near the moon frames the whole moon at once).
+      this.frameCameraTarget(start.x, start.y, start.x, start.y);
+      this.cameras.main.centerOn(this.cameraTarget.x, this.cameraTarget.y);
     }
   }
 
@@ -561,16 +566,21 @@ export class FlightScene extends Phaser.Scene {
     this.lookAhead.x += (targetX - this.lookAhead.x) * ease;
     this.lookAhead.y += (targetY - this.lookAhead.y) * ease;
 
+    this.frameCameraTarget(x, y, x + this.lookAhead.x, y + this.lookAhead.y);
+  }
+
+  /** Sets the camera target to the follow point, blended toward the moon framing point when close. */
+  private frameCameraTarget(shipX: number, shipY: number, followX: number, followY: number): void {
     const dock = route.destination;
-    const span = Math.max(1, cameraTuning.moonFramingRadius - dock.radius);
-    const closeness = clamp((cameraTuning.moonFramingRadius - vectorLength(x - dock.x, y - dock.y)) / span, 0, 1);
-    const blend = closeness * closeness * (3 - 2 * closeness) * cameraTuning.moonFramingMaxBlend;
-    const followX = x + this.lookAhead.x;
-    const followY = y + this.lookAhead.y;
-    this.cameraTarget.set(
-      followX + (cameraTuning.moonFramingPoint.x - followX) * blend,
-      followY + (cameraTuning.moonFramingPoint.y - followY) * blend,
-    );
+    const span = Math.max(1, cameraTuning.moonFramingRadius - dock.approachRadius);
+    const closeness = clamp((cameraTuning.moonFramingRadius - vectorLength(shipX - dock.x, shipY - dock.y)) / span, 0, 1);
+    const blend = closeness * closeness * (3 - 2 * closeness);
+    const targetX = followX + (cameraTuning.moonFramingPoint.x - followX) * blend * cameraTuning.moonFramingMaxBlendX;
+    const targetY = followY + (cameraTuning.moonFramingPoint.y - followY) * blend * cameraTuning.moonFramingMaxBlendY;
+    // Keep the ship comfortably inside the view however strong the framing pull is.
+    const reachX = Math.max(0, this.scale.width / 2 - cameraTuning.framingSafeMarginPx);
+    const reachY = Math.max(0, this.scale.height / 2 - cameraTuning.framingSafeMarginPx);
+    this.cameraTarget.set(clamp(targetX, shipX - reachX, shipX + reachX), clamp(targetY, shipY - reachY, shipY + reachY));
   }
 
   private updateHud(docking: DockingState, time: number): void {

@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { TEA_MOON_MISSION_ID, teaMoonMission } from "../src/data/missions";
-import { resultCopy, resultCopyBannedWords, resultRevealTiming } from "../src/data/resultCopy";
+import {
+  RESULT_TINY_DISPLAY_SCALE,
+  resultCardLayouts,
+  resultCopy,
+  resultCopyBannedWords,
+  resultRevealTiming,
+  resultTwinkle,
+} from "../src/data/resultCopy";
+import { typeScale } from "../src/game/designTokens";
 import {
   createDeliveryResultContent,
   createDeliveryResultPresentation,
@@ -9,6 +17,8 @@ import {
   formatRouteTime,
   isWarmerResult,
   normalizeDeliveryResultData,
+  persistenceNotice,
+  pickResultLayoutTier,
   pickWarmerResult,
 } from "../src/systems/MissionResultSystem";
 import type { DeliveryResultSceneData } from "../src/types/landing";
@@ -214,9 +224,77 @@ describe("result reveal timing", () => {
     const { complete, card, portrait, headline, reaction, items, report, landingStamp, conditionStamp, stats, postcard, footer } =
       resultRevealTiming;
     expect(complete).toBeLessThanOrEqual(1600);
+    expect(resultRevealTiming.maxRealMs).toBeLessThanOrEqual(1600);
+    expect(complete).toBeLessThanOrEqual(resultRevealTiming.maxRealMs);
     for (const at of [card, portrait, headline, reaction, items, report, landingStamp, conditionStamp, stats, postcard, footer]) {
       expect(at).toBeGreaterThanOrEqual(0);
       expect(at).toBeLessThan(complete);
     }
+  });
+});
+
+describe("result reveal twinkles", () => {
+  it("are fully gone before the settled frame", () => {
+    const last = Math.max(...resultTwinkle.spots.map((spot) => spot.delayMs));
+    const twinkleEnd = resultRevealTiming.postcard + last + resultTwinkle.frames.length * resultTwinkle.frameMs;
+    expect(twinkleEnd).toBeLessThanOrEqual(resultRevealTiming.complete);
+  });
+
+  it("sit on the parchment outside the postcard art", () => {
+    for (const spot of resultTwinkle.spots) {
+      const outsideX = Math.abs(spot.fx) === 1 && Math.sign(spot.ox) === Math.sign(spot.fx);
+      const outsideY = Math.abs(spot.fy) === 1 && Math.sign(spot.oy) === Math.sign(spot.fy);
+      expect(outsideX || outsideY).toBe(true);
+    }
+  });
+});
+
+describe("persistence notice", () => {
+  it("stays silent while progress reaches storage", () => {
+    expect(persistenceNotice({ kind: "persistent" })).toBeUndefined();
+  });
+
+  it("has a short lowercase kind line for every session-only reason", () => {
+    for (const reason of ["storage-unavailable", "newer-save", "write-failed"] as const) {
+      const notice = persistenceNotice({ kind: "session-only", reason });
+      expect(notice).toBeTruthy();
+      expect(notice?.length ?? 0).toBeLessThanOrEqual(80);
+      expect(notice).toBe(notice?.toLowerCase());
+    }
+  });
+});
+
+describe("result layout tiers", () => {
+  it("keeps the full card on desktop-class displays", () => {
+    expect(pickResultLayoutTier(false, 1)).toBe("full");
+    expect(pickResultLayoutTier(false, 0.3)).toBe("full");
+  });
+
+  it("uses the compact card on phones and the tiny card for portrait letterboxes", () => {
+    expect(pickResultLayoutTier(true, 0.6)).toBe("compact");
+    expect(pickResultLayoutTier(true, RESULT_TINY_DISPLAY_SCALE - 0.01)).toBe("tiny");
+    expect(pickResultLayoutTier(true, Number.NaN)).toBe("compact");
+    expect(pickResultLayoutTier(true, 0)).toBe("compact");
+  });
+
+  it("uses only integer art scales, even pixel geometry, and type-scale tokens", () => {
+    const tokenNames = Object.keys(typeScale);
+    for (const layout of Object.values(resultCardLayouts)) {
+      expect(Number.isInteger(layout.portraitScale)).toBe(true);
+      expect(Number.isInteger(layout.postcardScale)).toBe(true);
+      for (const px of [layout.stampHeight, layout.buttonHeight, layout.cardWidth, layout.cardHeight]) {
+        expect(px % 2).toBe(0);
+      }
+      expect(layout.cardWidth).toBeLessThanOrEqual(1280);
+      expect(layout.cardHeight).toBeLessThanOrEqual(720);
+      const { headline, ...single } = layout.type;
+      for (const token of [...headline, ...Object.values(single)]) expect(tokenNames).toContain(token);
+    }
+  });
+
+  it("grows body text on smaller tiers so it stays readable", () => {
+    const body = (tier: keyof typeof resultCardLayouts): number => typeScale[resultCardLayouts[tier].type.body];
+    expect(body("compact")).toBeGreaterThan(body("full"));
+    expect(body("tiny")).toBeGreaterThan(body("compact"));
   });
 });

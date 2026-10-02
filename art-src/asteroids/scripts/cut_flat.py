@@ -5,7 +5,10 @@ edge 1 px (darkest outline colour already on the sprite), and paints a `face` px
 inside it as a flat fracture face: a lit facet row (`lit`) under the ink and a cooler shade
 (`shade`) behind it, so the cut reads as a clean break lit from the top-left.
 
-Usage: python cut_flat.py <in.png> <out.png> ax ay bx by [face=3] [lit=#B7C8D2] [shade=#8E93B4]
+Usage: python cut_flat.py <in.png> <out.png> ax ay bx by [face=3] [lit=#B7C8D2] [shade=#8E93B4] [order=outer|inner]
+
+order=outer (default, round-2 look): ink, lit row, shade band.  order=inner (wave 2): ink, shade band,
+then the lit row innermost, i.e. a lit ridge where the fracture face meets the crust.
 """
 import sys
 from PIL import Image
@@ -16,6 +19,7 @@ face = int(sys.argv[7]) if len(sys.argv) > 7 else 3
 hexc = lambda s: tuple(int(s.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4)) + (255,)
 lit = hexc(sys.argv[8]) if len(sys.argv) > 8 else hexc("#B7C8D2")
 shade = hexc(sys.argv[9]) if len(sys.argv) > 9 else hexc("#8E93B4")
+order = sys.argv[10] if len(sys.argv) > 10 else "outer"
 im = Image.open(src).convert("RGBA")
 w, h = im.size
 px = im.load()
@@ -38,6 +42,11 @@ for y in range(h):
         d = -dist(x, y)
         if d < 1.0:
             px[x, y] = ink
+        elif order == "inner":
+            if d < face:
+                px[x, y] = shade
+            elif d < face + 1.0:
+                px[x, y] = lit
         elif d < 2.0:
             px[x, y] = lit
         elif d < 1.0 + face:

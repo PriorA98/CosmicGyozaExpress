@@ -172,6 +172,11 @@ export const resultRevealTiming = {
    * (820 + last delay 180 + 5 frames x 60 = 1300), so the settled frame has no live sparkles.
    */
   complete: 1320,
+  /**
+   * Real-time ceiling (inside the 1.6 s budget, with headroom for a late frame): if the scene
+   * clock lags behind the wall clock (stalled frames), the card settles at this point.
+   */
+  maxRealMs: 1450,
   /** Rabbit returns from the happy face to idle after this long. */
   happyHoldMs: 1800,
   blinkMinMs: 2200,
@@ -316,8 +321,8 @@ export const resultCardLayouts = {
     leftColumnWidth: 300,
     columnGap: 34,
     blockGap: 10,
-    portraitScale: 2,
-    portraitFrame: 172,
+    portraitScale: 3,
+    portraitFrame: 228,
     nameTagHeight: 34,
     showKicker: true,
     showReport: true,

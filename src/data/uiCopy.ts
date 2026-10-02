@@ -19,7 +19,8 @@ export const titleCopy = {
   missionHeader: "today's delivery",
   awaitingPill: "awaiting tea",
   deliveredPill: "delivered",
-  credits: "handmade slice · type: bricolage, geist, jetbrains mono, silkscreen (ofl)",
+  /** Tiny footer credit (the full font list lives in docs/assets). */
+  credits: "handmade slice · ofl type",
   itemsLabel: "in the hold",
   deliveredBadge: "delivered · postcard collected",
   hints: [
@@ -27,6 +28,12 @@ export const titleCopy = {
     { key: "M", label: "sound" },
   ] satisfies readonly KeyHintCopy[],
   touchHint: "tap the button to start",
+  /** Gentle one-line notes when the save could not be read as-is (never alarming). */
+  saveNotice: {
+    corrupt: "your old save was crumpled, so we kept a copy and started fresh",
+    futureVersion: "this save is from a newer version, so today's progress stays in this tab",
+    storageUnavailable: "this browser can't save right now, progress lasts until you close the tab",
+  },
 } as const;
 
 export const settingsCopy = {
@@ -48,9 +55,11 @@ export const settingsCopy = {
 export const routeLogCopy = {
   title: "route log",
   entryTitle: "tea moon",
+  entryMeta: "postcard collected",
   postcardCaption: "a postcard from the sleepy moon rabbit, mid-sip",
   bestLabel: "best delivery",
   crashesLabel: "bumps on the way",
+  deliveriesLabel: "deliveries",
   empty: "no postcards yet. the moon is waiting.",
   close: "close",
 } as const;
@@ -125,6 +134,10 @@ export const uiKitCopy = {
     cream: "cream tiles · moon",
   },
   pressedKeyNote: "held",
+  surfaceLabels: {
+    done: "done",
+    close: "close",
+  },
   sections2: {
     surfaces: "on parchment",
     toast: "sound toast",

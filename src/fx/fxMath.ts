@@ -160,3 +160,14 @@ export function warmRecolor(
   const mix = (a: number, c: number): number => Math.round(a + (c - a) * k);
   return [mix(lower.rgb[0], upper.rgb[0]), mix(lower.rgb[1], upper.rgb[1]), mix(lower.rgb[2], upper.rgb[2])];
 }
+
+/** True for cool blue-grey shading (blue exceeds red by more than `bias`), which reads cold on navy. */
+export function isCoolShade(r: number, _g: number, b: number, bias: number): boolean {
+  return b - r > bias;
+}
+
+/** Hard pixel alpha: opaque at or above `threshold` (0..255), transparent below. */
+export function quantizeAlpha(alpha: number, threshold: number): number {
+  if (!Number.isFinite(alpha) || alpha <= 0) return 0;
+  return alpha >= threshold ? 255 : 0;
+}

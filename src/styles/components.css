@@ -32,3 +32,90 @@
     0 18px 60px rgb(0 0 0 / 55%),
     0 0 120px rgb(224 138 75 / 10%);
 }
+
+/*
+ * Mute toast (src/ui/SoundToast.ts): a small parchment chip with an ink keyline, a hard 3px pixel
+ * shadow, a 16px pixel speaker drawn at 2x, and the M keycap. Fixed to the canvas top-centre.
+ */
+.sound-toast {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px 7px 10px;
+  border: 2px solid var(--color-ink);
+  border-radius: var(--radius-sm);
+  background: var(--color-parchment-warm);
+  box-shadow: var(--shadow-pixel);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -6px);
+  transition:
+    opacity 220ms var(--ease-soft),
+    transform 220ms var(--ease-soft);
+}
+
+.sound-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.sound-toast.is-calm,
+.sound-toast.is-calm.is-visible {
+  transform: translate(-50%, 0);
+}
+
+.sound-toast.is-muted {
+  background: var(--color-parchment-deep);
+}
+
+.sound-toast__icon {
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+}
+
+.sound-toast__label {
+  padding-right: 2px;
+}
+
+.sound-toast__key {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 4px;
+  border: 2px solid var(--color-ink);
+  border-bottom-width: 4px;
+  border-radius: 3px;
+  background: var(--color-plaster);
+  color: var(--color-ink);
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+.sound-toast.is-compact {
+  gap: 8px;
+  padding: 5px 8px;
+  font-size: 13px;
+}
+
+.sound-toast.is-compact .sound-toast__icon {
+  width: 32px;
+  height: 32px;
+}
+
+.sound-toast.is-compact .sound-toast__key {
+  display: none;
+}
+
+.sound-toast[hidden] {
+  display: none;
+}

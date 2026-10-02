@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import math
 import sys
+from typing import Callable
 from pathlib import Path
 
 from PIL import Image
@@ -91,18 +92,26 @@ THRUST = pad([
     ".....rreerr.....",
 ], 3)
 
-PACKAGE = pad([
-    "....tt....tt....",
-    "....tet..tet....",
-    ".....tettet.....",
+# v3: furoshiki bundle matching items/package.png -- two cloth ears flaring out of a pinched
+# deep-terracotta knot, a round body with a diagonal fold and scattered (not paired) cream dots.
+PACKAGE = from_rows([
+    "................",
+    "................",
+    "...ee......ee...",
+    "..eeet....tetT..",
+    "...ettt..ttTT...",
+    ".....ttTTtT.....",
     "......tTTt......",
-    "....ttTTTTtt....",
-    "...tePttttPtT...",
-    "...etPtttPttT...",
-    "...tttPttttPT...",
-    "...tPtttttPTT...",
+    "....eettTttt....",
+    "...eePettTttT...",
+    "..eettttPtTttT..",
+    "..ePtttttttTtT..",
+    "..etttPttttTTT..",
+    "...ttttttPtTT...",
     "....TTTTTTTT....",
-], 3)
+    "................",
+    "................",
+])
 
 DRIFT = pad([
     "..........cc....",
@@ -192,16 +201,16 @@ SPEAKER_BODY = [
 ]
 
 SOUND_ON = pad([
-    ".......P....a...",
-    "......PP.....a..",
-    ".....PPp..a..a..",
-    "...PPPpp...a..a.",
-    "...Pppppp..a..a.",
-    "...ppppd...a..a.",
-    "...dddpd..o..o..",
-    ".....ddd.....o..",
-    "......dd....o...",
-    ".......d........",
+    "......P.........",
+    ".....PP.........",
+    "....PPp.........",
+    "..PPPpp.........",
+    "..Ppppp.........",
+    "..ppppd.........",
+    "..dddpd.........",
+    "....ddd.........",
+    ".....dd.........",
+    "......d.........",
 ], 3)
 
 SOUND_OFF = pad([
@@ -227,18 +236,26 @@ KEYBOARD = pad([
     "...EEEEEEEEEE...",
 ], 4)
 
-TOUCH = pad([
-    "..........A.....",
+# v3: pointing hand -- tall index finger, two folded fingers separated by shade columns,
+# a thumb split from the index by a gap, and a terracotta cuff. Tap rays are an overlay.
+TOUCH = from_rows([
+    "................",
+    "................",
+    "................",
     ".....PP.........",
-    ".....Pp.....A...",
     ".....Pp.........",
-    ".....PpDPpDPd...",
-    "...PPPpDPpDPd...",
-    "...PppppppppD...",
-    "....ppppppppD...",
-    "....ppppppdD....",
-    ".....dddddD.....",
-], 3)
+    ".....Pp.........",
+    ".....PpDPp......",
+    ".....PpDPpDPp...",
+    ".....PpDPpDPpD..",
+    "..PP.PpdppdppD..",
+    "..PpPPpppppppD..",
+    "...PPppppppppD..",
+    "....pppppppppD..",
+    "....tttttttttT..",
+    "................",
+    "................",
+])
 
 
 # --------------------------------------------------------------------------- procedural maps
@@ -248,25 +265,75 @@ def dist(x: int, y: int, cx: float, cy: float) -> float:
 
 
 def radar() -> Grid:
+    """v3: satellite dish in 3/4 view facing up-right -- lit concave face inside a shaded back rim,
+    an amber feed knob (outlined), a stand and a base plate. The feed arm is an overlay."""
     g = blank()
+    cx, cy = 7.0, 9.0
+    ux, uy = 0.7071, -0.7071  # dish axis (opening direction)
+    vx, vy = 0.7071, 0.7071   # rim direction
     for y in range(16):
         for x in range(16):
-            d = dist(x, y, 8, 8)
-            if d < 5.0:
-                g[y][x] = "Q"
-                if 2.4 < d < 3.4:
-                    g[y][x] = "q"
-                # top-left rim light, bottom-right rim shade
-                if d > 4.0 and (x + y) < 13:
-                    g[y][x] = "q"
-    for x, y in ((7, 7), (8, 7), (7, 8), (8, 8)):
-        g[y][x] = "P"
-    for x, y in ((9, 6), (10, 5), (11, 4)):
-        g[y][x] = "h"
-    g[6][9] = "P"
-    g[9][5] = "A"
-    g[10][5] = "a"
+            px, py = x + 0.5 - cx, y + 0.5 - cy
+            along = px * ux + py * uy
+            perp = px * vx + py * vy
+            if (perp / 5.2) ** 2 + (along / 3.0) ** 2 >= 1:
+                continue
+            face = (perp / 4.4) ** 2 + ((along - 0.8) / 2.2) ** 2 < 1
+            if not face:
+                g[y][x] = "B"
+            elif perp < -1.6:
+                g[y][x] = "P"
+            elif perp < 1.6:
+                g[y][x] = "c"
+            else:
+                g[y][x] = "b"
+    # feed knob
+    for x, y in ((11, 3), (12, 3), (11, 4), (12, 4)):
+        g[y][x] = "a"
+    g[3][11] = "Y"
+    g[4][12] = "o"
+    # stand + base plate
+    for x, y in ((5, 12), (6, 12), (5, 13), (6, 13)):
+        if g[y][x] == ".":
+            g[y][x] = "E"
+    g[13][5] = "D"
+    for x in range(3, 9):
+        g[14][x] = "D" if x < 6 else "E"
     return g
+
+
+def radar_overlay(img: Image.Image) -> None:
+    """Feed arm from the dish centre to the knob, plus two ember signal ticks."""
+    for x, y in ((8, 8), (9, 7), (10, 6), (10, 5)):
+        img.putpixel((x, y), PALETTE["E"])
+    img.putpixel((7, 9), INK)  # feed mount at the dish centre
+    img.putpixel((14, 2), PALETTE["e"])
+    img.putpixel((14, 1), PALETTE["e"])
+    img.putpixel((13, 1), PALETTE["e"])
+
+
+def sound_on_overlay(img: Image.Image) -> None:
+    """Two clean arcs: 1px ink on the inner edge, 1px amber on the outer edge, clear gaps between
+    the speaker, the first arc and the second arc (critic r1: the waves blurred into a burst)."""
+    cx, cy = 5.5, 8.0
+    for y in range(16):
+        for x in range(8, 16):
+            px, py = x + 0.5 - cx, y + 0.5 - cy
+            d = math.hypot(px, py)
+            ang = abs(math.degrees(math.atan2(py, px)))
+            for r, limit in ((4.9, 50), (7.6, 44)):
+                if ang > limit:
+                    continue
+                if r - 0.5 <= d < r + 0.5:
+                    img.putpixel((x, y), INK)
+                elif r + 0.5 <= d < r + 1.5:
+                    img.putpixel((x, y), PALETTE["a"])
+
+
+def touch_overlay(img: Image.Image) -> None:
+    """Three short ember tap rays around the fingertip."""
+    for x, y in ((2, 2), (3, 3), (9, 2), (8, 3), (5, 0), (6, 0)):
+        img.putpixel((x, y), PALETTE["e"])
 
 
 def speed() -> Grid:
@@ -330,6 +397,8 @@ def settings() -> Grid:
 
 # --------------------------------------------------------------------------- assembly
 
+Overlay = Callable[[Image.Image], None]
+
 ORDER: list[tuple[str, Grid]] = [
     ("thrust", from_rows(THRUST)),
     ("package", from_rows(PACKAGE)),
@@ -373,10 +442,22 @@ def render(g: Grid) -> Image.Image:
     return img
 
 
+# Pixels drawn after the automatic outline (thin ink/amber detail that must not get its own outline).
+OVERLAYS: dict[str, Overlay] = {
+    "radar": radar_overlay,
+    "sound-on": sound_on_overlay,
+    "touch": touch_overlay,
+}
+
+
 def build() -> Image.Image:
     strip = Image.new("RGBA", (256, 16), (0, 0, 0, 0))
-    for i, (_, grid) in enumerate(ORDER):
-        strip.paste(render(outline(grid)), (i * 16, 0))
+    for i, (name, grid) in enumerate(ORDER):
+        cell = render(outline(grid))
+        overlay = OVERLAYS.get(name)
+        if overlay:
+            overlay(cell)
+        strip.paste(cell, (i * 16, 0))
     return strip
 
 

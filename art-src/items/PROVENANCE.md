@@ -96,8 +96,12 @@ What the script does (all deterministic, no manual pixel edits):
    three hand-placed cream puffs (#F9F3E5 / #E6D4B4, ink outline) form the exhaust trail behind it.
 6. Same 3px parchment frame as v2 (#D8C49E edge, #ECDFC5 lower/right bevel, #F4ECDC fill, 1px rounded corners).
 Helper: `scripts/stamp_sprite.py` (stand-alone version of step 4/5 used to test how the canonical sprites read at
-~22 px). Note: the ship stamp is derived from the current 144x160 idle art; if the hero ship is redrawn later in this
-wave (64x80 contract), rerun the command above to refresh the postcard from the new idle sprite.
+~22 px). Refresh (2026-10-02, resumed session): the hero ship WAS redrawn mid-wave to the 64x80 contract
+(public/assets/ship/gyoza-idle.png, 2026-10-01 21:47), so the command above was re-run unchanged. The postcard ship
+is now the new pleated gyoza saucer with a clear glass dome and pilot, legs below; puff trail lines up with the hull.
+Previous composite (old 144x160 ship stamp) kept as `work/postcard-v3-comp-oldship.png` for comparison. Large
+regenerable intermediates (`work/postcard-v3-plate.png` is rewritten by the script; half/inner inspection crops)
+were deleted to keep the folder small. Preview: `previews/w2/memory-postcard.preview.png`.
 
 ## steam v2 (current)
 
@@ -107,6 +111,9 @@ Same seamless 4-frame S-curve motion as v1. Changes: stronger core (plaster #FBF
 #94806E on lower-right edges (light from top-left) — so the wisp has a readable edge on parchment #F4ECDC and still
 glows on cosmos. Specks with <2 neighbours and detached blobs <6 px removed (they flickered at 2x).
 Iterations: rim #C4B39F/#A3917F (still faint on parchment) -> darker #B9A793/#94806E + less top fade (current).
+
+## Validation (2026-10-02)
+All five PNGs match the manifest exactly (tea 32x32, mochi 32x24, package 32x32, steam 64x24 = 4x16x24, postcard 96x64), RGBA, each < 8 KB; dev server serves all five with 200 image/png. `node e2e/capture.mjs --states=title --label=w2-assets-items` could not complete: the app's probe never became ready because the shared tree is mid-refactor in other builders' files (LandingScene.ts imports missing `entities/landing/NozzleFlame`; transitions.ts type errors), not because of items assets.
 
 ## Unchanged this wave
 tea.png, mochi.png, package.png (round-1 files, see above).

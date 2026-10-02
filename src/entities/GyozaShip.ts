@@ -16,6 +16,13 @@ const FLY_FRAME_SPEEDS = { small: 90, medium: 210 } as const;
 
 const TAU = Math.PI * 2;
 
+/** Squash timing as shares of the caller's duration: hold at full squash, then spring back. */
+const SQUASH_HOLD_SHARE = 0.6;
+const SQUASH_RELEASE_SHARE = 2.4;
+const SQUASH_OVERSHOOT = 2.2;
+
+export type HullFlashMode = "fill" | "screen";
+
 export type ShipIdleMotion = {
   readonly bobPx: number;
   readonly bobPeriodMs: number;
@@ -135,30 +142,38 @@ export class GyozaShip extends Phaser.GameObjects.Sprite {
     return this.setBaseScale(layout.scale);
   }
 
-  /** Brief squash-and-stretch (e.g. after a bump). Returns to the base scale when done. */
+  /**
+   * Brief squash-and-stretch (e.g. after a bump): snaps to the full squash, holds a beat so it reads,
+   * then springs back past rest and settles. Always returns to the base scale, even if interrupted.
+   */
   playSquash(amount: number, durationMs: number): void {
     this.squashTween?.stop();
-    const baseX = this.baseScale;
-    const baseY = this.baseScale;
+    const base = this.baseScale;
     const proxy = { t: 1 };
+    const apply = (): void => {
+      this.setScale(base * (1 + amount * proxy.t), base * (1 - amount * proxy.t));
+    };
+    apply();
     this.squashTween = this.scene.tweens.add({
       targets: proxy,
       t: 0,
-      duration: durationMs * 3,
-      ease: "Elastic.easeOut",
-      easeParams: [1.1, 0.5],
-      onUpdate: () => {
-        this.setScale(baseX * (1 + amount * proxy.t), baseY * (1 - amount * proxy.t));
-      },
-      onComplete: () => this.setScale(baseX, baseY),
-      onStop: () => this.setScale(baseX, baseY),
+      delay: durationMs * SQUASH_HOLD_SHARE,
+      duration: durationMs * SQUASH_RELEASE_SHARE,
+      ease: "Back.easeOut",
+      easeParams: [SQUASH_OVERSHOOT],
+      onUpdate: apply,
+      onComplete: () => this.setScale(base, base),
+      onStop: () => this.setScale(base, base),
     });
   }
 
-  /** Brief solid-colour hull flash (bump feedback). Restores normal tinting afterwards. */
-  flashHull(color: number, durationMs: number): void {
+  /**
+   * Brief hull flash (bump feedback). `fill` paints a solid silhouette; `screen` brightens toward
+   * the colour while keeping the pixel detail readable. Restores normal tinting afterwards.
+   */
+  flashHull(color: number, durationMs: number, mode: HullFlashMode = "fill"): void {
     this.flashTimer?.remove(false);
-    this.setTint(color).setTintMode(Phaser.TintModes.FILL);
+    this.setTint(color).setTintMode(mode === "screen" ? Phaser.TintModes.SCREEN : Phaser.TintModes.FILL);
     this.flashTimer = this.scene.time.delayedCall(durationMs, () => {
       this.clearTint();
       this.setTintMode(Phaser.TintModes.MULTIPLY);

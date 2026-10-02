@@ -228,7 +228,7 @@ export class LandingAids {
     this.gyro.clear();
     if (this.gyroAlpha <= 0.01) return;
 
-    const color = colorNumber(colors.duskBlue);
+    const color = colorNumber(config.dotColor);
     const cos = Math.cos(frame.rotation);
     const sin = Math.sin(frame.rotation);
     const cx = frame.shipX;
@@ -242,7 +242,7 @@ export class LandingAids {
       const ly = Math.sin(t) * config.radiusY + config.offsetY;
       const px = snapToGrid(cx + lx * cos - ly * sin, CELL);
       const py = snapToGrid(cy + lx * sin + ly * cos, CELL);
-      this.gyro.fillStyle(color, config.alpha * this.gyroAlpha * (front ? 1 : 0.4));
+      this.gyro.fillStyle(color, config.alpha * this.gyroAlpha * (front ? 1 : config.backAlpha));
       this.gyro.fillRect(px - dot / 2, py - dot / 2, dot, dot);
     }
 
@@ -250,7 +250,7 @@ export class LandingAids {
     const levelY = snapToGrid(cy + config.offsetY, CELL);
     const inner = config.radiusX + 8;
     const length = config.levelLineHalfWidth;
-    this.gyro.fillStyle(colorNumber(colors.plaster), 0.55 * this.gyroAlpha);
+    this.gyro.fillStyle(colorNumber(config.levelColor), config.alpha * this.gyroAlpha);
     this.gyro.fillRect(snapToGrid(cx - inner - length, CELL), levelY - CELL / 2, length, CELL);
     this.gyro.fillRect(snapToGrid(cx + inner, CELL), levelY - CELL / 2, length, CELL);
   }

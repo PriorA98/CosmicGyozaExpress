@@ -161,51 +161,72 @@ def panel_dark() -> Image.Image:
 
 
 # --------------------------------------------------------------------------- button
-def button_frame(face_hex: str, face_light_hex: str, face_dark_hex: str, pressed: bool) -> Image.Image:
-    w, h = 48, 24
-    img = Image.new("RGBA", (w, h), CLEAR)
-    ink = hexa(INK)
-    shift = 2 if pressed else 0
-    shadow_rows = 1 if pressed else 3
-    body_top = shift
-    body_bottom = h - 1 - shadow_rows  # inclusive last row of the bordered body
-    # Hard ink shadow under the body (square corners, inset 1px so the body edge reads).
-    for y in range(body_bottom + 1, h):
-        for x in range(1, w - 1):
-            img.putpixel((x, y), ink)
-    for y in range(body_top, body_bottom + 1):
+# v2 (wave 2): the old button used a 2px ink border plus a 3-5 row pure-ink lip, which vanished
+# on the cosmos background (#1A1B2E) so the button lost its depth there. Now a single 1px ink
+# OUTER outline wraps the whole silhouette (face + lip, chunky 2px-rounded corners) and the lip
+# is a coloured terracotta slab side, so depth reads on dark backgrounds and the outline frames
+# it on parchment. Insets unchanged: 6px all round (all ornament lives inside the 6px corners).
+def _rounded_outline_mask(w: int, h: int, top: int) -> list[list[int]]:
+    """0 = clear, 1 = ink outline, 2 = inside, for a box from row `top` to h-1 with 2px corners."""
+    mask = [[0] * w for _ in range(h)]
+    for y in range(top, h):
         for x in range(w):
-            # 1px notched corners on the outer ink border, otherwise square.
-            if (y == body_top or y == body_bottom) and (x == 0 or x == w - 1):
+            cx = min(x, w - 1 - x)
+            cy = min(y - top, h - 1 - y)
+            if cx == 0 and cy == 0 or (cx == 0 and cy == 1) or (cx == 1 and cy == 0):
+                continue  # clipped corner
+            outer = cx == 0 or cy == 0 or (cx == 1 and cy == 1)
+            mask[y][x] = 1 if outer else 2
+    return mask
+
+
+def button_frame(face_hex: str, light_hex: str, shade_hex: str, side_hex: str, side_dark_hex: str,
+                 pressed: bool) -> Image.Image:
+    w, h = 48, 24
+    sink = 2 if pressed else 0
+    img = Image.new("RGBA", (w, h), CLEAR)
+    mask = _rounded_outline_mask(w, h, sink)
+    ink = hexa(INK)
+    face, light, shade = hexa(face_hex), hexa(light_hex), hexa(shade_hex)
+    side, side_dark = hexa(side_hex), hexa(side_dark_hex)
+    face_top = sink + 1
+    face_bottom = 18 + sink  # last face row (bevel shade row); idle 18, pressed 20
+    for y in range(h):
+        for x in range(w):
+            m = mask[y][x]
+            if m == 0:
                 continue
-            on_border = x < 2 or x > w - 3 or y < body_top + 2 or y > body_bottom - 2
-            img.putpixel((x, y), ink if on_border else hexa(face_hex))
-    # Notch fill: inner corner pixel of the 2px border keeps the shape chunky.
-    face_top = body_top + 2
-    face_bottom = body_bottom - 2
-    # Bevel: lit top row + left column, darker bottom 2 rows + right column.
-    light = hexa(face_light_hex)
-    dark = hexa(face_dark_hex)
-    for x in range(2, w - 2):
-        img.putpixel((x, face_top), light)
-        img.putpixel((x, face_bottom), dark)
-        if not pressed:
-            img.putpixel((x, face_bottom - 1), blend(face_hex, face_dark_hex, 0.5))
-    for y in range(face_top, face_bottom + 1):
-        img.putpixel((2, y), light if y < face_bottom else dark)
-        img.putpixel((w - 3, y), dark if y > face_top else light)
-    # Little specular glint in the top-left corner (corner-only, so it never stretches).
-    glint = hexa("#F4CDB0") if not pressed else light
-    img.putpixel((3, face_top + 1), glint)
-    img.putpixel((4, face_top + 1), blend(face_light_hex, face_hex, 0.4))
-    img.putpixel((3, face_top + 2), blend(face_light_hex, face_hex, 0.4))
+            if m == 1:
+                img.putpixel((x, y), ink)
+                continue
+            if y < face_top:
+                continue
+            if y <= face_bottom:
+                colour = face
+                if y == face_top or x == 1:
+                    colour = light
+                if y == face_bottom or x == w - 2:
+                    colour = shade
+                if y == face_top and x == w - 2:
+                    colour = face
+                if x == 1 and y == face_bottom:
+                    colour = shade
+            else:
+                # slab side below the face: side tone, darker last row
+                colour = side_dark if y == h - 2 else side
+            img.putpixel((x, y), colour)
+    # corner-only specular glint (top-left, inside the 6px corner)
+    glint = blend(light_hex, "#FBF7EC", 0.55)
+    img.putpixel((2, face_top + 1), glint)
+    img.putpixel((3, face_top + 1), light)
+    img.putpixel((2, face_top + 2), light)
     return img
 
 
 def button_strip() -> Image.Image:
-    normal = button_frame("#C97B5A", "#DE9F7F", "#A6614A", pressed=False)
-    hover = button_frame("#D98C62", "#EDB48E", "#B56D4D", pressed=False)
-    pressed = button_frame("#B86E50", "#C97B5A", "#97573F", pressed=True)
+    normal = button_frame("#C97B5A", "#DE9F7F", "#B66C4E", "#8C503E", "#6E3D30", pressed=False)
+    hover = button_frame("#D98C62", "#EDB48E", "#C47A52", "#985843", "#784334", pressed=False)
+    pressed = button_frame("#BB7052", "#CD8463", "#A8634B", "#8C503E", "#6E3D30", pressed=True)
     strip = Image.new("RGBA", (144, 24), CLEAR)
     for i, frame in enumerate((normal, hover, pressed)):
         strip.paste(frame, (i * 48, 0))
@@ -213,45 +234,39 @@ def button_strip() -> Image.Image:
 
 
 # --------------------------------------------------------------------------- keycap
+# v2 (wave 2): same treatment as the button -- 1px ink outer outline around the whole key
+# (2px-rounded corners) and a visible warm parchment skirt instead of a 2-row ink bottom, so the
+# key holds its shape on cosmos. 4px insets unchanged; pressing sinks the face 2px onto the skirt.
 def keycap_frame(pressed: bool) -> Image.Image:
     s = 16
+    sink = 2 if pressed else 0
     img = Image.new("RGBA", (s, s), CLEAR)
+    mask = _rounded_outline_mask(s, s, sink)
     ink = hexa(INK)
     face = hexa("#FBF7EC")
     face_hi = hexa("#FFFDF7")
     face_lo = hexa("#EFE6D3")
-    side = hexa("#D7CDB5")
-    side_dark = hexa("#B9AB8B")
-    top = 2 if pressed else 0
-    # Rows (up):      0 ink | 1 highlight | 2..10 face | 11 face_lo | 12 side | 13 side_dark | 14..15 ink
-    # Rows (pressed): 0..1 clear | 2 ink | 3 highlight | 4..11 face | 12 face_lo | 13 side_dark | 14..15 ink
-    rows: list[RGBA | str] = []
-    rows.append("ink")
-    rows.append(face_hi)
-    face_rows = 9 if not pressed else 8
-    rows.extend([face] * face_rows)
-    rows.append(face_lo)
-    if not pressed:
-        rows.append(side)
-    rows.append(side_dark)
-    rows.extend(["ink", "ink"])
-    for i, row in enumerate(rows):
-        y = top + i
+    skirt = hexa("#D7CDB5")
+    skirt_dark = hexa("#B9AB8B")
+    face_top = sink + 1
+    face_bottom = 10 + sink  # idle: face rows 1..10, skirt 11..14; pressed: face 3..12, skirt 13..14
+    for y in range(s):
         for x in range(s):
-            last = y == s - 1
-            corner = (x in (0, s - 1)) and (i == 0 or last)
-            if corner:
+            m = mask[y][x]
+            if m == 0:
                 continue
-            if row == "ink" or x == 0 or x == s - 1:
+            if m == 1:
                 img.putpixel((x, y), ink)
-            else:
-                assert not isinstance(row, str)
-                colour = row
-                if colour in (face, face_hi) and x == 1:
+                continue
+            if y <= face_bottom:
+                colour = face
+                if y == face_top or x == 1:
                     colour = face_hi
-                if colour == face and x == s - 2:
+                if y == face_bottom or x == s - 2:
                     colour = face_lo
-                img.putpixel((x, y), colour)
+            else:
+                colour = skirt_dark if y == s - 2 else skirt
+            img.putpixel((x, y), colour)
     return img
 
 

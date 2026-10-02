@@ -7,7 +7,7 @@ import { ensureLandingRabbitAnimations } from "./MoonRabbit";
 
 /**
  * Arrival title card: a small parchment card with the tea-house rabbit waving and "tea moon · landing".
- * Pops in, holds, and floats away; the scene owns the timing and puts it on the UI camera.
+ * Pops in, holds, and floats away; the scene owns the timing. Screen-fixed, so the arrival pan never moves it.
  */
 export class LandingIntroCard {
   readonly root: Phaser.GameObjects.Container;
@@ -47,8 +47,9 @@ export class LandingIntroCard {
       .setOrigin(0, 0);
 
     this.root = scene.add
-      .container(Math.round(scene.scale.width / 2), intro.cardY, [card, rabbit, title, subtitle])
+      .container(Math.round(scene.scale.width / 2), Math.round(intro.cardTopPx + (height * scale) / 2), [card, rabbit, title, subtitle])
       .setDepth(depth.hudFx)
+      .setScrollFactor(0, 0, true)
       .setScale(scale * 0.7)
       .setAlpha(0);
   }

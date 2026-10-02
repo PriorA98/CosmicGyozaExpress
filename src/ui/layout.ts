@@ -200,3 +200,40 @@ export function isLikelyTouchDevice(capabilities: TouchCapabilities): boolean {
   const hasTouch = capabilities.maxTouchPoints > 0 || capabilities.hasTouchEvents;
   return hasTouch && capabilities.coarsePointer;
 }
+
+export type Point = { readonly x: number; readonly y: number };
+
+/** Point on a quadratic Bezier curve at `t` (clamped to 0..1). */
+export function quadraticPoint(p0: Point, p1: Point, p2: Point, t: number): Point {
+  const u = clamp01(t);
+  const a = (1 - u) * (1 - u);
+  const b = 2 * u * (1 - u);
+  const c = u * u;
+  return { x: a * p0.x + b * p1.x + c * p2.x, y: a * p0.y + b * p1.y + c * p2.y };
+}
+
+export type RouteDot = Point & { readonly t: number };
+
+/**
+ * Evenly spaced dots (by arc length, whole-pixel positions) along a quadratic route, for dotted
+ * route lines. `samples` controls the arc-length approximation.
+ */
+export function dotsAlongQuadratic(p0: Point, p1: Point, p2: Point, spacing: number, samples = 160): RouteDot[] {
+  if (!Number.isFinite(spacing) || spacing <= 0) return [];
+  const steps = Math.max(2, Math.floor(samples));
+  const dots: RouteDot[] = [];
+  let previous = quadraticPoint(p0, p1, p2, 0);
+  let carried = 0;
+  dots.push({ x: Math.round(previous.x), y: Math.round(previous.y), t: 0 });
+  for (let index = 1; index <= steps; index += 1) {
+    const t = index / steps;
+    const point = quadraticPoint(p0, p1, p2, t);
+    carried += Math.hypot(point.x - previous.x, point.y - previous.y);
+    if (carried >= spacing) {
+      dots.push({ x: Math.round(point.x), y: Math.round(point.y), t });
+      carried -= spacing;
+    }
+    previous = point;
+  }
+  return dots;
+}

@@ -124,7 +124,9 @@ export class FlightDashboard {
 
     if (view.note !== this.lastNote) {
       this.lastNote = view.note;
-      this.ticker?.say(view.note);
+      const line = this.ticker?.say(view.note);
+      // The hand-off is short (<= 1.2 s): show its line whole instead of typing it out.
+      if (view.mode === "arriving") line?.finishReveal();
     }
   }
 
@@ -154,22 +156,25 @@ export class FlightDashboard {
       rows.push({ id: ROW.bottom, label: flightHudCopy.bottom, value: "" });
       rows.push({ kind: "meter", id: ROW.package, label: flightHudCopy.package, value: 1, accent: "sage", segments: 10 });
     }
-    const panel = new HudPanel(scene, { x: margin, y: margin, width: layout.panelWidth, title: flightHudCopy.title, icon: "radar", rows, fixed: true });
-    panel.setScale(s).setDepth(depth.hud);
+    // Kit widgets take `uiScale` natively (crisp text sizes, pixel font snapped to its grid).
+    const panelWidth = Math.round(layout.panelWidth * s);
+    const panel = new HudPanel(scene, { x: margin, y: margin, width: panelWidth, title: flightHudCopy.title, icon: "radar", rows, fixed: true, uiScale: s });
+    panel.setDepth(depth.hud);
     this.panel = panel;
 
     const pill = new StatePill(scene, {
       x: margin,
-      y: Math.round(margin + (panel.panelHeight + layout.stackGap) * s),
+      y: Math.round(margin + panel.panelHeight + layout.stackGap * s),
       state: "flying",
       label: flightHudCopy.pill["too-far"],
       fixed: true,
+      uiScale: s,
     });
-    pill.setScale(s).setDepth(depth.hud);
+    pill.setDepth(depth.hud);
     this.pill = pill;
 
     // Ticker: top centre on desktop; beside the panel on compact displays.
-    const panelRight = margin + layout.panelWidth * s;
+    const panelRight = margin + panelWidth;
     const tickerX = this.compact ? Math.round(panelRight + margin) : Math.round((width - layout.tickerWidth * s) / 2);
     const tickerWidth = this.compact
       ? Math.min(layout.tickerWidth, Math.floor((width - margin - tickerX) / s))
@@ -182,7 +187,7 @@ export class FlightDashboard {
 
     if (!touchDevice && !this.compact) this.objects.push(this.buildHints(width, height, s));
 
-    this.touch = new TouchControls(scene, { zones: touchZones(width, height, s), visibility: "auto" });
+    this.touch = new TouchControls(scene, { zones: touchZones(width, height, s), visibility: "auto", tone: "ink", uiScale: s });
     this.objects.push(this.touch);
   }
 
@@ -252,9 +257,9 @@ function touchZones(width: number, height: number, s: number): readonly (TouchZo
   const y = height - inset;
   const copy = flightHudCopy.touch;
   return [
-    { id: "rotateLeft", shape: { kind: "circle", x: inset, y, radius }, label: copy.rotateLeft },
-    { id: "rotateRight", shape: { kind: "circle", x: inset + spacing, y, radius }, label: copy.rotateRight },
-    { id: "brake", shape: { kind: "circle", x: width - inset - spacing, y, radius }, label: copy.brake },
+    { id: "rotateLeft", shape: { kind: "circle", x: inset, y, radius }, label: copy.rotateLeft, glyph: "left" },
+    { id: "rotateRight", shape: { kind: "circle", x: inset + spacing, y, radius }, label: copy.rotateRight, glyph: "right" },
+    { id: "brake", shape: { kind: "circle", x: width - inset - spacing, y, radius }, label: copy.brake, glyph: "steady" },
     { id: "thrust", shape: { kind: "circle", x: width - inset, y, radius }, label: copy.thrust, icon: "thrust" },
   ];
 }

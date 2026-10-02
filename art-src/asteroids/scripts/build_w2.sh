@@ -29,7 +29,7 @@ python $SC/close_outline.py $T/mochi-q.png $O/asteroid-mochi.png
 # crumb 66 (body 58): v1 generation + scripted straight broken flat side (lower-left chord)
 px $R/asteroid-crumb-v1.png $T/crumb-q.png --size 66x66 --colors 36 --pad 4
 python $SC/close_outline.py $T/crumb-q.png $T/crumb-ol.png
-python $SC/cut_flat.py $T/crumb-ol.png $O/asteroid-crumb.png 3 35 25 63 3
+python $SC/cut_flat.py $T/crumb-ol.png $O/asteroid-crumb.png 3 35 25 63 4 "#ECD3B0" "#9486AA" inner
 
 # debris 96x24 (4 x 24x24): per-frame pixelize at 48 colours, then ONE joint 28-colour palette
 S=$R/slices/debris-v1

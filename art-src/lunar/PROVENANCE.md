@@ -42,6 +42,19 @@ the panorama ratio requested. Both are handled on the Claude side: chroma key to
   `python art-src/lunar/scripts/lunar_tools.py strip art-src/lunar/raw/lunar-ground-v1.png public/assets/lunar/lunar-ground.png --size 640x64 --surface 8 --colors 28 --blend 64 --vsquash 0.5`
 - `--surface 8` puts the first 90%-solid row at art row 8 and fills every transparent hole from row 8 down.
   Result: rows 0-6 are empty, row 7 holds 38 px of pebbles/bumps sitting on the line, and rows 8-63 are fully opaque. Seam edge diff is 2.2 per row.
+- Wave 2 (2026-10-02) rework — the lower regolith bands read as blotchy, busy noise:
+  - The wave-1 normalized strip above is kept as `work/lunar-ground-w1.png` (source of the surface band).
+  - Build: `python art-src/lunar/scripts/build_ground.py` (programmatic Pillow repaint on the Claude side, no new Codex call).
+    It keeps rows 0..~26 (the Codex surface lip, craters and the row-7 pebbles), then repaints everything under a wavy
+    boundary as four calm strata using the strip's own colours (190,178,166 / 153,158,167 / 120,134,156 / 95,97,118).
+    Each boundary is a sum of sines with integer periods over 640 px (seamless), cleaned of 1 px back-and-forth steps.
+    Each band gets a 1 px darker lip under the band above, long on/off runs of a 1 px catch-light on its top
+    (top-left light), 16 short one-tone-darker sediment streaks, and a few clean 4-7 px pebbles with highlight/shade.
+    Grey crater fragments cut by the first boundary (rows 22+) are filled with the surface beige.
+  - Contract asserted in the script: rows 0-6 transparent, rows 8-63 fully opaque. Seam edge diff 1.5 per row; a 2x
+    tiled zoom across the seam (`preview/w2/ground-new-seam.png`) shows no break.
+  - Iterations: v2a used per-pixel random catch-lights (read as dashed noise) and 2 px slit-like pebbles; v2b (final)
+    uses run-based catch-lights, larger rounder pebbles and the sediment streaks. Before/after previews in `preview/w2/`.
 
 ### `public/assets/lunar/lunar-pad.png` (176x24; landing surface row 6)
 - Source: `raw/lunar-pad-v1.png` (prompt B, image 1).
@@ -49,14 +62,21 @@ the panorama ratio requested. Both are handled on the Claude side: chroma key to
   Steps: chroma key, scale to 176 wide, quantize 28, align the first 70%-solid row to row 6, then clear rows 0-5 except the outer 12 px on each side (corner posts/tassels).
 - Check: across x 12..163 the first opaque row is exactly 6. The corner post knobs reach rows 1-5.
 
-### `public/assets/lunar/lunar-lantern.png` (strip 2 x 12x28; frame 0 dim, frame 1 lit)
+### `public/assets/lunar/lunar-lantern.png` (strip 2 x 12x28; frame 0 dim, frame 1 lit; bottom anchor)
 - Source: hand-placed pixel map in `scripts/build_lantern.py`, traced from the colours and shape of `raw/lunar-lantern-v1.png`
   (prompt B, image 3). A box downscale of the raw to 12 px wide turned mushy.
 - Build: `python art-src/lunar/scripts/build_lantern.py`.
 - Iterations: v1 used a box downscale (mushy). v2 was a redraw with the lantern hanging from an arm on a post. v3 (resume pass, final)
   moves the lantern onto the top of a short centred post, because v2 read as a gallows or "[" bracket at 2x. The lamp centre is
   about 19 art px above the base (matches `lampHeightPx: 38` screen px). The lit frame has a computed ember halo with soft alpha
-  (130 at 1 px, 55 at 2 px) hugging the paper. The base sits on the bottom row.
+  (130 at 1 px, 55 at 2 px) hugging the paper. The base sits on the bottom row. The v3 file is kept as `work/lunar-lantern-w1.png`.
+- Wave 2 (2026-10-02) v4, final — richer lamp, same build command, still a hand-placed pixel map (programmatic, Claude side):
+  paper body narrowed to 10 px so the lit frame has a 1 px glow frame on every side; three paper ribs with a light
+  left catch pixel and a shaded right end; a brick emblem dot; finial knob; a lighter centre-left paper core; a rope
+  wrap on the post and a two-tone stone foot on the bottom row. Lit frame: cream/peach core, ember shading, warm brown
+  outline, a peach (#F7C27E, alpha 190) glow frame from the finial to the bottom cap, and spill pixels on the post top
+  and the stone foot. A 2 px ember outer ring was tried and dropped because it read muddy brown on the dark sky.
+  Lamp centre stays at art row ~9.5 (about 19 art px above the base), so `lampHeightPx: 38` still lines up.
 
 ### `public/assets/lunar/lunar-teahouse.png` (96x80; base on bottom row)
 - Source: `raw/lunar-teahouse-v1.png` (prompt B, image 2).
@@ -73,5 +93,7 @@ the panorama ratio requested. Both are handled on the Claude side: chroma key to
 ## Inspection
 - Previews: `python tools/art/pixelize.py --preview <png> --scale 3` (moved into `art-src/lunar/preview/`).
 - Contact sheet: `python tools/art/contact_sheet.py public/assets/lunar --out e2e/out/contact-lunar.png`.
-- In game: `node e2e/capture.mjs --states=title --label=w1-assets-lunar` reports no lunar keys in `assetFailures`. The
+- In game: `node e2e/capture.mjs --states=title --label=w1-assets-lunar` reports no lunar keys in `assetFailures`.
+  Wave 2: `--label=w2-assets-lunar` gives `assetFailures: []`, and `--states=landing-settle-soft --label=w2-assets-lunar-landing`
+  shows the new ground and lanterns in the scene. The
   `landing-descent` and `landing-settle-soft` captures show the full lunar scene.

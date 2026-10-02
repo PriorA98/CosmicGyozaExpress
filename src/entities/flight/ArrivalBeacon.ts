@@ -44,7 +44,8 @@ export class ArrivalBeacon {
   private readonly plate: Phaser.GameObjects.Image;
   private readonly chevrons: Phaser.GameObjects.Image;
   private readonly ghost: Phaser.GameObjects.Image;
-  private readonly label: StatePill;
+  private label: StatePill;
+  private uiScale = 1;
   private readonly ringKeys: { readonly idle: string; readonly ready: string; readonly idleShadow: string; readonly readyShadow: string };
   private readonly progressPixels: readonly ArcPixel[];
   private readonly bottomAngle: number;
@@ -55,7 +56,7 @@ export class ArrivalBeacon {
   private lastProgressCount = -1;
 
   constructor(
-    scene: Phaser.Scene,
+    private readonly scene: Phaser.Scene,
     private readonly destination: FlightDestinationDefinition,
     shipLayout: ShipArtLayout,
   ) {
@@ -161,8 +162,17 @@ export class ArrivalBeacon {
 
     // Label pill below the ring (never on the dashes or the bright moon).
     this.labelY = y + destination.radius + style.ringShadowThickness * ART + style.labelGap;
-    this.label = new StatePill(scene, { x, y: this.labelY, state: "idle", label: flightHudCopy.beaconLabel });
-    this.label.setDepth(depth.world + 2);
+    this.label = this.createLabel("idle", flightHudCopy.beaconLabel);
+    this.centreLabel();
+  }
+
+  /** Compact (phone) displays get a larger label pill so it stays legible after FIT scaling. */
+  setUiScale(scale: number): void {
+    if (scale === this.uiScale) return;
+    this.uiScale = scale;
+    const kind = this.lastKind ?? "too-far";
+    this.label.destroy();
+    this.label = this.createLabel(PILL_STATE[kind], kind === "ready" ? flightHudCopy.ready : flightHudCopy.beaconLabel);
     this.centreLabel();
   }
 
@@ -198,6 +208,11 @@ export class ArrivalBeacon {
 
     this.drawProgress(ready ? progress : 0);
     this.drawLanterns(colorNumber(dockingStateColors[docking.kind]), ready, active, timeMs);
+  }
+
+  private createLabel(state: UiState, text: string): StatePill {
+    const pill = new StatePill(this.scene, { x: this.destination.x, y: this.labelY, state, label: text, uiScale: this.uiScale });
+    return pill.setDepth(depth.world + 2);
   }
 
   private centreLabel(): void {

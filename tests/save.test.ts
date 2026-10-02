@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CORRUPT_BACKUP_KEY,
+  CORRUPT_BACKUP_LATEST_KEY,
   createDefaultSave,
   sanitizeSave,
   SaveSystem,
@@ -378,5 +379,94 @@ describe("sanitizeSave", () => {
     expect(sanitizeSave(valid)).toEqual(valid);
     const repaired = sanitizeSave({ junk: true, completedMissions: ["tea-moon", 3] }, fixed);
     expect(sanitizeSave(repaired, fixed)).toEqual(repaired);
+  });
+});
+
+describe("corrupt save backups", () => {
+  it("never overwrites the first backup and keeps the newest later one", () => {
+    for (const raw of ["{first", "{second", "{third"]) {
+      SaveSystem.clearSessionCache();
+      storage.values.set(SAVE_KEY, raw);
+      SaveSystem.load();
+    }
+
+    expect(storage.values.get(CORRUPT_BACKUP_KEY)).toBe("{first");
+    expect(storage.values.get(CORRUPT_BACKUP_LATEST_KEY)).toBe("{third");
+  });
+
+  it("does not duplicate a backup of the same text", () => {
+    for (const raw of ["{same", "{same"]) {
+      SaveSystem.clearSessionCache();
+      storage.values.set(SAVE_KEY, raw);
+      SaveSystem.load();
+    }
+
+    expect(storage.values.get(CORRUPT_BACKUP_KEY)).toBe("{same");
+    expect(storage.values.has(CORRUPT_BACKUP_LATEST_KEY)).toBe(false);
+  });
+});
+
+describe("SaveSystem.persistenceStatus", () => {
+  it("is persistent with working storage, including after a quiet corrupt recovery", () => {
+    expect(SaveSystem.persistenceStatus()).toEqual({ kind: "persistent" });
+    SaveSystem.clearSessionCache();
+    storage.values.set(SAVE_KEY, "{oops");
+    expect(SaveSystem.persistenceStatus()).toEqual({ kind: "persistent" });
+  });
+
+  it("reports a newer save so this visit stays in memory", () => {
+    storage.values.set(SAVE_KEY, JSON.stringify({ version: 9 }));
+    SaveSystem.completeMission("tea-moon", perfectResult, "memory-tea-moon-postcard");
+
+    expect(SaveSystem.persistenceStatus()).toEqual({ kind: "session-only", reason: "newer-save" });
+  });
+
+  it("reports unavailable storage when localStorage is missing or unreadable", () => {
+    vi.stubGlobal("localStorage", undefined);
+    SaveSystem.completeMission("tea-moon", perfectResult, "memory-tea-moon-postcard");
+    expect(SaveSystem.persistenceStatus()).toEqual({ kind: "session-only", reason: "storage-unavailable" });
+
+    vi.stubGlobal("localStorage", storage);
+    SaveSystem.clearSessionCache();
+    storage.throwOnGet = true;
+    expect(SaveSystem.persistenceStatus()).toEqual({ kind: "session-only", reason: "storage-unavailable" });
+  });
+
+  it("reports failed writes and recovers once storage accepts the save", () => {
+    storage.throwOnSet = true;
+    SaveSystem.completeMission("tea-moon", perfectResult, "memory-tea-moon-postcard");
+    expect(SaveSystem.persistenceStatus()).toEqual({ kind: "session-only", reason: "write-failed" });
+
+    storage.throwOnSet = false;
+    SaveSystem.load();
+    expect(SaveSystem.persistenceStatus()).toEqual({ kind: "persistent" });
+    expect(stored().completedMissions).toEqual(["tea-moon"]);
+  });
+
+  it("flushes progress earned while storage was unreadable instead of replacing it", () => {
+    storage.throwOnGet = true;
+    SaveSystem.completeMission("tea-moon", perfectResult, "memory-tea-moon-postcard");
+
+    storage.throwOnGet = false;
+    const save = SaveSystem.load();
+
+    expect(save.completedMissions).toEqual(["tea-moon"]);
+    expect(stored().completedMissions).toEqual(["tea-moon"]);
+    expect(SaveSystem.persistenceStatus()).toEqual({ kind: "persistent" });
+  });
+});
+
+describe("SaveSystem.diagnostics", () => {
+  it("exposes the first load outcome, lock state, and backup presence for dev probes", () => {
+    storage.values.set(SAVE_KEY, "{broken");
+    SaveSystem.load();
+    SaveSystem.load();
+
+    const diagnostics = SaveSystem.diagnostics();
+    expect(diagnostics.firstLoadOutcome.kind).toBe("corrupt");
+    expect(diagnostics.storageLocked).toBe(false);
+    expect(diagnostics.hasCorruptBackup).toBe(true);
+    expect(diagnostics.hasLatestCorruptBackup).toBe(false);
+    expect(diagnostics.persistence).toEqual({ kind: "persistent" });
   });
 });

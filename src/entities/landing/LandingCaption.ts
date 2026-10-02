@@ -22,7 +22,7 @@ const DOT_GAP = 10;
 
 /**
  * Warm parchment card (UI-kit nine-slice art) that pops above the pad for touchdowns and incidents.
- * Returns the container so the scene can destroy it on retry and put it on the UI camera.
+ * Returns the container so the scene can destroy it on retry.
  */
 export function showLandingCaption(scene: Phaser.Scene, options: LandingCaptionOptions): Phaser.GameObjects.Container {
   const config = landingScenery.caption;
@@ -80,7 +80,8 @@ export function showLandingCaption(scene: Phaser.Scene, options: LandingCaptionO
     scene.tweens.add({ targets: fill, scaleX: 1, duration: options.progressMs, ease: "Linear" });
   }
 
-  // Keep the (possibly enlarged) card inside the canvas.
+  // Screen-fixed (camera shake and the arrival pan never move it); kept inside the canvas.
+  container.setScrollFactor(0, 0, true);
   const halfVisible = (width * options.scale) / 2 + config.edgeMarginPx;
   container.setX(Math.round(Phaser.Math.Clamp(options.x, halfVisible, scene.scale.width - halfVisible)));
   container.setScale(options.scale * 0.6).setAlpha(0);

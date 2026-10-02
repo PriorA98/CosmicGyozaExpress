@@ -616,6 +616,8 @@ class MusicPlayer {
   private step = 0;
   private bar = 0;
   private nextStepTime: number;
+  /** Start time of the last booked step (old-mood notes may still sound until just after it). */
+  private lastBookedAt = Number.NEGATIVE_INFINITY;
   private melodyIndex = 3;
   private seed: number = MUSIC_ENGINE.melodySeed;
 
@@ -638,8 +640,8 @@ class MusicPlayer {
   }
 
   /**
-   * Requests a new mood. It starts on the next step that is not booked yet (under ~0.4 s),
-   * cross-fading the outgoing pads instead of waiting for the bar line.
+   * Requests a new mood. It starts on the next scheduler pass, just after the last booked step
+   * (under ~0.4 s), cross-fading the outgoing pads instead of waiting for the bar line.
    */
   setMood(mood: MusicMood, requestedAt: number = this.bus.ctx.currentTime): void {
     if (mood === this.mood) {
@@ -658,8 +660,18 @@ class MusicPlayer {
       this.nextStepTime = now + 0.05;
       this.step = 0;
     }
+    if (this.pendingMood) {
+      // Start the new mood right away (off the old step grid) instead of waiting for the next
+      // eighth step, which is ~0.5 s away at lullaby tempos.
+      const { leadSeconds, minGapSeconds } = MUSIC_ENGINE.moodCrossfade;
+      const earliest = Math.max(now, this.requestedAt) + leadSeconds;
+      const at = Math.min(this.nextStepTime, Math.max(earliest, this.lastBookedAt + minGapSeconds));
+      this.switchMood(this.pendingMood, at);
+      this.nextStepTime = at;
+    }
     while (this.nextStepTime < until) {
       if (this.pendingMood) this.switchMood(this.pendingMood, this.nextStepTime);
+      this.lastBookedAt = this.nextStepTime;
       this.scheduleStep(this.nextStepTime);
       this.nextStepTime += this.stepSeconds();
       this.step = (this.step + 1) % MUSIC_ENGINE.stepsPerBar;
@@ -1130,7 +1142,11 @@ class AudioEngine {
     if (!ctx || !bus || !this.desiredMood) return;
     try {
       if (!this.music) this.music = new MusicPlayer(bus, this.desiredMood, ctx.currentTime + 0.1);
-      else this.music.setMood(this.desiredMood);
+      else {
+        this.music.setMood(this.desiredMood);
+        // Book the hand-off now rather than on the next scheduler tick.
+        if (ctx.state === "running") this.music.scheduleUntil(ctx.currentTime + MUSIC_ENGINE.lookaheadSeconds);
+      }
     } catch {
       this.music = null;
     }

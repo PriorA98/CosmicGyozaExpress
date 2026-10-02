@@ -1,14 +1,15 @@
 import Phaser from "phaser";
 import { colorNumber, colors } from "../game/designTokens";
-import { warmRecolor, type WarmRampStop } from "./fxMath";
+import { isCoolShade, quantizeAlpha, warmRecolor, type WarmRampStop } from "./fxMath";
 import { PARTICLE_SHEETS, PIXEL_FLAME_TUNING, WARM_RECOLOR, type ParticleSheet, type ParticleSheetId } from "./fxPresets";
 
 /**
  * Resolves particle textures and their life animations.
  *
  * Particle art is loaded from the asset manifest keys. Sheets listed in `WARM_RECOLOR` are
- * copied once per game into a derived canvas texture whose neutral-grey tail pixels are mapped
- * onto a warm oat/plaster ramp (cozy flour and steam, never soot on dark space). While a sheet
+ * copied once per game into a derived canvas texture whose neutral-grey and cool blue-grey pixels
+ * are mapped onto a warm oat/plaster ramp and whose alpha is snapped to hard pixels (cozy flour
+ * and steam, never translucent soot on dark space). While a sheet
  * is still missing, PreloadScene installs a flat same-size fallback; reading a flat block as a
  * particle is unhelpful for tuning, so this module paints a small procedural pixel stand-in
  * under a private key instead. Asset failures are still recorded by PreloadScene, and the real
@@ -83,8 +84,14 @@ function createWarmSheet(scene: Phaser.Scene, sourceKey: string, sheet: Particle
     const data = image.data;
     const ramp = rampStops();
     for (let i = 0; i < data.length; i += 4) {
-      if ((data[i + 3] ?? 0) === 0) continue;
-      const warm = warmRecolor(data[i] ?? 0, data[i + 1] ?? 0, data[i + 2] ?? 0, WARM_RECOLOR.neutralSpread, WARM_RECOLOR.lift, ramp);
+      const alpha = quantizeAlpha(data[i + 3] ?? 0, WARM_RECOLOR.alphaThreshold);
+      data[i + 3] = alpha;
+      if (alpha === 0) continue;
+      const r = data[i] ?? 0;
+      const g = data[i + 1] ?? 0;
+      const b = data[i + 2] ?? 0;
+      const spread = isCoolShade(r, g, b, WARM_RECOLOR.coolBias) ? 255 : WARM_RECOLOR.neutralSpread;
+      const warm = warmRecolor(r, g, b, spread, WARM_RECOLOR.lift, ramp);
       if (!warm) continue;
       data[i] = warm[0];
       data[i + 1] = warm[1];

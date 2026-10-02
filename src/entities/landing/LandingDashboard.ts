@@ -18,7 +18,7 @@ export type LandingDashboardView = {
 export type LandingDashboardOptions = {
   /** Phone-class display: only the essential rows, no chatter line. */
   readonly compact: boolean;
-  /** Overall HUD scale (compactUiScale, boosted on compact displays). */
+  /** HUD scale (compactUiScale, boosted on compact displays); HudPanel renders its text at this size. */
   readonly scale: number;
 };
 
@@ -44,26 +44,29 @@ export class LandingDashboard {
   constructor(scene: Phaser.Scene, options: LandingDashboardOptions) {
     const config = landingScenery.hud;
     this.rows = options.compact ? COMPACT_ROWS : FULL_ROWS;
-    const width = options.compact ? config.compactWidth : config.width;
+    const width = Math.round((options.compact ? config.compactWidth : config.width) * options.scale);
     const rows: HudRow[] = [
       ...this.rows.map((id) => ({ id, label: landingCopy.rows[id], value: "" })),
       { id: "package", label: landingCopy.rows.package, value: "" },
     ];
 
-    this.panel = new HudPanel(scene, { x: 0, y: 0, width, title: landingCopy.dashboardTitle, icon: "moon", rows });
+    this.panel = new HudPanel(scene, { x: 0, y: 0, width, title: landingCopy.dashboardTitle, icon: "moon", rows, uiScale: options.scale });
     const children: Phaser.GameObjects.GameObject[] = [this.panel];
     if (!options.compact) {
       this.ticker = new DashboardTicker(scene, { x: 0, y: this.panel.panelHeight + config.tickerGap, width });
       children.push(this.ticker);
     }
-    this.root = scene.add.container(config.x, config.y, children).setDepth(depth.hud).setScale(options.scale);
+    this.root = scene.add
+      .container(config.x, config.y, children)
+      .setDepth(depth.hud)
+      .setScrollFactor(0, 0, true);
   }
 
   /** Height on screen, including the ticker (for laying out other overlays below it). */
   get displayHeight(): number {
     const config = landingScenery.hud;
     const height = this.panel.panelHeight + (this.ticker ? config.tickerGap + TICKER_HEIGHT : 0);
-    return height * this.root.scaleY;
+    return height;
   }
 
   update(view: LandingDashboardView, timeMs: number): void {
@@ -98,8 +101,15 @@ export class LandingDashboard {
   }
 }
 
-/** Keycap hint strip along the bottom edge (keyboard devices only), on a pixel-notched dark backing. */
-export function createLandingControlsHint(scene: Phaser.Scene, scale: number): Phaser.GameObjects.Container {
+/** Where the keycap hint sits: centred under the pad, or (compact displays) top-right, clear of the pad. */
+export type LandingControlsHintPlacement = "bottom" | "top-right";
+
+/** Keycap hint strip (keyboard devices only), on a pixel-notched dark backing. */
+export function createLandingControlsHint(
+  scene: Phaser.Scene,
+  scale: number,
+  placement: LandingControlsHintPlacement = "bottom",
+): Phaser.GameObjects.Container {
   const config = landingScenery.controlsHint;
   const cell = LANDING_ART_SCALE;
   const container = scene.add.container(0, 0).setDepth(depth.hud);
@@ -125,10 +135,17 @@ export function createLandingControlsHint(scene: Phaser.Scene, scale: number): P
   backing.fillStyle(colorNumber(colors.cosmosPanel), 0.78);
   fillNotchedRect(backing, -config.padX, -config.padY, w, h, cell);
   container.addAt(backing, 0);
-  container.setScale(scale);
-  container.setPosition(
-    Math.round((scene.scale.width - (totalWidth * scale)) / 2 / cell) * cell,
-    Math.round((scene.scale.height - (config.bottomMargin + KEYCAP_HEIGHT + config.padY) * scale) / cell) * cell,
-  );
+  container.setScale(scale).setScrollFactor(0, 0, true);
+  if (placement === "top-right") {
+    container.setPosition(
+      Math.round((scene.scale.width - config.topRightMargin - (totalWidth + config.padX) * scale) / cell) * cell,
+      Math.round((config.topRightMargin + config.padY * scale) / cell) * cell,
+    );
+  } else {
+    container.setPosition(
+      Math.round((scene.scale.width - totalWidth * scale) / 2 / cell) * cell,
+      Math.round((scene.scale.height - (config.bottomMargin + KEYCAP_HEIGHT + config.padY) * scale) / cell) * cell,
+    );
+  }
   return container;
 }

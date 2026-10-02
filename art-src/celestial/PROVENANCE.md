@@ -1,5 +1,76 @@
 # Celestial art provenance
 
+## Wave 2 (2026-10-01/02): Codex image_gen. This is the current production set.
+
+Wave 2 regenerated all three bodies with Codex image generation (codex-cli 0.159.3, native image tool,
+1254x1254 raws on flat #FF00FF). The raws were normalized with a pure-Pillow script,
+`scripts/normalize_w2.py`. Its steps are: magenta key with a 2 px erosion, exact disc placement
+(raw disc centre and diameter to art geometry), BOX downscale with coverage-normalised colour and
+hard alpha, an optional top-left Lambert terminator tint, per-region palettes (so the roof, tea and
+bandage keep their accent colours), isolated-pixel cleanup on the body only, and a silhouette
+re-ink (ink #1D1F33 on the shadow side, a darker local colour on the lit side).
+Note: `raw/` is gitignored. The raws stay local only, and the prompts are kept in `scripts/`.
+
+Prompts:
+- `scripts/codex-prompt-w2-v1.txt`: tea-moon-v1, planet-far-plum-v1, planet-im-fine-v1. All prompts
+  have Codex first view_image the ship idle and fly-02 frames, the asteroid probe, delivery-v2.png and
+  `public/assets/lunar/lunar-teahouse.png` (the canonical tea house).
+- `scripts/codex-prompt-w2-v2.txt`: planet-far-plum-v2/v3 (ring geometry fixes) and tea-moon-v2
+  (fewer craters, calmer surface, round steam puffs in place of a "?" curl).
+- `scripts/codex-prompt-w2-v3.txt`: planet-far-plum-body-v4 (the same plum body with no ring).
+  The log is in `work/codex-v3.log`. The PNG was saved before the session was interrupted.
+
+### tea-moon.png (192x192, key `celestial-tea-moon`): Codex v2 chosen over the wave-1 programmatic version
+- Raw: `raw/tea-moon-v2.png` (v1 rejected: too many mottled craters, and question-mark-shaped steam).
+- Command: `python art-src/celestial/scripts/normalize_w2.py tea-moon art-src/celestial/raw/tea-moon-v2.png`
+  The raw disc is at (627,677) with d=1014. It maps to the art disc at (90,112) with d=144. Region
+  palettes: body 20, house 14, cup 7.
+- Manual/scripted edits: the raw's tiny steam puffs (they were about 2 art px and got re-inked) were
+  cleared and replaced by 3 soft round painted puffs (`steam`). The two windows were repainted as
+  canonical round 5x5 amber windows (`glow_windows`), because the downscale had turned them to mud.
+- Why it beats wave 1: the tea house now matches lunar-teahouse.png (round cream cottage, domed
+  orange shingle roof, round warm windows, arched door, stone base). Wave 1 had a pagoda house on
+  stilts, which was non-canonical. The teacup crater reads as cup + tea + handle carved into the
+  surface. The craters are softer and fewer, with lit rims, and the terminator is cleaner.
+  Weaker point: the body leans cream more than jade.
+
+### planet-im-fine.png (128x128, key `celestial-im-fine`): Codex v1 chosen over wave 1
+- Raw: `raw/planet-im-fine-v1.png`.
+- Command: `python art-src/celestial/scripts/normalize_w2.py planet-im-fine`
+  The raw disc is at (630,628) with d=1060. It maps to the art disc at (64,64) with d=106. Region
+  palettes: body 22, bandage 7. Lambert tint is #5E5586 at strength 0.45.
+- Why it beats wave 1: richer, hand-painted-looking teal continents, a readable cream cross bandage
+  with a peach pad and a crack peeking out, and a gently wobbly but still round silhouette. Wave 1
+  read as a smooth egg with stripy dither bands. Weaker point: the top rim is a little jaggy at 1x.
+
+### planet-far-plum.png (96x96, key `planet-far-plum`): hybrid, Codex body + programmatic ring
+- Raws: v1 to v3 all drew the ring with broken geometry (the front band did not join the ring ends,
+  or the ring was off-centre). v4 is a ringless body: `raw/planet-far-plum-body-v4.png`.
+- Commands:
+  `python art-src/celestial/scripts/normalize_w2.py planet-far-plum-body art-src/celestial/raw/planet-far-plum-body-v4.png art-src/celestial/work/plum-body-n1.png`
+  This maps the raw disc at (626,626) with d=914 to the art disc at (48,49) with d=60. It uses a body
+  palette of 20 and a tint of #5A5078 at 0.35.
+  `python art-src/celestial/scripts/compose_plum.py art-src/celestial/work/plum-body-n1.png public/assets/celestial/planet-far-plum.png`
+  This draws an exact tilted elliptical ring at art resolution (rx 45, ry 11, tilt -0.30 rad, a
+  5-tone lavender-grey ramp lit from the left). The back half is drawn only where the body is
+  transparent, and the front half is drawn over the body. It adds a one-notch ring shadow on the
+  body and a thin edge under the front band.
+- Why it beats wave 1: the body has real soft bands, a top-left highlight, an ink outline on the
+  shadow side and a stepped terminator. Wave 1 was a flat, low-detail disc. The body stays fully
+  opaque. Weaker point: the ring is programmatic and plainer than the painted body.
+
+### Validation (wave 2)
+- Previews: `preview/w2/*.preview.png` (3-4x, dark + parchment). Old vs new comparison:
+  `work/cmp0.png` (tea moon) and `work/cmp1.png` (I'm Fine). Contact sheet: `e2e/out/contact-celestial.png`.
+- Sizes and modes: 192x192, 96x96 and 128x128 RGBA. All have hard alpha. Files are 11.6 KB, 2.7 KB
+  and 6.2 KB.
+- The manifest is unchanged (same keys, paths and sizes).
+
+---
+
+## Wave 1 (history, superseded)
+
+
 Date: 2026-10-01. Folder owner: wave-1 asset producer (celestial + ship polish).
 
 ## Source method

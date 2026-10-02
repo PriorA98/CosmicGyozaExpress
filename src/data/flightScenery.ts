@@ -194,8 +194,9 @@ export const asteroidArt = {
   fallbackTextureKey: ASSET.asteroidSleepy,
   squashScale: 0.12,
   squashMs: 120,
-  flashColor: colors.plaster,
-  flashMs: 150,
+  /** Screen-blend flash toward warm cream (brightens the rock but keeps its face readable). */
+  flashColor: colors.border,
+  flashMs: 140,
   nudgePx: { "soft-bump": 6, "dramatic-bump": 10, "gyoza-incident": 14 } as const,
 } as const;
 
@@ -277,11 +278,11 @@ export const arrivalBeaconStyle = {
   /** Progress arc band just outside the ring. */
   progressGap: 5,
   progressThickness: 3,
-  /** Ghost target pose: cream 1-art-px outline + sparse dither, pulsing gently. */
+  /** Ghost target pose: cream 1-art-px outline + a faint dither (a dense dither read as grey), pulsing gently. */
   ghostColor: colors.parchment,
-  ghostFillAlpha: 0.22,
-  ghostAlphaMin: 0.35,
-  ghostAlphaMax: 0.7,
+  ghostFillAlpha: 0.14,
+  ghostAlphaMin: 0.55,
+  ghostAlphaMax: 0.95,
   ghostPulseMs: 1600,
   idleAlpha: 0.55,
   activeAlpha: 0.95,
@@ -337,9 +338,13 @@ export const shipVisualStyle = {
   engineFlickerMs: 70,
   squash: { "soft-bump": 0.16, "dramatic-bump": 0.22, "gyoza-incident": 0.26 } as const,
   squashMs: 130,
-  /** Brief warm fill flash on the hull when bumped (ms) and its colour. */
-  bumpFlashMs: { "soft-bump": 90, "dramatic-bump": 130 } as const,
-  bumpFlashColor: colors.parchmentWarm,
+  /**
+   * Brief warm flash on the hull when bumped (ms), its colour and blend: `screen` brightens the hull
+   * toward amber while keeping its pixel detail (a solid fill read as a blank silhouette).
+   */
+  bumpFlashMs: { "soft-bump": 110, "dramatic-bump": 150 } as const,
+  bumpFlashColor: colors.amber,
+  bumpFlashMode: "screen",
   /** Thrust intensity reaches 1 at this speed (px/s). */
   intensitySpeed: 260,
 } as const;

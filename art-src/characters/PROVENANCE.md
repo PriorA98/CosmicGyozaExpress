@@ -9,7 +9,7 @@ Both production PNGs are fully rebuilt by the scripts, with no manual pixel edit
 | `rabbit-portrait.png` | 192x64, 3 frames of 64x64 (idle, blink, happy) | Codex image_gen (codex-cli 0.159.3) + scripted face repaint | `python art-src/characters/scripts/build_portrait.py` |
 | `rabbit-sprite.png` | 96x32, 4 frames of 24x32 (idle, breath, wave1, wave2) | Pixel-authored in Python/Pillow, designed from the Codex body raws | `python art-src/characters/scripts/build_sprite.py` |
 
-Both files use binary alpha (0/255) and a transparent background. The portrait has 35 colours and the sprite has 18.
+Both files use binary alpha (0/255) and a transparent background. The portrait has 44 colours (wave 2: extra darkened rim shades on the mirrored ear) and the sprite has 18. Sizes: portrait 5.6 KB, sprite 1.4 KB.
 
 ## Codex dispatches (image_gen, magenta #FF00FF background)
 
@@ -41,14 +41,16 @@ Prompt (abridged):
 3. Repaint the silhouette rim in ink #1D1F33 to give a clean 1px outline. Warm up the stray teal/grey-green fur pixels, but not the cup.
 4. At 64px the downscaled raw eyes turned into brown blobs, so the face box (x15-42, y33-41) is hand-placed in code for every frame. Idle has sleepy lids with amber irises. Blink has closed lid lines. Happy has upward arcs, a wider mouth and bigger blush.
 5. Frame 2 = frame 0, with only the upright-ear region (0,0)-(30,21) taken from the happy raw (the taller, perked ear) plus the happy face.
+6. Wave 2 (2026-10-01/02, `perk_both_ears` + `happy_mouth`): in frame 2, every pixel right of the face axis (x' = 57 - x) on rows 0-44 is replaced by the mirror of the left half, so BOTH ears stand straight up (the droopy ear is perked for the joyful beat). The orphan droop tip on row 45 is cleared, the rim is re-inked, and the mirrored right-side rim pixels are darkened one step to keep the top-left light. The happy face then gets closed ^ ^ arcs, bigger blush and an open smile (dark mouth, pink tongue, terracotta lip). Rows 45-63 (scarf, cup, paws) are pixel-identical to frame 0.
 
-Frame alignment was checked with a pixel diff. Frame 0 vs 1 differs only inside (18,34)-(40,38), the eyes. Frame 0 vs 2 differs only in the ear box and the face box.
+Frame alignment was checked with an RGBA pixel diff (`ImageChops.difference(...).getbbox(alpha_only=False)`). Frame 0 vs 1 differs only inside (18,34)-(40,38), the eyes. Frame 0 vs 2 differs only inside (7,0)-(56,46), the head and ears above the scarf.
 
 ### rabbit-sprite.png (`scripts/build_sprite.py`)
 - `scripts/sprite_blockout.py` produced an ellipse blockout as ASCII. It was hand-finished into span tables and detail pixels in `build_sprite.py`, which is the source of truth.
 - Palette: ink, plaster, cream, fur shades, inner-ear pink, peach blush, nose, amber/dark eyes, terracotta knit scarf (with ember highlight), teal cup and tea.
 - Frames: 0 is idle. 1 is the breath frame, where everything above row 26 drops 1px and the feet stay fixed. 2 and 3 wave the viewer's-left paw (out wide, then up high), with the cup still held. In every frame the foot outline sits on row 31.
 - The art faces right. The game flips it (`landingScenery.rabbit.flipX`).
+- Wave 2 readability pass (2026-10-01/02, all in `build_sprite.py`, no manual edits outside it): a taller 3px upright ear with a pink inner stripe; the droopy ear rises off the crown, bends and hangs beside the head with a pink underside and a 1px background notch under the bend; heavy-lidded amber eyes, peach cheeks, pink nose and a tiny u smile (replacing the old dark 2px mouth, which read as a gaping mouth at 2x). Frame 2 holds the waving paw out at cheek height. Frame 3 swings it up beside the ear on a chunkier 3px forearm (it was a 2px noodle), with amber motion ticks. The paw has a pink pad. Feet fill rows 28-30 and their outline is on row 31, the bottom row, in all frames.
 
 ## Inspection
 - Previews were made with `python tools/art/pixelize.py --preview <png> --scale 4/8` and reviewed on cosmos and parchment backgrounds.
@@ -56,6 +58,7 @@ Frame alignment was checked with a pixel diff. Frame 0 vs 1 differs only inside 
 - In-game: `node e2e/capture.mjs --states=title,landing-settle-soft,result-soft --label=w1-assets-characters`. No `rabbit-*` keys appear in `probe.assetFailures`. The rabbit reads well beside the teahouse at 2x and in the delivery result card.
 
 ## Known weaknesses
-- In the happy frame the droopy ear stays droopy, and only the upright ear perks (by about 2px). This is intentional, since the droop is the character's identity.
-- At 24x32 the sprite's floppy ear is a compact curl that reads as an ear mainly through its silhouette.
+- The happy frame's right ear is a mirror of the left ear (re-shaded for the top-left light), so the perked pose is very symmetric.
+- At 24x32 the sprite's floppy ear is a folded hook. It reads as a lop ear through its silhouette, but at 1x it can look like a loop.
+- Frame 3's raised arm is long for a chibi body, because the paw needs to clear the head outline.
 - The raw generations are about 1 MB each at 1024px. They are kept unmodified because `build_portrait.py` depends on them for exact reproducibility.

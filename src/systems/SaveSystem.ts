@@ -158,7 +158,7 @@ export class SaveSystem {
 
     if (memory && memoryAhead) {
       // Storage missed a write earlier; retry quietly and keep trusting memory.
-      writeToStorage(memory);
+      memoryAhead = !writeToStorage(memory);
       lastOutcome = { kind: "memory" };
       return cloneSave(memory);
     }
@@ -166,6 +166,8 @@ export class SaveSystem {
     const read = readFromStorage();
     if (read.kind === "unavailable") {
       memory = memory ?? createDefaultSave();
+      // Whatever this session earns lives in memory until storage answers again; then it is flushed.
+      memoryAhead = true;
       lastOutcome = { kind: "storage-unavailable" };
       return cloneSave(memory);
     }

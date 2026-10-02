@@ -54,6 +54,13 @@ export const WARM_RECOLOR = {
   sheets: ["thrust", "dust", "steam"] as readonly ParticleSheetId[],
   /** A pixel counts as neutral grey when max(r,g,b) - min(r,g,b) is at most this (0..255). */
   neutralSpread: 30,
+  /** Cool blue-grey shading (blue above red by more than this) is warmed too: no cold soot on navy. */
+  coolBias: 12,
+  /**
+   * Alpha is snapped to opaque at or above this (0..255) and dropped below it. Half-transparent
+   * cream over navy space reads as grey smoke; opaque pixels fade out through the stepped fade.
+   */
+  alphaThreshold: 110,
   /** Neutral luminance 0..1 is lifted into lift.min..lift.max before mapping onto the ramp. */
   lift: { min: 0.42, max: 1 },
   /** Warm ramp, dark to light (luminance positions 0..1). */
@@ -82,6 +89,13 @@ export type Range = { readonly min: number; readonly max: number };
  * into muddy greys and browns over navy skies.
  */
 export type SteppedFade = { readonly start: number; readonly holdUntil: number; readonly steps: number };
+
+/**
+ * Pixel pop-out: fully opaque for the whole life, then gone. Any partial opacity of cream, gold
+ * or confetti over navy space blends into grey or brown dirt, so particles end through their
+ * authored frames (shrinking wisps, deflating puffs) instead of an alpha fade.
+ */
+export const POP_OUT: SteppedFade = { start: 1, holdUntil: 1, steps: 1 };
 
 export type ThrustTuning = {
   readonly defaultOffset: number;
@@ -115,7 +129,8 @@ export const THRUST_TUNING: ThrustTuning = {
   drag: 0.9,
   // Warm wash only: keeps the authored ember/amber and lets the tail settle on cream, not dusk grey.
   color: [0xffffff, 0xfff4e0, 0xfbe6d0, 0xf4e2cc],
-  fade: { start: 1, holdUntil: 0.55, steps: 3 },
+  // Opaque through the oat wisp frames, then gone: no muddy translucent tail.
+  fade: POP_OUT,
   frames: [0, 1, 2, 3, 4, 5, 6],
   animMs: 520,
 };
@@ -148,9 +163,10 @@ export const BURST_TUNING: Readonly<Record<BurstKind, BurstTuning>> = {
     gravityY: -12,
     // Near-white washes keep the authored cream; heavier tints read as grey smoke.
     tints: [0xffffff, 0xfdf6e8, 0xf8eedc],
-    fade: { start: 1, holdUntil: 0.6, steps: 3 },
-    // Cream frames only: the split-puff tail frames read as charcoal hearts on dark space.
-    anim: { frames: [0, 1, 2, 3], durationMs: 760, loop: false },
+    fade: POP_OUT,
+    // Cream frames only (the split-puff tail frames read as charcoal hearts on dark space):
+    // the puff blooms, then deflates back down before it pops out.
+    anim: { frames: [0, 1, 2, 3, 2, 1], durationMs: 760, loop: false },
     lift: 18,
   },
   sparkle: {
@@ -161,7 +177,7 @@ export const BURST_TUNING: Readonly<Record<BurstKind, BurstTuning>> = {
     gravityY: 90,
     // Untinted gold: multiplying ember or cream into the art turns it brown over navy.
     tints: [0xffffff],
-    fade: { start: 1, holdUntil: 0.7, steps: 2 },
+    fade: POP_OUT,
     // Twinkle between the bright frames; the dim last frame reads as a dirt cross.
     anim: { frames: [0, 1, 2, 1], durationMs: 360, loop: true },
     lift: 35,
@@ -173,8 +189,8 @@ export const BURST_TUNING: Readonly<Record<BurstKind, BurstTuning>> = {
     lifespanMs: { min: 560, max: 880 },
     gravityY: -8,
     tints: [0xffffff, 0xfffaf0, 0xf9f0de],
-    fade: { start: 1, holdUntil: 0.6, steps: 3 },
-    anim: { frames: [0, 1, 2, 3], durationMs: 880, loop: false },
+    fade: POP_OUT,
+    anim: { frames: [0, 1, 2, 3, 2, 1], durationMs: 880, loop: false },
     lift: 10,
   },
   incidentConfetti: {
@@ -184,7 +200,7 @@ export const BURST_TUNING: Readonly<Record<BurstKind, BurstTuning>> = {
     lifespanMs: { min: 700, max: 1000 },
     gravityY: 240,
     tints: [colorNumber(colors.ember), colorNumber(colors.sage), colorNumber(colors.terracotta), colorNumber(colors.amber), colorNumber(colors.plum)],
-    fade: { start: 1, holdUntil: 0.75, steps: 2 },
+    fade: POP_OUT,
     anim: { frames: [0, 1, 2, 1], durationMs: 260, loop: true },
     lift: 90,
   },
@@ -195,7 +211,7 @@ export const BURST_TUNING: Readonly<Record<BurstKind, BurstTuning>> = {
     lifespanMs: { min: 700, max: 1100 },
     gravityY: 0,
     tints: [colorNumber(colors.plaster), 0xffe6a8, 0xfff3dc],
-    fade: { start: 1, holdUntil: 0.65, steps: 3 },
+    fade: POP_OUT,
     anim: { frames: [0, 1, 2, 1], durationMs: 420, loop: true },
     lift: 0,
   },
@@ -207,7 +223,7 @@ export const STEAM_TUNING = {
   riseSpeed: { min: 16, max: 28 },
   sway: { min: -7, max: 7 },
   tints: [0xffffff, colorNumber(colors.parchmentWarm)],
-  fade: { start: 0.9, holdUntil: 0.5, steps: 3 },
+  fade: POP_OUT,
   // Rising wisp frames; the breakup frames are recoloured warm and fade out stepped.
   frames: [0, 1, 2, 3, 4],
   animMs: 1800,
@@ -236,11 +252,17 @@ export const SHAKE_MAX_OFFSET_PX: number = Math.max(SHAKE_TUNING.soft.amplitudeP
  * stepped. Peak opacity stays well below 1 so the scene keeps reading through it.
  */
 export const FLASH_TUNING = {
-  defaultDurationMs: motion.base - 20,
-  color: "#FFE2BE",
-  peakAlpha: 0.62,
+  defaultDurationMs: motion.fast + 20,
+  /** Peach-cream (oat with a terracotta bias). */
+  color: "#FFD99A",
+  /**
+   * Additive: the flash adds warm light to the frame. A normal-blend cream veil over navy space
+   * mixes into a grey-brown wash at any partial opacity.
+   */
+  additive: true,
+  peakAlpha: 0.85,
   /** Alpha drops in this many hard steps after the peak frame. */
-  steps: 4,
+  steps: 3,
 } as const;
 
 export const TRANSITION_TUNING = {
@@ -257,7 +279,15 @@ export const TRANSITION_TUNING = {
   /** Iris pixel block (screen px): the edge is quantised to this grid, radius moves in these steps. */
   blockPx: 4,
   /** Warp streak overlay: hard-edged warm dashes rushing out from the centre. */
-  warp: { streaks: 26, thicknessPx: 4, minLengthPx: 24, maxLengthPx: 120, colors: [colors.plaster, colors.parchmentDeep, colors.amber] as readonly string[] },
+  warp: {
+    streaks: 28,
+    thicknessPx: 4,
+    minLengthPx: 32,
+    maxLengthPx: 136,
+    colors: [colors.plaster, colors.amber, colors.parchmentWarm, colors.ember] as readonly string[],
+    /** The ink veil under the streaks closes/lifts in this many hard opacity steps. */
+    veilSteps: 5,
+  },
   /** Safety net: a transition promise always settles after its duration plus this. */
   settleGraceMs: 400,
 } as const;

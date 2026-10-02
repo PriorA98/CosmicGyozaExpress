@@ -203,7 +203,11 @@ export const landingScenery = {
     offsetY: 8,
     dotCount: 14,
     dotPx: 4,
-    alpha: 0.85,
+    alpha: 0.95,
+    /** Bright dots read on the dusk sky; the level ticks use the "soft" sage. */
+    dotColor: colors.plaster,
+    backAlpha: 0.4,
+    levelColor: colors.sage,
     spinRadPerSecond: 3.2,
     fadePerSecond: 6,
     levelLineHalfWidth: 26,
@@ -223,6 +227,8 @@ export const landingScenery = {
     flickerStepMs: 60,
     /** The fx puffs start this far inside the baked flame tip so they read as coming out of it. */
     trailInsetPx: 12,
+    /** Trail intensity at full thrust power (fx-thrust puff rate/speed). */
+    trailIntensity: 1,
   },
   ship: {
     /** Fallback feet line (fraction of texture height below the origin) if the texture cannot be measured. */
@@ -233,6 +239,8 @@ export const landingScenery = {
     dipOutMs: 300,
   },
   incident: {
+    /** Extra ship drop (screen px) on the hard-drop impact frame before the bounce. */
+    hardDropImpactPx: 8,
     frameStepMs: 115,
     frameCount: 5,
     frameStartMs: { "hard-drop": 360, skid: 520, "tilt-tip": 470, "off-pad": 560 } satisfies Record<LandingIncidentKind, number>,
@@ -263,16 +271,21 @@ export const landingScenery = {
     /** The camera starts this far above the play view. */
     risePx: 420,
     panMs: 1500,
-    /** Ship starts this far above the top edge of the final view. */
+    /** Ship starts this far above the top edge of the opening (raised) view... */
     shipStartAbovePx: 120,
+    /** ...and this far to the side of its hand-off x, so it glides in on a gentle curve. */
+    shipStartOffsetX: -72,
     shipMs: 1650,
-    /** Fade in from the flight hand-off colour. */
+    /** Thrust power of the braking flame while the ship glides in (0..1; ship-fly-1/2). */
+    shipBrakePower: 0.5,
+    /** Fade in from the flight hand-off colour (FlightScene's iris closes on ink). */
     fadeInMs: 380,
-    fadeColor: colors.cosmosDeep,
+    fadeColor: colors.ink,
     cardDelayMs: 220,
     cardHoldMs: 1100,
     cardOutMs: 220,
-    cardY: 176,
+    /** Card top edge (screen px): below the ship's glide path and its flame, above the pad, at any HUD scale. */
+    cardTopPx: 300,
     cardWidth: 360,
     cardHeight: 104,
     /** Hard cap on the whole intro (the brief: <= 2 s). */
@@ -295,7 +308,7 @@ export const landingScenery = {
     y: 20,
     width: 300,
     /** Narrower panel on phone-class displays (it is scaled up there). */
-    compactWidth: 236,
+    compactWidth: 264,
     /** Extra boost on top of `compactUiScale` so phone labels clear ~12 CSS px. */
     compactBoost: 1.12,
     tickerGap: 8,
@@ -308,6 +321,8 @@ export const landingScenery = {
   },
   controlsHint: {
     bottomMargin: 18,
+    /** Compact displays move the (enlarged) hint to the top-right corner so it never covers the pad. */
+    topRightMargin: 20,
     gap: 6,
     groupGap: 18,
     labelGap: 8,
@@ -321,10 +336,6 @@ export const landingScenery = {
     marginX: 22,
     marginBottom: 20,
     gap: 14,
-    /** Pixel chevron drawn on the tilt tiles ("#" = filled art px), pointing right. */
-    chevron: ["#...", "##..", "###.", "####", "###.", "##..", "#..."],
-    chevronOffsetY: -12,
-    labelOffsetY: 26,
   },
 } as const;
 

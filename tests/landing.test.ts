@@ -15,6 +15,19 @@ import {
   tiltZone,
 } from "../src/systems/LandingSystem";
 import type { LandingControls, LandingIncidentTouchdownResult, LandingKinematicState } from "../src/types/landing";
+import { landingCopy } from "../src/data/landingCopy";
+import { landingScenery } from "../src/data/landingScenery";
+import { SHIP_ART } from "../src/data/assetManifest";
+import {
+  buildLandingReadouts,
+  formatDescentReadout,
+  formatDriftReadout,
+  formatSpeedNumber,
+} from "../src/entities/landing/landingReadouts";
+import { landingTouchTiles } from "../src/entities/landing/landingTouchLayout";
+import { dottedLineCells, filledEllipseSpans, outlineEllipseSpans, snapToGrid } from "../src/entities/landing/pixelShapes";
+import { lowestOpaqueRow, shipDisplayScale } from "../src/entities/landing/shipFootprint";
+import { stepThrustPower, thrustFlameFrame } from "../src/entities/landing/thrustFlame";
 
 const idle: LandingControls = {
   thrust: false,
@@ -261,5 +274,122 @@ describe("landing system", () => {
     );
     // Off-pad wins over every other shape.
     expect(classifyLandingIncident({ ...base, onPad: false, angleDegrees: 80 })).toBe("off-pad");
+  });
+});
+
+describe("landing presentation helpers", () => {
+  const thrust = landingScenery.thrust;
+
+  it("ramps thrust power up while held and back down after release, clamped to 0..1", () => {
+    let power = 0;
+    for (let i = 0; i < 30; i += 1) power = stepThrustPower(power, true, 1 / 60, thrust);
+    expect(power).toBe(1);
+    power = stepThrustPower(power, false, 1 / 60, thrust);
+    expect(power).toBeLessThan(1);
+    for (let i = 0; i < 30; i += 1) power = stepThrustPower(power, false, 1 / 60, thrust);
+    expect(power).toBe(0);
+    expect(stepThrustPower(Number.NaN, true, -1, thrust)).toBe(0);
+  });
+
+  it("picks the baked flame frame from thrust power and flickers only between big frames", () => {
+    expect(thrustFlameFrame(0, 0, thrust)).toBe(0);
+    expect(thrustFlameFrame(thrust.litPower, 0, thrust)).toBe(1);
+    expect(thrustFlameFrame(thrust.fly2Power, 0, thrust)).toBe(2);
+    const frames = new Set<number>();
+    for (let t = 0; t < 2000; t += 10) frames.add(thrustFlameFrame(1, t, thrust));
+    expect([...frames].every((frame) => frame === 2 || frame === 3)).toBe(true);
+    expect(frames.has(3)).toBe(true);
+  });
+
+  it("formats friendly descent readouts with one shared number for the HUD and the gauge", () => {
+    const ppm = landingScenery.readouts.pixelsPerMeter;
+    expect(formatSpeedNumber(ppm * 2)).toBe("2.0");
+    expect(formatSpeedNumber(-0.01)).toBe("0.0");
+
+    const gentle = formatDescentReadout(landingTuning.safeVerticalSpeed - 1);
+    expect(gentle.word).toBe(landingCopy.descentWords.soft);
+    expect(gentle.text).toContain(gentle.number);
+    expect(gentle.text).not.toContain("px");
+
+    const fast = formatDescentReadout(landingTuning.bumpyVerticalSpeed + 10);
+    expect(fast.zone).toBe("rough");
+    expect(fast.word).toBe(landingCopy.descentWords.rough);
+
+    const rising = formatDescentReadout(-60);
+    expect(rising.word).toBe(landingCopy.risingWord);
+    expect(rising.zone).toBe("soft");
+
+    expect(formatDriftReadout(40).text).toContain(landingCopy.driftArrows.right);
+    expect(formatDriftReadout(-40).text).toContain(landingCopy.driftArrows.left);
+    expect(formatDriftReadout(0).text).not.toMatch(/[←→]/);
+  });
+
+  it("builds one readout bundle whose gauge chip names the limiting reading", () => {
+    const pad = createTeaMoonLandingPad();
+    const state: LandingKinematicState = { ...createLandingState(), velocityY: landingTuning.bumpyVerticalSpeed + 30 };
+    const readouts = buildLandingReadouts(readLandingZone(state, pad), state.velocityX, state.velocityY);
+    expect(readouts.overallZone).toBe("rough");
+    expect(readouts.chip).toBe(landingCopy.roughBecause.descent);
+    expect(readouts.descent.number).toBe(formatSpeedNumber(state.velocityY));
+
+    const offPad: LandingKinematicState = { ...createLandingState(), x: pad.centerX + pad.width };
+    const offReadouts = buildLandingReadouts(readLandingZone(offPad, pad), 0, 20);
+    expect(offReadouts.overallZone).toBe("rough");
+    expect(offReadouts.chip).toBe(landingCopy.offPad);
+  });
+
+  it("lays out touch tiles inside the canvas without overlapping each other, the pad, the rabbit, or the tea house", () => {
+    const width = 1280;
+    const height = 720;
+    const tiles = Object.values(landingTouchTiles(width, height));
+    const overlaps = (a: { x: number; y: number; width: number; height: number }, b: typeof a): boolean =>
+      a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+    for (const tile of tiles) {
+      expect(tile.x).toBeGreaterThanOrEqual(0);
+      expect(tile.y).toBeGreaterThanOrEqual(0);
+      expect(tile.x + tile.width).toBeLessThanOrEqual(width);
+      expect(tile.y + tile.height).toBeLessThanOrEqual(height);
+    }
+    tiles.forEach((a, i) => tiles.slice(i + 1).forEach((b) => expect(overlaps(a, b)).toBe(false)));
+
+    const art = 2;
+    const padRect = { x: landingTuning.startX - landingTuning.padWidth / 2, y: landingTuning.surfaceY - 40, width: landingTuning.padWidth, height: 80 };
+    // Rabbit sprite 24x32 art px and tea house 96x80 art px, bottom-centre anchored on the surface line.
+    const rabbit = { x: landingScenery.rabbit.touchX - 12 * art, y: landingTuning.surfaceY - 32 * art, width: 24 * art, height: 32 * art };
+    const house = { x: landingScenery.teahouse.touchX - 48 * art, y: landingTuning.surfaceY - 80 * art, width: 96 * art, height: 80 * art };
+    for (const tile of tiles) {
+      expect(overlaps(tile, padRect)).toBe(false);
+      expect(overlaps(tile, rabbit)).toBe(false);
+      expect(overlaps(tile, house)).toBe(false);
+    }
+  });
+
+  it("keeps the landing ship at an integer display scale", () => {
+    expect(shipDisplayScale(SHIP_ART.width, SHIP_ART.height)).toBe(SHIP_ART.artScale);
+    expect(Number.isInteger(shipDisplayScale(144, 160))).toBe(true);
+    expect(shipDisplayScale(144, 160)).toBeGreaterThanOrEqual(1);
+  });
+
+  it("finds the lowest opaque row (ship feet) in raw RGBA pixels", () => {
+    const width = 2;
+    const height = 4;
+    const pixels = new Uint8ClampedArray(width * height * 4);
+    pixels[(2 * width + 1) * 4 + 3] = 255;
+    expect(lowestOpaqueRow(pixels, width, height)).toBe(2);
+    expect(lowestOpaqueRow(new Uint8ClampedArray(width * height * 4), width, height)).toBe(-1);
+  });
+
+  it("builds pixel shapes from whole cells on the art grid", () => {
+    const cell = 2;
+    for (const span of [...filledEllipseSpans(30, 8, cell), ...outlineEllipseSpans(30, 8, cell)]) {
+      expect(Math.abs(span.x % cell)).toBe(0);
+      expect(Math.abs(span.y % cell)).toBe(0);
+      expect(span.width % cell).toBe(0);
+      expect(span.width).toBeGreaterThan(0);
+    }
+    expect(snapToGrid(7, cell)).toBe(8);
+    const dots = dottedLineCells(0, 40, 10, cell);
+    expect(dots).toEqual([0, 10, 20, 30]);
   });
 });

@@ -29,16 +29,16 @@ def hx(value: str) -> tuple[int, int, int, int]:
 # ---------------------------------------------------------------- palette (32 colours max)
 INK = hx("#1D1F33")
 INK_SOFT = hx("#2F3149")
-BROWN_INK = hx("#4A2A22")
+BROWN_INK = hx("#5A3424")
 
 CRUST = [hx("#FFF6DE"), hx("#F8E2AE"), hx("#EFCA86"), hx("#DFAC63"), hx("#C68C4A"), hx("#A46A37"), hx("#774629")]
-TOAST = [hx("#E7A85C"), hx("#CF8A44"), hx("#B06A34"), hx("#8A4D28"), hx("#5E3020")]
-DOUGH = [hx("#FFF8E8"), hx("#F8E8C6"), hx("#EFD4A4"), hx("#DDB97F"), hx("#C29A62"), hx("#8E6A45")]
+TOAST = [hx("#D9944E"), hx("#C27A40"), hx("#A35F33"), hx("#7E4528"), hx("#5E3020")]
+DOUGH = [hx("#FFF4D8"), hx("#F9DFA6"), hx("#F0C982"), hx("#E0AE64"), hx("#C48D4C"), hx("#8E6A45")]
 GLASS = [hx("#F1F5F2"), hx("#BFD2D8"), hx("#9EB6C4"), hx("#7491A6"), hx("#556C8A"), hx("#3E4C6C")]
 PILOT = [hx("#FBF7EC"), hx("#EEDDBF"), hx("#D3B98F")]
 BLUSH = hx("#E59A84")
 SCARF = [hx("#E07A5F"), hx("#C26954"), hx("#8F4536")]
-METAL = [hx("#E4E6EA"), hx("#B4B8C6"), hx("#858AA0"), hx("#5C5F78")]
+METAL = [hx("#D8D2CC"), hx("#A8A2B0"), hx("#7A7690"), hx("#55536A")]
 FLAME = [hx("#FBF7EC"), hx("#F7D77E"), hx("#F0AE55"), hx("#E08A4B"), hx("#C26954")]
 STEAM = [hx("#FBF7EC"), hx("#ECDFC5"), hx("#C9BFCF"), hx("#9B8FB8"), hx("#6F6690")]
 STAR = [hx("#FBF7EC"), hx("#F2CD72"), hx("#D4A055"), hx("#A6614A")]
@@ -76,34 +76,42 @@ def to_local(px: float, py: float, pose: Pose, pivot_v: float = 0.0) -> tuple[fl
 
 
 HULL_RX = 26.0
-SEAM_H = 6.2  # hump height of the pleated seam above the rim line
-BOT_H = 10.0
-CRIMPS = 7
-CRIMP_SPAN = HULL_RX - 3.5
-CRIMP_H = 2.8
-DOME_C = (0.0, -11.2)
-DOME_R = 11.4
+SEAM_C = -2.6  # rim height at the centre (where the dome sits in the crescent dip)
+SEAM_RISE = 4.6  # how much the crescent tips rise above the centre
+BOT_H = 9.6
+CRIMPS = 8
+CRIMP_SPAN = HULL_RX - 2.5
+CRIMP_H = 2.4
+DOME_C = (0.0, -4.4)
+DOME_R = 13.2
 FOLD_US = tuple(-CRIMP_SPAN + j * (2 * CRIMP_SPAN / CRIMPS) for j in range(1, CRIMPS))  # crease roots = crimp valleys
 
 
+def env_top(u: float) -> float:
+    """Crescent rim envelope: low in the middle, rising toward both tips."""
+    return SEAM_C - SEAM_RISE * min(1.0, abs(u) / HULL_RX) ** 2.0
+
+
 def seam(u: float) -> float:
-    """Upper edge: a soft hump (the dumpling's pleated seam) with small crimp scallops."""
-    k = max(0.0, 1.0 - (u / HULL_RX) ** 2)
-    base = -1.0 - SEAM_H * k ** 0.8
+    """Upper edge: the crescent rim with rounded crimp scallops."""
+    base = env_top(u)
     if abs(u) < CRIMP_SPAN:
         p = ((u + CRIMP_SPAN) / (2 * CRIMP_SPAN / CRIMPS)) % 1.0
-        base -= CRIMP_H * math.sin(math.pi * p) ** 0.7 * min(1.0, 1.6 * k)
+        base -= CRIMP_H * math.sin(math.pi * p) ** 0.55
     return base
 
 
 def bottom(u: float) -> float:
-    """Flat, pan-fried base that rounds up into the ends."""
-    k = abs(u) / HULL_RX
-    return BOT_H - 6.5 * k ** 3.2
+    """Plump pan-fried belly that sweeps up into the crescent tips."""
+    k = min(1.0, abs(u) / HULL_RX)
+    return BOT_H - 10.5 * k ** 2.4
 
 
 def hull_top(u: float) -> float:
     return seam(u)
+
+
+END_R = 5.0
 
 
 def in_hull(u: float, v: float) -> bool:
@@ -111,12 +119,14 @@ def in_hull(u: float, v: float) -> bool:
         return False
     if not (seam(u) <= v <= bottom(u)):
         return False
-    # round the two ends of the lens
-    ex = abs(u) - (HULL_RX - 4.5)
+    # round the two crescent tips
+    ex = abs(u) - (HULL_RX - END_R)
     if ex > 0:
-        vm = (seam(HULL_RX - 4.5) + bottom(HULL_RX - 4.5)) / 2 + 0.6
-        hh = (bottom(HULL_RX - 4.5) - seam(HULL_RX - 4.5)) / 2
-        return (ex / 4.5) ** 2 + ((v - vm) / hh) ** 2 <= 1.0
+        u0 = HULL_RX - END_R
+        top0, bot0 = seam(u0) if abs(u0) >= CRIMP_SPAN else env_top(u0) - CRIMP_H * 0.6, bottom(u0)
+        vm = (top0 + bot0) / 2 - 0.4
+        hh = (bot0 - top0) / 2 + 0.6
+        return (ex / END_R) ** 2 + ((v - vm) / hh) ** 2 <= 1.0
     return True
 
 
@@ -214,56 +224,54 @@ def draw_hull(pose: Pose) -> Layer:
     for (x, y) in mask:
         u, v = to_local(x + 0.5, y + 0.5, pose)
         top, bot = seam(u), bottom(u)
-        env_top = -1.0 - SEAM_H * max(0.0, 1.0 - (u / HULL_RX) ** 2) ** 0.8
-        vn = (v - env_top) / max(1.0, bot - env_top)
-        fry = 0.52 + 0.06 * math.sin(u * 0.55 + 0.4)
+        et = env_top(u)
+        vn = (v - et) / max(1.0, bot - et)
         rel = u / HULL_RX
-        if vn >= fry:
-            # pan-fried golden-brown base
+        fry = 0.50 + 0.06 * math.sin(u * 0.5 + 0.9) + 0.06 * abs(rel) ** 2
+        depth = v - top
+        if vn >= fry and depth > 1.5:
+            # pan-fried golden-brown belly: lit lip on top, deeper toast toward the bottom-right
             band = (vn - fry) / max(0.05, 1 - fry)
-            if band < 0.16:
-                col = TOAST[0] if rel < 0.25 else TOAST[1]
+            if band < 0.2:
+                col = TOAST[0] if rel < 0.35 else TOAST[1]
+            elif band < 0.62:
+                col = TOAST[1] if rel < -0.1 else TOAST[2]
             else:
-                k = 1 + (1 if rel > -0.25 else 0) + (1 if band > 0.78 else 0) + (1 if rel > 0.55 and band > 0.5 else 0)
-                col = TOAST[min(4, k)]
-            h = (int(math.floor(u)) * 7 + int(math.floor(v)) * 11) % 29
-            if h == 2 and abs(u) < 18 and 0.35 < band < 0.75:
-                col = TOAST[min(4, TOAST.index(col) + 1)]
+                col = TOAST[2] if rel < -0.45 else TOAST[3]
         else:
-            # pale steamed dough with a frilled, pleated crest
-            k = 1 if rel < -0.3 else (2 if rel < 0.4 else 3)
-            if vn > fry - 0.09:
-                k = min(4, k + 1)  # soft shadow where the dough meets the crisp base
+            # golden dough body, lit from the top-left
+            k = 1 if rel < -0.25 else (2 if rel < 0.45 else 3)
+            if vn > fry - 0.12:
+                k = min(4, k + 1)  # soft shadow where the dough meets the crisp belly
             col = DOUGH[k]
-            depth = v - top
-            if abs(u) < CRIMP_SPAN:
+            # sheen streak on the upper-left of the body
+            if -0.72 < rel < -0.2 and 2.3 < depth < 3.4 and vn < fry - 0.14:
+                col = DOUGH[0]
+            if abs(u) < CRIMP_SPAN + 0.5 and depth < 2.6:
+                # the crimped frill: each scallop lit on its left facet, shaded on its right
                 ph = (u + CRIMP_SPAN) / period
-                j = math.floor(ph)
-                p = ph - j
-                if depth < 2.2:
-                    if p < 0.5:
-                        col = DOUGH[0] if (rel < 0.25 and depth < 1.2) else DOUGH[1]
-                    elif p > 0.82:
-                        col = DOUGH[3]
-                    else:
-                        col = DOUGH[2] if rel < 0.4 else DOUGH[3]
-            # creases from each crimp valley, curving outward as they run down the side
+                p = ph - math.floor(ph)
+                if p < 0.42:
+                    col = DOUGH[0] if rel < 0.3 else DOUGH[1]
+                elif p < 0.78:
+                    col = DOUGH[1] if rel < 0.3 else DOUGH[2]
+                else:
+                    col = DOUGH[3]
+            # creases run from each crimp valley down the side, curving outward
             for uk in FOLD_US:
                 tk = v - seam(uk)
-                length = 4.2 + 1.6 * (1 - abs(uk) / HULL_RX)
-                if tk < 0 or tk > length:
+                length = 3.6 + 1.8 * (1 - abs(uk) / HULL_RX)
+                if tk < 0.6 or tk > length:
                     continue
                 side = 1.0 if uk > 0 else -1.0
-                cu = uk + side * (0.06 + 0.012 * abs(uk)) * tk * tk
+                cu = uk + side * (0.05 + 0.014 * abs(uk)) * tk * tk
                 d = u - cu
                 if -0.5 <= d < 0.5:
-                    col = DOUGH[5] if tk < length - 1.5 else DOUGH[4]
-                elif 0.5 <= d < 1.5 and tk < length - 1.0:
-                    col = DOUGH[min(4, max(3, DOUGH.index(col)))]
+                    col = DOUGH[4] if tk < length - 1.2 else DOUGH[3]
         lay.px[(x, y)] = col
     for (x, y) in edge:
         u, v = to_local(x + 0.5, y + 0.5, pose)
-        lay.px[(x, y)] = hx("#6B4A30") if v < -1.0 else hx("#3A2120")
+        lay.px[(x, y)] = BROWN_INK if v < seam(u) + 1.2 and v < 2.0 else hx("#3A2120")
     return lay
 
 
@@ -346,7 +354,7 @@ FACES = {
 def draw_pilot(lay: Layer, inner: set[tuple[int, int]], pose: Pose) -> None:
     """Little cream bun pilot, hand-placed pixels, clipped to the dome glass."""
     pal = {"O": INK_SOFT, "0": PILOT[0], "1": PILOT[1], "2": PILOT[2], "e": INK, "b": BLUSH, "m": hx("#B5625A")}
-    ox, oy = to_screen(1.0, DOME_C[1] - pose.dome_lift - 7.0, pose)
+    ox, oy = to_screen(1.0, DOME_C[1] - pose.dome_lift - 8.6, pose)
     face = FACES.get(pose.face, FACES["happy"])
     for r, row in enumerate(PILOT_MAP):
         for c, ch in enumerate(row):
@@ -362,8 +370,8 @@ def draw_legs(pose: Pose, back: bool = False) -> Layer:
     lay = Layer()
     sp = pose.leg_splay
     legs = [
-        ((-14.5, 6.0), (-17.0 - sp, 12.8), 2.5, (-17.6 - sp, 14.4), 3.7),
-        ((14.5, 6.0), (17.0 + sp, 12.8), 2.5, (17.6 + sp, 14.4), 3.7),
+        ((-14.0, 5.5), (-17.5 - sp, 12.8), 1.9, (-18.2 - sp, 14.4), 3.4),
+        ((14.0, 5.5), (17.5 + sp, 12.8), 1.9, (18.2 + sp, 14.4), 3.4),
     ]
     for (a, b, th, foot, fr) in legs:
 
@@ -514,27 +522,20 @@ def blob_layer(circles: list[tuple[float, float, float]], ramp=None, outline=Non
             i = 0
         cx, cy, r = circles[i]
         nx, ny = (x + 0.5 - cx) / r, (y + 0.5 - cy) / r
-        lit = -(nx * 0.62 + ny * 0.78)
-        rr = math.hypot(nx, ny)
-        if lit > 0.42 and rr > 0.25:
+        # round, soft bands around a highlight point up-left of each lobe's centre
+        d = math.hypot(nx + 0.32, ny + 0.40)
+        if d < 0.42:
             k = 0
-        elif lit > -0.05:
+        elif d < 1.02:
             k = 1
-        elif lit > -0.5:
+        elif d < 1.28:
             k = 2
         else:
             k = 3
-        if rr > 0.8 and lit < -0.35:
-            k = 4 if len(ramp) > 4 else 3
-        # seam against the lobe behind (pixel just outside this lobe belongs to an earlier one)
-        for q in ((x + 1, y), (x, y + 1), (x - 1, y), (x, y - 1)):
-            j = own.get(q, -1)
-            if 0 <= j < i and (q[0] + 0.5 - cx) ** 2 + (q[1] + 0.5 - cy) ** 2 > r * r:
-                pass
         for q in ((x - 1, y), (x, y - 1), (x + 1, y), (x, y + 1)):
             j = own.get(q, -2)
             if j > i:  # a lobe in front of us touches this pixel: tuck into its shadow
-                k = max(k, 3)
+                k = max(k, 2)
         lay.px[(x, y)] = ramp[min(len(ramp) - 1, k)][:3] + (alpha,)
     for p in e:
         lay.px[p] = outline[:3] + (alpha if edge_alpha is None else edge_alpha,)
@@ -580,7 +581,7 @@ def frames() -> dict[str, Image.Image]:
     out["gyoza-incident-02"] = img
 
     # incident 3: dome pops up with steam puffing out of the seam
-    steam = blob_layer([(12.5, 11.0, 3.4), (17.0, 17.5, 4.8), (21.5, 22.0, 3.6), (52.0, 9.5, 3.6), (47.5, 16.5, 5.0), (43.0, 21.5, 3.8)])
+    steam = blob_layer([(11.0, 13.5, 5.2), (16.0, 21.5, 5.4), (21.0, 28.0, 3.8), (53.0, 12.5, 5.2), (48.0, 20.5, 5.6), (43.0, 27.5, 3.8)])
     ship = render_ship(replace(base, dome_lift=7.0, dome_rot=8.0, face="shock", rot=2.0))
     img = Image.new("RGBA", (W, H), CLEAR)
     img.alpha_composite(compose([steam]))
@@ -599,7 +600,7 @@ def frames() -> dict[str, Image.Image]:
     out["gyoza-incident-04"] = img
 
     # incident 5: the puff breaks into a few soft lobes drifting apart
-    puffs = blob_layer([(15.0, 25.0, 7.0), (48.0, 21.0, 7.5), (24.0, 44.0, 5.5), (45.0, 43.0, 4.8)], outline=PUFF[3], alpha=235, edge_alpha=150)
+    puffs = blob_layer([(13.0, 27.0, 5.8), (18.5, 23.5, 6.2), (44.0, 22.0, 5.4), (50.0, 19.0, 6.4), (21.0, 44.0, 4.2), (26.0, 42.5, 4.8), (46.0, 42.0, 4.6)], outline=PUFF[3], alpha=230, edge_alpha=140)
     out["gyoza-incident-05"] = compose([puffs, star_layer([(32, 14, 1), (8, 37, 1), (57, 32, 1), (34, 33, 1)])])
     return out
 

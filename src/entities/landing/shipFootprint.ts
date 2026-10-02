@@ -14,6 +14,8 @@ export type ShipDisplayLayout = {
   readonly footPx: number;
   /** Origin to the tip of the biggest baked flame (ship-fly-3). */
   readonly flameTipPx: number;
+  /** Origin to the flame tip of ship-fly-1, -2, -3 (index 0..2), never above the feet. */
+  readonly flameTipsPx: readonly [number, number, number];
 };
 
 /**
@@ -42,16 +44,20 @@ export function resolveShipLayout(scene: Phaser.Scene, fallbackFootRatio: number
   const originRow = originY * height;
 
   const feetRow = lowestOpaqueRowOf(scene, ASSET.shipIdle);
-  const flameRow = lowestOpaqueRowOf(scene, ASSET.shipFly3);
   const footArt = feetRow >= 0 ? feetRow + 1 - originRow : height * fallbackFootRatio;
-  const flameArt = flameRow >= 0 ? flameRow + 1 - originRow : footArt;
+  const tipOf = (key: string): number => {
+    const row = lowestOpaqueRowOf(scene, key);
+    return Math.max(footArt, row >= 0 ? row + 1 - originRow : footArt) * scale;
+  };
+  const flameTipsPx: [number, number, number] = [tipOf(ASSET.shipFly1), tipOf(ASSET.shipFly2), tipOf(ASSET.shipFly3)];
 
   return {
     scale,
     originX,
     originY,
     footPx: footArt * scale,
-    flameTipPx: Math.max(footArt, flameArt) * scale,
+    flameTipPx: flameTipsPx[2],
+    flameTipsPx,
   };
 }
 

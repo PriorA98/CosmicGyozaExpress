@@ -287,6 +287,7 @@ export function flashScreen(scene: Phaser.Scene, color: string = FLASH_TUNING.co
       .setScrollFactor(0)
       .setDepth(depthBands.overlay - 1)
       .setAlpha(FLASH_TUNING.peakAlpha);
+    if (FLASH_TUNING.additive) overlay.setBlendMode(Phaser.BlendModes.ADD);
     const steps = FLASH_TUNING.steps;
     const stepMs = Math.max(16, durationMs / steps);
     let index = 0;
@@ -409,9 +410,11 @@ export function createThrustTrail(scene: Phaser.Scene, options: { readonly depth
 /**
  * A stepped pixel flame tongue for a visible nozzle (landing close-up, title ship): the thrust
  * sheet's flame-tongue frames at the sheet's integer artScale, anchored on the nozzle and
- * rotated with the ship, plus an optional hard-edged stepped glow (no gradients, no vectors).
+ * rotated with the ship, plus an opt-in hard-edged stepped glow (no gradients, no vectors).
  */
 export function createPixelFlame(scene: Phaser.Scene, options: { readonly depth?: number; readonly glow?: boolean } = {}): PixelFlame {
+  // The glow is opt-in: over dark space a dim additive disc reads as a muddy halo, and the
+  // opaque tongue plus thrust puffs already carry the light.
   const tuning = PIXEL_FLAME_TUNING;
   const sheet = PARTICLE_SHEETS.thrust;
   let tongue: Phaser.GameObjects.Image | null = null;
@@ -424,7 +427,7 @@ export function createPixelFlame(scene: Phaser.Scene, options: { readonly depth?
       .setScale(sheet.artScale)
       .setVisible(false)
       .setDepth(options.depth ?? depthBands.shipFx);
-    if (options.glow !== false) {
+    if (options.glow === true) {
       glow = scene.add
         .image(0, 0, pixelGlowTextureKey(scene))
         .setScale(sheet.artScale)

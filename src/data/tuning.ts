@@ -25,11 +25,14 @@ export const cameraTuning = {
   /**
    * Near the Tea Moon the camera target blends toward this framing point so the ship, the ring
    * and the whole moon (teahouse included) stay in frame. Blend is 0 at `moonFramingRadius` from
-   * the dock and reaches `moonFramingMaxBlend` at the delivery ring.
+   * the dock and reaches its per-axis maximum once the ship is inside the approach radius.
    */
   moonFramingPoint: { x: 2640, y: 850 },
-  moonFramingRadius: 760,
-  moonFramingMaxBlend: 0.85,
+  moonFramingRadius: 1000,
+  moonFramingMaxBlendX: 0.85,
+  moonFramingMaxBlendY: 0.6,
+  /** The framed target never pushes the ship closer than this to the view edge (screen px). */
+  framingSafeMarginPx: 150,
 } as const;
 
 export const dockingTuning = {

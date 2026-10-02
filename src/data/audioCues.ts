@@ -337,11 +337,13 @@ export const MUSIC_ENGINE = {
   bassDecaySeconds: 2.2,
   melodySeed: 0x51eed,
   /**
-   * Mood change (scene:enter): the new mood starts on the next unbooked eighth step (at most
-   * `lookaheadSeconds` + one tick away), outgoing pads release over `releaseSeconds`, incoming
-   * pads swell over `attackSeconds`, and the bus tone glides with this time constant.
+   * Mood change (scene:enter): the new mood starts `leadSeconds` after the request, but never
+   * sooner than `minGapSeconds` after the last booked old-mood step (so at most
+   * `lookaheadSeconds` + one tick away, well under 0.5 s). Outgoing pads release over
+   * `releaseSeconds`, incoming pads swell over `attackSeconds`, and the bus tone glides with
+   * `toneGlideSeconds`.
    */
-  moodCrossfade: { releaseSeconds: 0.6, attackSeconds: 0.45, toneGlideSeconds: 0.12 },
+  moodCrossfade: { leadSeconds: 0.05, minGapSeconds: 0.12, releaseSeconds: 0.6, attackSeconds: 0.45, toneGlideSeconds: 0.12 },
 } as const;
 
 /** Every cue declares a peak trim (dB, before the bus); extra fields are recipe-specific. */

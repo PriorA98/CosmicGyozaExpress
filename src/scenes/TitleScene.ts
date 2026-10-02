@@ -1,66 +1,155 @@
 import Phaser from "phaser";
-import { ASSET, RABBIT_PORTRAIT_FRAME } from "../data/assetManifest";
+import { ASSET, RABBIT_PORTRAIT_FRAME, SHIP_ART } from "../data/assetManifest";
 import { TEA_MOON_MISSION_ID, teaMoonMission } from "../data/missions";
-import { titleCopy } from "../data/uiCopy";
+import { routeLogCopy, settingsCopy, titleCopy } from "../data/uiCopy";
 import { createDevSceneLauncherPanel, installDevSceneHotkeys } from "../dev/DevSceneLauncher";
 import { registerDevState } from "../dev/devProbe";
-import { createThrustTrail, isReducedMotion, type ThrustTrail } from "../fx/feedback";
+import { isReducedMotion } from "../fx/feedback";
+import { playEnterTransition, transitionToScene } from "../fx/transitions";
+import { compactUiScale, isCompactDisplay } from "../game/displayScale";
 import { colorNumber, colors, depth, motion, typeScale } from "../game/designTokens";
 import { emitGameEvent } from "../game/events";
 import { SaveSystem } from "../systems/SaveSystem";
 import type { FlightSceneData } from "../types/flight";
 import { Button } from "../ui/Button";
 import { addUiIcon } from "../ui/icons";
-import { Keycap, KEYCAP_HEIGHT } from "../ui/Keycap";
+import { Keycap } from "../ui/Keycap";
+import { dotsAlongQuadratic, quadraticPoint, uiIconScale, uiScaled, uiTextSize, type Point } from "../ui/layout";
 import { ParchmentCard } from "../ui/ParchmentCard";
+import { RouteLogPanel, type RouteLogStat } from "../ui/RouteLogPanel";
+import { SettingsPanel } from "../ui/SettingsPanel";
+import { installSoundToast } from "../ui/SoundToast";
 import { StatePill } from "../ui/StatePill";
-import { drawRecessedSurface, UI_ART_SCALE } from "../ui/surfaces";
+import { drawRecessedSurface, fillSteppedRect, STEPPED_CORNER, UI_ART_SCALE } from "../ui/surfaces";
 import { bodyStyle, bodyStrongStyle, displayTitleStyle, headingStyle, monoStyle } from "../ui/textStyles";
+import { detectTouchDevice } from "../ui/TouchControls";
 import { hasAuthoredTexture } from "../ui/uiTextures";
 
-/** Title composition on the 1280x720 logical canvas (screen px). */
-const LAYOUT = {
+/**
+ * Title composition on the 1280x720 logical canvas (screen px at uiScale 1). Two layouts: the
+ * desktop one, and a compact one for phone-class displays (`isCompactDisplay`) where every text,
+ * button and keycap is multiplied by `compactUiScale` and non-essential rows are dropped.
+ */
+type TitleLayout = {
+  readonly marginX: number;
+  readonly logoTopY: number;
+  readonly logoSize: number;
+  readonly logoLineGap: number;
+  readonly subtitleY: number;
+  readonly ctaY: number;
+  readonly ctaWidth: number;
+  readonly ctaHeight: number;
+  readonly secondaryGap: number;
+  readonly secondaryHeight: number;
+  readonly rowGap: number;
+  readonly moon: Point;
+  /** Far ringed planet the dotted route starts from (null: dropped on compact). */
+  readonly farPlanet: Point | null;
+  /** Dotted route: quadratic Bezier from the far planet (or off-canvas) to the tea moon. */
+  readonly route: { readonly from: Point; readonly control: Point; readonly to: Point; readonly shipT: number };
+  readonly card: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
+  /** Desktop shows the route title in the card header; compact shows the state pill there instead. */
+  readonly cardMeta: boolean;
+  readonly creditsY: number;
+};
+
+const DESKTOP_LAYOUT: TitleLayout = {
   marginX: 96,
-  logoTopY: 84,
+  logoTopY: 76,
   logoSize: 96,
   logoLineGap: 92,
-  logoShadow: { x: 5, y: 6 },
-  subtitleY: 292,
-  buttonY: 340,
-  buttonWidth: 392,
-  buttonHeight: 60,
-  hintsY: 436,
-  ship: { x: 624, y: 468, scale: 1, rotation: 0.16, bobPx: 9, swayRad: 0.035, thrustOffset: 50 },
-  moon: { x: 1030, y: 214 },
-  farPlanet: { x: 512, y: 728 },
-  card: { x: 760, y: 420, width: 456, height: 268 },
-  devPanelX: 18,
+  subtitleY: 284,
+  ctaY: 332,
+  ctaWidth: 392,
+  ctaHeight: 60,
+  secondaryGap: 14,
+  secondaryHeight: 44,
+  rowGap: 22,
+  moon: { x: 1052, y: 206 },
+  farPlanet: { x: 482, y: 628 },
+  route: { from: { x: 544, y: 574 }, control: { x: 604, y: 334 }, to: { x: 912, y: 318 }, shipT: 0.43 },
+  card: { x: 760, y: 424, width: 456, height: 268 },
+  cardMeta: true,
+  creditsY: 688,
+};
+
+const COMPACT_LAYOUT: TitleLayout = {
+  marginX: 64,
+  logoTopY: 36,
+  logoSize: 88,
+  logoLineGap: 84,
+  subtitleY: 228,
+  ctaY: 280,
+  ctaWidth: 520,
+  ctaHeight: 60,
+  secondaryGap: 16,
+  secondaryHeight: 44,
+  rowGap: 22,
+  moon: { x: 1132, y: 178 },
+  farPlanet: null,
+  route: { from: { x: 612, y: 384 }, control: { x: 790, y: 236 }, to: { x: 986, y: 262 }, shipT: 0.55 },
+  card: { x: 636, y: 392, width: 606, height: 312 },
+  cardMeta: false,
+  creditsY: 686,
+};
+
+/** Hero ship: SHIP_ART at its integer art scale, no rotation, gentle bob. */
+const SHIP = {
+  bobPx: 8,
+  /** Visible art rows below the saucer centre where the baked flame ends (art px). */
+  flameTipArtY: 61,
+  /** Visible art box around the saucer centre, for keeping route dots off the ship (screen px). */
+  clearHalfWidth: 64,
+  clearAbove: 56,
+  clearBelow: 70,
 } as const;
 
-/**
- * Idle thrust puffs: the burner only breathes while the ship sinks through the low half of its
- * bob, like a little hop to hold altitude. `sinkThreshold` is sin(phase) above which it fires.
- */
-const PUFFS = { sinkThreshold: 0.45, baseIntensity: 0.12, peakIntensity: 0.22 } as const;
+/** Route dots: travelled part faint plaster, the part still ahead warm amber. */
+const ROUTE = { spacing: 18, dot: 4, behindAlpha: 0.32, aheadAlpha: 0.85, endInset: 2 } as const;
 
-/** Stepped glow behind the tea moon (screen px; moon art is 192 art px at scale 2). */
-const MOON_GLOW = { rings: 6, innerRadius: 200, step: 18, alpha: 0.035 } as const;
+/** Warm steam puffs that leave the burner while the ship sinks through the low half of its bob. */
+const PUFFS = { pool: 6, intervalMs: 340, lifeMs: 1100, travelPx: 46, bigPx: 6, smallPx: 4, sinkThreshold: 0.2, startAlpha: 0.8 } as const;
+
+/** Stepped pixel moonlight behind the tea moon (screen px; moon art is 192 art px at 2x). */
+const MOON_GLOW = { rings: 5, innerRadius: 176, step: 16, alpha: 0.05, band: 4 } as const;
+
+/** Left text-column vignette: solid core then `bands` stepped fades. */
+const VIGNETTE = { coreWidth: 400, alpha: 0.3, bands: 8, bandWidth: 24 } as const;
 
 /** Slow parallax drift for backdrop layers (texture px per second). */
 const DRIFT = { far: 3, nebula: 1.2, near: 7 } as const;
 
+const PORTRAIT_FRAME = 136;
+const ITEM_TRAY_HEIGHT = 64;
+const RESIZE_DEBOUNCE_MS = 160;
+
 type Layer = Phaser.GameObjects.TileSprite;
+type SaveNoticeKind = keyof typeof titleCopy.saveNotice;
+type Puff = { readonly rect: Phaser.GameObjects.Rectangle; busy: boolean };
 
 export class TitleScene extends Phaser.Scene {
   private starsFar: Layer | undefined;
   private nebula: Layer | undefined;
   private starsNear: Layer | undefined;
   private ship: Phaser.GameObjects.Sprite | undefined;
-  private trail: ThrustTrail | undefined;
-  private startButton: Button | undefined;
+  private shipBase: Point = { x: 0, y: 0 };
+  private routeDirection: Point = { x: -1, y: 1 };
+  private puffs: Puff[] = [];
+  private puffClockMs = 0;
+  private focusables: Button[] = [];
+  private focusIndex = 0;
+  private keyboardNav = false;
+  private settingsPanel: SettingsPanel | undefined;
+  private routeLog: RouteLogPanel | undefined;
+  private layout: TitleLayout = DESKTOP_LAYOUT;
+  private uiScale = 1;
+  private compact = false;
+  private touch = false;
   private teaMoonDelivered = false;
+  private saveNotice: SaveNoticeKind | null = null;
   private starting = false;
   private elapsedMs = 0;
+  private layoutKey = "";
 
   constructor() {
     super("TitleScene");
@@ -69,52 +158,83 @@ export class TitleScene extends Phaser.Scene {
   create(): void {
     this.starting = false;
     this.elapsedMs = 0;
+    this.puffClockMs = 0;
+    this.puffs = [];
+    this.focusables = [];
+    this.focusIndex = 0;
+    this.keyboardNav = false;
+    this.settingsPanel = undefined;
+    this.routeLog = undefined;
+    this.compact = isCompactDisplay(this);
+    this.uiScale = this.compact ? compactUiScale(this) : 1;
+    this.layout = this.compact ? COMPACT_LAYOUT : DESKTOP_LAYOUT;
+    this.layoutKey = layoutKeyFor(this.compact, this.uiScale);
+    this.touch = detectTouchDevice();
     this.teaMoonDelivered = readTeaMoonDelivered();
+    this.saveNotice = readSaveNotice();
 
+    installSoundToast(this.game);
     this.createBackdrop();
     this.createCelestials();
+    this.createRoute();
     this.createShip();
     this.createLogo();
     this.createActions();
     this.createMissionCard();
+    this.createFooter();
+    this.wireKeyboard();
+    this.wireResize();
 
     installDevSceneHotkeys(this);
-    createDevSceneLauncherPanel(this, { x: LAYOUT.devPanelX });
+    createDevSceneLauncherPanel(this, { x: 18 });
 
     registerDevState("title", () => ({
       teaMoonDelivered: this.teaMoonDelivered,
-      buttonFocused: this.startButton?.isFocused ?? false,
+      layout: this.compact ? "compact" : "desktop",
+      uiScale: Number(this.uiScale.toFixed(2)),
+      touch: this.touch,
+      focus: this.focusables[this.focusIndex]?.name ?? null,
+      keyboardNav: this.keyboardNav,
+      buttonFocused: this.focusables[0]?.isFocused ?? false,
+      ctaLabel: this.teaMoonDelivered ? titleCopy.startAgainButton : titleCopy.startButton,
+      settingsOpen: this.settingsPanel?.isOpen ?? false,
+      settingsRow: this.settingsPanel?.selectedRow ?? null,
+      routeLogOpen: this.routeLog?.isOpen ?? false,
+      saveNotice: this.saveNotice,
+      shipScale: this.ship?.scaleX ?? 0,
+      shipRotation: this.ship?.rotation ?? 0,
     }));
 
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.trail?.destroy();
-      this.trail = undefined;
-    });
-
-    const fade = Phaser.Display.Color.HexStringToColor(colors.cosmosDeep);
-    this.cameras.main.fadeIn(motion.slow, fade.red, fade.green, fade.blue);
+    void playEnterTransition(this, { kind: "warm-fade", durationMs: motion.slow });
     emitGameEvent(this, { type: "scene:enter", scene: "TitleScene" });
   }
 
   update(_time: number, delta: number): void {
-    const seconds = Math.min(delta, 100) / 1000;
-    this.elapsedMs += delta;
+    const clamped = Math.min(delta, 100);
+    const seconds = clamped / 1000;
+    this.elapsedMs += clamped;
     if (this.starsFar) this.starsFar.tilePositionX += DRIFT.far * seconds;
     if (this.nebula) this.nebula.tilePositionX += DRIFT.nebula * seconds;
     if (this.starsNear) this.starsNear.tilePositionX += DRIFT.near * seconds;
 
     const ship = this.ship;
     if (!ship) return;
-    const calm = isReducedMotion() ? 0.25 : 1;
+    const reduced = isReducedMotion();
     const phase = (this.elapsedMs / motion.breath) * Math.PI * 2;
-    ship.y = LAYOUT.ship.y + Math.sin(phase) * LAYOUT.ship.bobPx * calm;
-    ship.rotation = LAYOUT.ship.rotation + Math.sin(phase * 0.5) * LAYOUT.ship.swayRad * calm;
-    // Soft puffs: the burner breathes with the bob so the ship looks like it is gently holding altitude.
-    const sink = Math.sin(phase);
-    const puffing = sink > PUFFS.sinkThreshold;
-    const intensity = PUFFS.baseIntensity + (PUFFS.peakIntensity - PUFFS.baseIntensity) * Math.max(0, sink);
-    this.trail?.update(ship.x, ship.y, ship.rotation, puffing, intensity);
+    const bob = Math.sin(phase) * SHIP.bobPx * (reduced ? 0.25 : 1);
+    ship.y = Math.round(this.shipBase.y + bob);
+
+    // Warm puffs only while sinking through the low half of the bob: a little hop to hold altitude.
+    this.puffClockMs += clamped;
+    if (!reduced && Math.sin(phase) > PUFFS.sinkThreshold && this.puffClockMs >= PUFFS.intervalMs) {
+      this.puffClockMs = 0;
+      this.spawnPuff(ship.x, ship.y + (SHIP.flameTipArtY - SHIP_ART.saucerCenterY) * SHIP_ART.artScale);
+    }
   }
+
+  // ---------------------------------------------------------------------------------------------
+  // Backdrop and celestial bodies
+  // ---------------------------------------------------------------------------------------------
 
   private createBackdrop(): void {
     const { width, height } = this.scale;
@@ -125,12 +245,16 @@ export class TitleScene extends Phaser.Scene {
     if (!this.nebula) this.drawNebulaWash();
     this.starsNear = this.addLayer(ASSET.spaceStarsNear, "title-stars-near", 1);
 
-    // Warm vignette pools so the corners settle and the UI columns read clearly.
+    // Soft vignette so the text column reads clearly over the nebula: a solid core, then stepped
+    // bands fading out (no single hard seam).
+    const core = this.layout.marginX + VIGNETTE.coreWidth;
     const glow = this.add.graphics().setDepth(depth.parallax);
-    glow.fillStyle(colorNumber(colors.cosmosDeep), 0.35);
-    glow.fillRect(0, 0, 520, height);
-    glow.fillStyle(colorNumber(colors.cosmosDeep), 0.18);
-    glow.fillRect(520, 0, 120, height);
+    glow.fillStyle(colorNumber(colors.cosmosDeep), VIGNETTE.alpha);
+    glow.fillRect(0, 0, core, height);
+    for (let band = 0; band < VIGNETTE.bands; band += 1) {
+      glow.fillStyle(colorNumber(colors.cosmosDeep), VIGNETTE.alpha * (1 - (band + 1) / (VIGNETTE.bands + 1)));
+      glow.fillRect(core + band * VIGNETTE.bandWidth, 0, VIGNETTE.bandWidth, height);
+    }
   }
 
   private addLayer(key: string, fallbackKey: string, alpha: number): Layer {
@@ -159,40 +283,49 @@ export class TitleScene extends Phaser.Scene {
     for (const pool of pools) {
       for (let step = 0; step < 4; step += 1) {
         g.fillStyle(colorNumber(pool.color), 0.035);
-        g.fillCircle(pool.x, pool.y, pool.r * (1 - step * 0.2));
+        fillPixelDisc(g, pool.x, pool.y, pool.r * (1 - step * 0.2), 8);
       }
     }
   }
 
   private createCelestials(): void {
-    const plum = this.add.image(LAYOUT.farPlanet.x, LAYOUT.farPlanet.y, ASSET.planetFarPlum).setScale(UI_ART_SCALE).setDepth(depth.parallax);
-    plum.setAlpha(0.9);
+    const { moon, farPlanet } = this.layout;
+    if (farPlanet) {
+      this.add.image(farPlanet.x, farPlanet.y, ASSET.planetFarPlum).setScale(UI_ART_SCALE).setDepth(depth.parallax).setAlpha(0.92);
+    }
 
+    // Moonlight: stacked translucent stepped discs (whole 4px bands, no smooth curves).
     const halo = this.add.graphics().setDepth(depth.parallax);
-    halo.setPosition(LAYOUT.moon.x, LAYOUT.moon.y);
-    // Moonlight: stacked translucent discs read as a stepped pixel glow, warm at the rim.
     for (let ring = 0; ring < MOON_GLOW.rings; ring += 1) {
       halo.fillStyle(colorNumber(ring < 2 ? colors.amber : colors.parchmentDeep), MOON_GLOW.alpha);
-      halo.fillCircle(0, 0, MOON_GLOW.innerRadius + ring * MOON_GLOW.step);
+      fillPixelDisc(halo, moon.x, moon.y, MOON_GLOW.innerRadius + ring * MOON_GLOW.step, MOON_GLOW.band);
     }
     if (!isReducedMotion()) {
-      this.tweens.add({ targets: halo, scale: { from: 0.97, to: 1.03 }, alpha: { from: 0.75, to: 1 }, duration: motion.breath * 1.5, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+      this.tweens.add({ targets: halo, alpha: { from: 0.7, to: 1 }, duration: motion.breath * 1.5, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
     }
-    this.add.image(LAYOUT.moon.x, LAYOUT.moon.y, ASSET.celestialTeaMoon).setScale(UI_ART_SCALE).setDepth(depth.world);
+    this.add.image(moon.x, moon.y, ASSET.celestialTeaMoon).setScale(UI_ART_SCALE).setDepth(depth.world);
 
     this.addTwinkles();
   }
 
   /** Little plus-shaped pixel sparkles that twinkle out of phase. */
   private addTwinkles(): void {
-    const spots: readonly { x: number; y: number; size: number; color: string }[] = [
-      { x: 812, y: 96, size: 2, color: colors.amber },
-      { x: 742, y: 262, size: 2, color: colors.plaster },
-      { x: 1214, y: 392, size: 2, color: colors.amber },
-      { x: 520, y: 60, size: 2, color: colors.plaster },
-      { x: 860, y: 352, size: 1, color: colors.plaster },
-      { x: 1180, y: 46, size: 1, color: colors.ember },
-    ];
+    const spots: readonly { x: number; y: number; size: number; color: string }[] = this.compact
+      ? [
+          { x: 760, y: 70, size: 2, color: colors.amber },
+          { x: 700, y: 330, size: 1, color: colors.plaster },
+          { x: 1240, y: 370, size: 2, color: colors.amber },
+          { x: 590, y: 200, size: 1, color: colors.ember },
+        ]
+      : [
+          { x: 812, y: 96, size: 2, color: colors.amber },
+          { x: 742, y: 262, size: 2, color: colors.plaster },
+          { x: 1214, y: 392, size: 2, color: colors.amber },
+          { x: 560, y: 60, size: 2, color: colors.plaster },
+          { x: 860, y: 362, size: 1, color: colors.plaster },
+          { x: 1180, y: 46, size: 1, color: colors.ember },
+          { x: 356, y: 560, size: 1, color: colors.amber },
+        ];
     spots.forEach((spot, index) => {
       const g = this.add.graphics().setDepth(depth.parallax).setPosition(spot.x, spot.y);
       const unit = 2 * spot.size;
@@ -214,6 +347,41 @@ export class TitleScene extends Phaser.Scene {
     });
   }
 
+  // ---------------------------------------------------------------------------------------------
+  // Hero ship on its route
+  // ---------------------------------------------------------------------------------------------
+
+  private createRoute(): void {
+    const { from, control, to, shipT } = this.layout.route;
+    const ship = quadraticPoint(from, control, to, shipT);
+    this.shipBase = { x: Math.round(ship.x), y: Math.round(ship.y) };
+    const behind = quadraticPoint(from, control, to, Math.max(0, shipT - 0.08));
+    const length = Math.hypot(ship.x - behind.x, ship.y - behind.y) || 1;
+    this.routeDirection = { x: (behind.x - ship.x) / length, y: (behind.y - ship.y) / length };
+
+    const g = this.add.graphics().setDepth(depth.parallax + 1);
+    const dots = dotsAlongQuadratic(from, control, to, ROUTE.spacing);
+    const half = ROUTE.dot / 2;
+    dots.forEach((dot, index) => {
+      if (index < ROUTE.endInset || index > dots.length - 1 - ROUTE.endInset) return;
+      const dx = dot.x - this.shipBase.x;
+      const dy = dot.y - this.shipBase.y;
+      if (Math.abs(dx) < SHIP.clearHalfWidth && dy > -SHIP.clearAbove && dy < SHIP.clearBelow) return;
+      const ahead = dot.t > shipT;
+      g.fillStyle(colorNumber(ahead ? colors.amber : colors.plaster), ahead ? ROUTE.aheadAlpha : ROUTE.behindAlpha);
+      g.fillRect(dot.x - half, dot.y - half, ROUTE.dot, ROUTE.dot);
+    });
+    // Destination tick: a small amber diamond where the route meets the moon.
+    const end = dots[dots.length - 1 - ROUTE.endInset];
+    if (end) {
+      g.fillStyle(colorNumber(colors.amber), 1);
+      g.fillRect(end.x - 2, end.y - 6, 4, 12);
+      g.fillRect(end.x - 6, end.y - 2, 12, 4);
+      g.fillStyle(colorNumber(colors.plaster), 1);
+      g.fillRect(end.x - 2, end.y - 2, 4, 4);
+    }
+  }
+
   private createShip(): void {
     const cruiseKey = "title-ship-cruise";
     if (!this.anims.exists(cruiseKey)) {
@@ -225,90 +393,215 @@ export class TitleScene extends Phaser.Scene {
       });
     }
     this.ship = this.add
-      .sprite(LAYOUT.ship.x, LAYOUT.ship.y, ASSET.shipFly1)
-      .setScale(LAYOUT.ship.scale)
-      .setRotation(LAYOUT.ship.rotation)
+      .sprite(this.shipBase.x, this.shipBase.y, ASSET.shipFly1)
+      .setOrigin(SHIP_ART.saucerCenterX / SHIP_ART.width, SHIP_ART.saucerCenterY / SHIP_ART.height)
+      .setScale(SHIP_ART.artScale)
       .setDepth(depth.ship);
     this.ship.play(cruiseKey);
-    this.trail = createThrustTrail(this, { depth: depth.ship - 1, offset: LAYOUT.ship.thrustOffset });
+
+    for (let index = 0; index < PUFFS.pool; index += 1) {
+      const rect = this.add.rectangle(0, 0, PUFFS.bigPx, PUFFS.bigPx, colorNumber(colors.amber)).setDepth(depth.ship - 1).setVisible(false);
+      this.puffs.push({ rect, busy: false });
+    }
   }
 
+  private spawnPuff(x: number, y: number): void {
+    const puff = this.puffs.find((candidate) => !candidate.busy);
+    if (!puff) return;
+    puff.busy = true;
+    const jitter = Math.round((Math.random() - 0.5) * 6);
+    const rect = puff.rect;
+    rect.setPosition(Math.round(x + jitter), Math.round(y)).setSize(PUFFS.bigPx, PUFFS.bigPx).setFillStyle(colorNumber(colors.amber), 1).setAlpha(PUFFS.startAlpha).setVisible(true);
+    let cooled = false;
+    this.tweens.add({
+      targets: rect,
+      x: rect.x + Math.round(this.routeDirection.x * PUFFS.travelPx),
+      y: rect.y + Math.round(this.routeDirection.y * PUFFS.travelPx),
+      alpha: 0,
+      duration: PUFFS.lifeMs,
+      ease: "Sine.easeOut",
+      onUpdate: (tween) => {
+        // Steam cools from amber to cream and shrinks one pixel step halfway through.
+        if (!cooled && tween.progress > 0.45) {
+          cooled = true;
+          rect.setSize(PUFFS.smallPx, PUFFS.smallPx).setFillStyle(colorNumber(colors.parchmentDeep), 1);
+        }
+      },
+      onComplete: () => {
+        rect.setVisible(false);
+        puff.busy = false;
+      },
+    });
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Logo, actions, footer
+  // ---------------------------------------------------------------------------------------------
+
   private createLogo(): void {
-    const x = LAYOUT.marginX;
-    const shadow = LAYOUT.logoShadow;
-    const top = this.add.text(x, LAYOUT.logoTopY, titleCopy.logoTop, displayTitleStyle({ size: LAYOUT.logoSize, color: colors.plaster }));
+    const { marginX: x, logoTopY, logoSize, logoLineGap, subtitleY } = this.layout;
+    const shadow = { x: 5, y: 6 };
+    const top = this.add.text(x, logoTopY, titleCopy.logoTop, displayTitleStyle({ size: logoSize, color: colors.plaster }));
     top.setShadow(shadow.x, shadow.y, colors.terracottaDeep, 0, false, true).setDepth(depth.hud);
-    const bottom = this.add.text(x, LAYOUT.logoTopY + LAYOUT.logoLineGap, titleCopy.logoBottom, displayTitleStyle({ size: LAYOUT.logoSize, color: colors.ember }));
+    const bottom = this.add.text(x, logoTopY + logoLineGap, titleCopy.logoBottom, displayTitleStyle({ size: logoSize, color: colors.ember }));
     bottom.setShadow(shadow.x, shadow.y, colors.ink, 0, false, true).setDepth(depth.hud);
 
     this.add
-      .text(x + 4, LAYOUT.subtitleY, titleCopy.subtitle, bodyStrongStyle({ size: typeScale.lg, color: colors.parchmentDeep }))
-      .setAlpha(0.88)
+      .text(x + 4, subtitleY, titleCopy.subtitle, bodyStrongStyle({ size: uiTextSize(typeScale.lg, this.uiScale), color: colors.parchmentDeep }))
+      .setAlpha(0.9)
       .setDepth(depth.hud);
   }
 
   private createActions(): void {
-    this.startButton = new Button(this, {
-      x: LAYOUT.marginX,
-      y: LAYOUT.buttonY,
-      label: titleCopy.startButton,
-      width: LAYOUT.buttonWidth,
-      height: LAYOUT.buttonHeight,
+    const s = this.uiScale;
+    const { marginX: x, ctaY, ctaWidth, ctaHeight } = this.layout;
+    const cta = new Button(this, {
+      x,
+      y: ctaY,
+      label: this.teaMoonDelivered ? titleCopy.startAgainButton : titleCopy.startButton,
+      width: uiScaled(ctaWidth, this.compact ? 1 : s),
+      height: uiScaled(ctaHeight, s),
       icon: "tea",
-      keys: ["ENTER", "SPACE"],
+      uiScale: s,
       onActivate: () => this.startMission(),
     });
-    this.startButton.setDepth(depth.hud).setFocused(true);
+    cta.setName("start").setDepth(depth.hud);
+    this.focusables.push(cta);
 
-    let cursor: number = LAYOUT.marginX;
-    for (const hint of titleCopy.hints) {
-      const keycap = new Keycap(this, { x: cursor, y: LAYOUT.hintsY, label: hint.key }).setDepth(depth.hud);
-      const label = this.add
-        .text(cursor + keycap.keyWidth + 8, LAYOUT.hintsY + KEYCAP_HEIGHT / 2 - 1, hint.label, bodyStyle({ size: typeScale.base, color: colors.parchmentDeep }))
-        .setOrigin(0, 0.5)
-        .setAlpha(0.8)
-        .setDepth(depth.hud);
-      cursor = Math.ceil(label.x + label.width + 24);
+    // Secondary row: ink settings, cream route log once a postcard exists.
+    const rowY = ctaY + uiScaled(ctaHeight, s) + uiScaled(this.layout.rowGap, s);
+    const secondaryHeight = uiScaled(this.layout.secondaryHeight, s);
+    const ctaWidthPx = cta.buttonWidth;
+    const gap = uiScaled(this.layout.secondaryGap, s);
+    // With two secondary actions they split the CTA width exactly, so the column edges line up.
+    const pairWidth = this.teaMoonDelivered ? Math.floor((ctaWidthPx - gap) / 2) : undefined;
+    const settings = new Button(this, {
+      x,
+      y: rowY,
+      label: titleCopy.settingsButton,
+      ...(pairWidth ? { width: pairWidth } : {}),
+      height: secondaryHeight,
+      variant: "ink",
+      icon: "settings",
+      uiScale: s,
+      onActivate: () => this.openSettings(),
+    });
+    settings.setName("settings").setDepth(depth.hud);
+    this.focusables.push(settings);
+
+    if (this.teaMoonDelivered) {
+      const routeLog = new Button(this, {
+        x: x + ctaWidthPx - settings.buttonWidth,
+        y: rowY,
+        label: titleCopy.routeLogButton,
+        width: settings.buttonWidth,
+        height: secondaryHeight,
+        variant: "secondary",
+        icon: "memory",
+        uiScale: s,
+        onActivate: () => this.openRouteLog(),
+      });
+      routeLog.setName("route-log").setDepth(depth.hud);
+      this.focusables.push(routeLog);
     }
+
+    // Keyboard hints (keycaps); touch devices have no keys to hint at.
+    let nextY = rowY + secondaryHeight + uiScaled(this.layout.rowGap + 6, s);
+    if (!this.touch) {
+      let cursor = x;
+      let keyHeight = 0;
+      for (const hint of titleCopy.hints) {
+        const keycap = new Keycap(this, { x: cursor, y: nextY, label: hint.key, uiScale: s }).setDepth(depth.hud);
+        keyHeight = keycap.keyHeight;
+        const label = this.add
+          .text(cursor + keycap.keyWidth + uiScaled(8, s), nextY + Math.round(keycap.keyHeight / 2) - 1, hint.label, bodyStyle({ size: uiTextSize(typeScale.base, s), color: colors.parchmentDeep }))
+          .setOrigin(0, 0.5)
+          .setAlpha(0.85)
+          .setDepth(depth.hud);
+        cursor = Math.ceil(label.x + label.width + uiScaled(24, s));
+      }
+      nextY += keyHeight + uiScaled(18, s);
+    }
+
+    if (this.saveNotice) this.createSaveNotice(x, nextY, titleCopy.saveNotice[this.saveNotice]);
   }
 
+  /** Gentle one-line save note: dark chip, sage dot, mono text (never an alarm). */
+  private createSaveNotice(x: number, y: number, text: string): void {
+    const s = this.uiScale;
+    const padX = uiScaled(12, s);
+    const dot = Math.round(uiScaled(8, s) / 2) * 2;
+    const maxWidth = (this.compact ? 560 : 620) - padX * 2 - dot - padX;
+    const label = this.add
+      .text(0, 0, text, monoStyle({ size: uiTextSize(typeScale.sm, s), color: colors.parchmentDeep, wrapWidth: maxWidth }))
+      .setOrigin(0, 0);
+    const width = Math.ceil(label.width) + padX * 3 + dot;
+    const height = Math.ceil(label.height) + uiScaled(14, s);
+    const g = this.add.graphics();
+    g.fillStyle(colorNumber(colors.plaster), 0.2);
+    fillSteppedRect(g, 0, 0, width, height, STEPPED_CORNER.soft);
+    g.fillStyle(colorNumber(colors.cosmosPanel), 0.92);
+    fillSteppedRect(g, 2, 2, width - 4, height - 4, STEPPED_CORNER.notch);
+    g.fillStyle(colorNumber(colors.sage), 1);
+    fillSteppedRect(g, padX, Math.round(height / 2 - dot / 2), dot, dot, STEPPED_CORNER.notch);
+    label.setPosition(padX * 2 + dot, Math.round((height - label.height) / 2));
+    this.add.container(x, y, [g, label]).setName("save-notice").setDepth(depth.hud);
+  }
+
+  private createFooter(): void {
+    this.add
+      .text(this.layout.marginX, this.layout.creditsY, titleCopy.credits, monoStyle({ size: uiTextSize(typeScale.sm, this.uiScale), color: colors.parchmentDeep }))
+      .setOrigin(0, 1)
+      .setAlpha(0.55)
+      .setDepth(depth.hud);
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Mission card
+  // ---------------------------------------------------------------------------------------------
+
   private createMissionCard(): void {
-    const spec = LAYOUT.card;
-    const card = new ParchmentCard(this, { x: spec.x, y: spec.y, width: spec.width, height: spec.height, title: titleCopy.missionHeader });
+    const s = this.uiScale;
+    const spec = this.layout.card;
+    const card = new ParchmentCard(this, { x: spec.x, y: spec.y, width: spec.width, height: spec.height, title: titleCopy.missionHeader, uiScale: s });
     card.setDepth(depth.hud);
     const pad = card.padding;
 
-    // Route meta, right-aligned in the header.
-    card.addContent(
-      this.add
-        .text(spec.width - pad, 22, teaMoonMission.title.toLowerCase(), monoStyle({ size: typeScale.sm, color: colors.sageDeep, bold: true }))
-        .setOrigin(1, 0.5),
-    );
+    const pillState = this.teaMoonDelivered ? "idle" : "docking";
+    const pillLabel = this.teaMoonDelivered ? titleCopy.deliveredPill : titleCopy.awaitingPill;
+    if (this.layout.cardMeta) {
+      card.addContent(
+        this.add
+          .text(spec.width - pad, Math.round(card.headerHeight / 2) + 2, teaMoonMission.title.toLowerCase(), monoStyle({ size: typeScale.sm, color: colors.sageDeep, bold: true }))
+          .setOrigin(1, 0.5),
+      );
+    } else if (!this.teaMoonDelivered) {
+      // Compact: the state pill moves into the header so the portrait column stays clear (once
+      // delivered, the sticker above the header already says so).
+      const pill = new StatePill(this, { x: 0, y: 0, state: pillState, label: pillLabel, uiScale: s });
+      pill.setPosition(spec.width - pad - pill.pillWidth, Math.round(card.headerHeight / 2 + 2 - pill.pillHeight / 2));
+      card.addContent(pill);
+    }
 
     // Portrait in a recessed frame.
-    const frameSize = 136;
     const frameY = card.contentTop;
     const frame = this.add.graphics();
-    drawRecessedSurface(frame, pad, frameY, frameSize, frameSize);
+    drawRecessedSurface(frame, pad, frameY, PORTRAIT_FRAME, PORTRAIT_FRAME);
     card.addContent(frame);
-    card.addContent(...this.createPortrait(pad + frameSize / 2, frameY + frameSize / 2));
+    card.addContent(...this.createPortrait(pad + PORTRAIT_FRAME / 2, frameY + PORTRAIT_FRAME / 2));
 
-    const pill = new StatePill(this, {
-      x: pad,
-      y: frameY + frameSize + 12,
-      state: this.teaMoonDelivered ? "idle" : "docking",
-      label: this.teaMoonDelivered ? "delivered" : "awaiting tea",
-    });
-    card.addContent(pill);
+    if (this.layout.cardMeta) {
+      card.addContent(new StatePill(this, { x: pad, y: frameY + PORTRAIT_FRAME + uiScaled(12, s), state: pillState, label: pillLabel, uiScale: s }));
+    }
 
     // Request copy column.
-    const columnX = pad + frameSize + 18;
+    const columnX = pad + PORTRAIT_FRAME + uiScaled(18, s);
     const columnWidth = spec.width - columnX - pad;
-    const name = this.add.text(columnX, frameY - 2, teaMoonMission.recipientName, headingStyle({ size: 22, color: colors.ink }));
-    const request = this.add.text(columnX, frameY + 32, `“${teaMoonMission.requestText}”`, bodyStyle({ size: 15, color: colors.inkSoft, wrapWidth: columnWidth }));
+    const name = this.add.text(columnX, frameY - 2, teaMoonMission.recipientName, headingStyle({ size: uiTextSize(22, s), color: colors.ink }));
+    const request = this.add.text(columnX, name.y + name.height + uiScaled(6, s), `“${teaMoonMission.requestText}”`, bodyStyle({ size: uiTextSize(15, s), color: colors.inkSoft, wrapWidth: columnWidth }));
     card.addContent(name, request);
 
-    const itemsY = spec.height - pad - 64;
+    const itemsY = spec.height - pad - ITEM_TRAY_HEIGHT;
     card.addContent(...this.createItems(columnX, itemsY, columnWidth));
 
     if (this.teaMoonDelivered) this.addDeliveredStamp(card);
@@ -320,8 +613,6 @@ export class TitleScene extends Phaser.Scene {
       const g = this.add.graphics();
       g.fillStyle(colorNumber(colors.plum), 1);
       g.fillRect(x - 60, y - 60, 120, 120);
-      g.fillStyle(colorNumber(colors.ember), 1);
-      g.fillCircle(x + 44, y + 44, 8);
       const letter = this.add.text(x, y - 4, "r", headingStyle({ size: 64, color: colors.plaster })).setOrigin(0.5, 0.5);
       return [g, letter];
     }
@@ -343,12 +634,13 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private createItems(x: number, y: number, width: number): Phaser.GameObjects.GameObject[] {
+    const s = this.uiScale;
     const objects: Phaser.GameObjects.GameObject[] = [];
     const tray = this.add.graphics();
-    drawRecessedSurface(tray, x, y, width, 64);
+    drawRecessedSurface(tray, x, y, width, ITEM_TRAY_HEIGHT);
     objects.push(tray);
 
-    const slot = 64;
+    const slot = ITEM_TRAY_HEIGHT;
     const itemArt: readonly { key: string; icon: "tea" | "package" }[] = [
       { key: ASSET.itemTea, icon: "tea" },
       { key: ASSET.itemMochi, icon: "package" },
@@ -356,49 +648,162 @@ export class TitleScene extends Phaser.Scene {
     itemArt.forEach((item, index) => {
       const cx = x + slot / 2 + index * (slot - 4);
       const cy = y + slot / 2;
-      objects.push(
-        hasAuthoredTexture(this, item.key)
-          ? this.add.image(cx, cy, item.key).setScale(UI_ART_SCALE)
-          : addUiIcon(this, cx, cy, item.icon),
-      );
+      objects.push(hasAuthoredTexture(this, item.key) ? this.add.image(cx, cy, item.key).setScale(UI_ART_SCALE) : addUiIcon(this, cx, cy, item.icon));
     });
 
     const labelX = x + slot * 2 + 4;
     objects.push(
       this.add
-        .text(labelX, y + slot / 2, teaMoonMission.deliveryItemName, monoStyle({ size: typeScale.sm, bold: true, color: colors.inkSoft, wrapWidth: width - (labelX - x) - 10 }))
+        .text(labelX, y + slot / 2, teaMoonMission.deliveryItemName, monoStyle({ size: uiTextSize(typeScale.sm, s), bold: true, color: colors.inkSoft, wrapWidth: width - (labelX - x) - 10 }))
         .setOrigin(0, 0.5),
     );
     return objects;
   }
 
+  /** Sage sticker over the card's top edge: "delivered · postcard collected". */
   private addDeliveredStamp(card: ParchmentCard): void {
-    const stamp = this.add.container(card.cardWidth - 18, -16);
-    const text = this.add.text(0, 0, titleCopy.deliveredBadge, monoStyle({ size: typeScale.sm, bold: true, color: colors.ink })).setOrigin(1, 0.5);
-    const icon = addUiIcon(this, 0, 0, "memory");
-    const widthPx = Math.ceil(text.width + 32 + 8 + 28);
-    const height = 34;
+    const s = this.uiScale;
+    const stamp = this.add.container(card.cardWidth - uiScaled(14, s), -uiScaled(16, s));
+    const text = this.add.text(0, 0, titleCopy.deliveredBadge, monoStyle({ size: uiTextSize(typeScale.sm, s), bold: true, color: colors.ink })).setOrigin(1, 0.5);
+    const iconScale = uiIconScale(s);
+    const icon = addUiIcon(this, 0, 0, "memory", { scale: iconScale });
+    const padX = uiScaled(12, s);
+    const iconSize = 16 * iconScale;
+    const widthPx = Math.ceil(text.width + padX * 3 + iconSize);
+    const height = Math.max(uiScaled(34, s), iconSize + 8);
     const g = this.add.graphics();
     g.fillStyle(colorNumber(colors.ink), 1);
-    g.fillRect(-widthPx + 3, -height / 2 + 3, widthPx, height);
-    g.fillRect(-widthPx, -height / 2, widthPx, height);
+    fillSteppedRect(g, -widthPx + 3, -height / 2 + 3, widthPx, height, STEPPED_CORNER.notch);
+    fillSteppedRect(g, -widthPx, -height / 2, widthPx, height, STEPPED_CORNER.notch);
     g.fillStyle(colorNumber("#C2CFAE"), 1);
     g.fillRect(-widthPx + 2, -height / 2 + 2, widthPx - 4, height - 4);
-    text.setPosition(-14, 0);
-    icon.setPosition(-widthPx + 14 + 16, 0);
-    stamp.add([g, icon, text]).setRotation(-0.035);
+    text.setPosition(-padX, 0);
+    icon.setPosition(-widthPx + padX + iconSize / 2, 0);
+    stamp.add([g, icon, text]);
     card.addContent(stamp);
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Input, focus, panels
+  // ---------------------------------------------------------------------------------------------
+
+  private get panelOpen(): boolean {
+    return (this.settingsPanel?.isOpen ?? false) || (this.routeLog?.isOpen ?? false);
+  }
+
+  private wireKeyboard(): void {
+    const keyboard = this.input.keyboard;
+    if (!keyboard) return;
+    const handler = (event: KeyboardEvent): void => {
+      if (this.starting || this.panelOpen || event.repeat) return;
+      switch (event.code) {
+        case "ArrowDown":
+        case "ArrowRight":
+        case "Tab":
+          this.moveFocus(event.shiftKey && event.code === "Tab" ? -1 : 1);
+          break;
+        case "ArrowUp":
+        case "ArrowLeft":
+          this.moveFocus(-1);
+          break;
+        case "Enter":
+        case "Space":
+        case "NumpadEnter":
+          this.focusables[this.focusIndex]?.activate();
+          break;
+        default:
+          return;
+      }
+      event.preventDefault();
+    };
+    keyboard.on("keydown", handler);
+    // A pointer user never needs the focus outline.
+    const onPointer = (): void => this.setKeyboardNav(false);
+    this.input.on(Phaser.Input.Events.POINTER_DOWN, onPointer);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      keyboard.off("keydown", handler);
+      this.input.off(Phaser.Input.Events.POINTER_DOWN, onPointer);
+    });
+  }
+
+  private moveFocus(direction: -1 | 1): void {
+    const count = this.focusables.length;
+    if (count === 0) return;
+    // The first key press only reveals the outline on the current choice.
+    if (this.keyboardNav) {
+      this.focusIndex = (this.focusIndex + direction + count) % count;
+      emitGameEvent(this, { type: "ui:hover" });
+    }
+    this.setKeyboardNav(true);
+  }
+
+  private setKeyboardNav(on: boolean): void {
+    this.keyboardNav = on;
+    this.focusables.forEach((button, index) => button.setFocused(on && index === this.focusIndex));
+  }
+
+  private wireResize(): void {
+    let pending: Phaser.Time.TimerEvent | undefined;
+    const onResize = (): void => {
+      pending?.remove();
+      pending = this.time.delayedCall(RESIZE_DEBOUNCE_MS, () => {
+        const compact = isCompactDisplay(this);
+        const key = layoutKeyFor(compact, compact ? compactUiScale(this) : 1);
+        if (key !== this.layoutKey && !this.starting) this.scene.restart();
+      });
+    };
+    this.scale.on(Phaser.Scale.Events.RESIZE, onResize);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off(Phaser.Scale.Events.RESIZE, onResize));
+  }
+
+  private openSettings(): void {
+    if (this.panelOpen || this.starting) return;
+    const settings = readSettings();
+    this.settingsPanel = new SettingsPanel(this, {
+      values: { musicVolume: settings.musicVolume, sfxVolume: settings.sfxVolume, reducedMotion: settings.reducedMotion },
+      copy: settingsCopy,
+      uiScale: this.uiScale,
+      persisted: readPersistent(),
+      showKeyHints: !this.touch,
+      onChange: (values) => {
+        try {
+          SaveSystem.updateSettings({ musicVolume: values.musicVolume, sfxVolume: values.sfxVolume, reducedMotion: values.reducedMotion });
+        } catch {
+          // Storage failures are handled inside SaveSystem; never let settings break the title.
+        }
+        emitGameEvent(this, { type: "settings:changed" });
+      },
+      onClose: () => {
+        this.settingsPanel = undefined;
+      },
+    });
+    if (this.keyboardNav) this.settingsPanel.previewSelect("sound");
+  }
+
+  private openRouteLog(): void {
+    if (this.panelOpen || this.starting) return;
+    this.routeLog = new RouteLogPanel(this, {
+      copy: routeLogCopy,
+      postcardKey: ASSET.memoryPostcard,
+      stats: readRouteStats(),
+      uiScale: this.uiScale,
+      onClose: () => {
+        this.routeLog = undefined;
+      },
+    });
   }
 
   private startMission(): void {
     if (this.starting) return;
     this.starting = true;
-    this.startButton?.setEnabled(false).showState("pressed");
+    this.focusables[0]?.setEnabled(false).showState("pressed");
     const data: FlightSceneData = { missionId: TEA_MOON_MISSION_ID };
-    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start("FlightScene", data));
-    const fade = Phaser.Display.Color.HexStringToColor(colors.cosmosDeep);
-    this.cameras.main.fadeOut(motion.slow, fade.red, fade.green, fade.blue);
+    transitionToScene(this, "FlightScene", data, { kind: "warm-fade" });
   }
+}
+
+function layoutKeyFor(compact: boolean, uiScale: number): string {
+  return `${compact ? "compact" : "desktop"}:${uiScale.toFixed(1)}`;
 }
 
 function readTeaMoonDelivered(): boolean {
@@ -408,6 +813,60 @@ function readTeaMoonDelivered(): boolean {
   } catch {
     // Storage may be unavailable or the save unreadable; the title still works without it.
     return false;
+  }
+}
+
+function readSettings(): { readonly musicVolume: number; readonly sfxVolume: number; readonly reducedMotion: boolean } {
+  try {
+    return SaveSystem.load().settings;
+  } catch {
+    return { musicVolume: 0.7, sfxVolume: 0.8, reducedMotion: false };
+  }
+}
+
+function readPersistent(): boolean {
+  try {
+    return SaveSystem.persistenceStatus().kind === "persistent";
+  } catch {
+    return false;
+  }
+}
+
+function readSaveNotice(): SaveNoticeKind | null {
+  try {
+    const diagnostics = SaveSystem.diagnostics();
+    if (diagnostics.firstLoadOutcome.kind === "corrupt") return "corrupt";
+    if (diagnostics.storageLocked) return "futureVersion";
+    if (diagnostics.persistence.kind === "session-only" && diagnostics.persistence.reason === "storage-unavailable") return "storageUnavailable";
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function readRouteStats(): RouteLogStat[] {
+  try {
+    const save = SaveSystem.load();
+    const best = SaveSystem.getBestResult(TEA_MOON_MISSION_ID);
+    const stats: RouteLogStat[] = [{ label: routeLogCopy.deliveriesLabel, value: String(save.stats.totalDeliveries) }];
+    if (best) {
+      stats.push({ label: routeLogCopy.bestLabel, value: best.conditionLabel.toLowerCase() });
+      stats.push({ label: routeLogCopy.crashesLabel, value: String(best.crashes) });
+    }
+    return stats;
+  } catch {
+    return [];
+  }
+}
+
+/** Disc built from whole `band`-px rows (a stepped pixel circle; no anti-aliased curves). */
+function fillPixelDisc(g: Phaser.GameObjects.Graphics, cx: number, cy: number, radius: number, band: number): void {
+  const r = Math.max(band, Math.round(radius / band) * band);
+  for (let dy = -r; dy < r; dy += band) {
+    const mid = dy + band / 2;
+    const half = Math.round(Math.sqrt(Math.max(0, r * r - mid * mid)) / band) * band;
+    if (half <= 0) continue;
+    g.fillRect(Math.round(cx - half), Math.round(cy + dy), half * 2, band);
   }
 }
 

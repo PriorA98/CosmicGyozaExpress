@@ -1,47 +1,82 @@
 /*
- * Narrow portrait phones letterbox the 16:9 canvas into a thin strip. A small pixel note under it
- * suggests turning the phone; the game remains fully playable either way.
+ * Portrait phones: the 16:9 canvas would shrink to an unreadable strip, so the shell shows one
+ * centred parchment "turn sideways" card (pixel phone illustration, heading, short note) over a
+ * dimmed canvas. The card is two grid pseudo-elements stacked in .app-shell (top: art + heading,
+ * bottom: note) so it needs no extra DOM. The canvas stays live underneath and pointer events pass
+ * through, so nothing breaks if the phone cannot rotate.
  */
 @media (orientation: portrait) and (max-width: 720px) {
-  .app-shell::after {
-    content: "turn sideways for a roomier cockpit";
+  .app-shell {
+    grid-template-rows: 1fr auto auto 1.15fr;
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .game-root {
     position: absolute;
-    left: 50%;
-    /* just below the letterboxed canvas: its half-height is 100vw * 9 / 16 / 2 = 28.125vw */
-    top: calc(50% + 28.125vw + 36px);
-    transform: translateX(-50%) rotate(-1deg);
-    width: max-content;
-    max-width: calc(100% - 48px);
-    padding: 8px 14px;
+    inset: 0;
+  }
+
+  .game-root canvas {
+    box-shadow: none;
+    filter: brightness(0.3) saturate(0.7);
+    transition: filter 320ms var(--ease-soft);
+  }
+
+  .app-shell::before,
+  .app-shell::after {
+    position: relative;
+    z-index: 2;
+    box-sizing: border-box;
+    width: min(312px, calc(100% - 32px));
     border: 2px solid var(--color-ink);
-    border-radius: var(--radius-sm);
-    background: var(--color-parchment-warm);
-    box-shadow: var(--shadow-pixel);
-    color: var(--color-ink-soft);
-    font-family: var(--font-mono);
-    font-size: 13px;
-    line-height: 1.35;
+    background-color: var(--color-parchment-warm);
+    color: var(--color-ink);
     text-align: center;
     pointer-events: none;
   }
 
+  /* Top half: pixel illustration (portrait phone -> landscape phone with the tea moon) + heading. */
   .app-shell::before {
-    content: "";
-    position: absolute;
-    left: 50%;
-    /* centred in the band above the canvas */
-    top: max(16px, calc((50% - 28.125vw) / 2 - 36px));
-    width: 72px;
-    height: 72px;
-    transform: translateX(-50%);
-    border-radius: 50%;
-    background:
-      radial-gradient(circle at 38% 36%, rgb(251 247 236 / 55%) 0 6px, transparent 7px),
-      radial-gradient(circle at 62% 64%, rgb(141 161 122 / 45%) 0 9px, transparent 10px),
-      #c2cfae;
+    content: "turn your phone sideways";
+    grid-row: 2;
+    padding: 124px 20px 6px;
+    border-bottom: 0;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    /* Right edge of the hard pixel shadow plus the soft drop (both painted under the note half). */
     box-shadow:
-      0 0 0 10px rgb(212 160 85 / 8%),
-      0 0 0 22px rgb(236 223 197 / 5%);
-    pointer-events: none;
+      3px 0 0 var(--color-ink),
+      0 64px 56px -12px rgb(0 0 0 / 50%);
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 40' shape-rendering='crispEdges'%3E%3Crect x='6' y='12' width='14' height='24' fill='%231D1F33'/%3E%3Crect x='8' y='14' width='10' height='18' fill='%239EB6C4'/%3E%3Crect x='11' y='33' width='4' height='1' fill='%23B9AB8B'/%3E%3Crect x='16' y='6' width='4' height='2' fill='%23C97B5A'/%3E%3Crect x='20' y='4' width='12' height='2' fill='%23C97B5A'/%3E%3Crect x='32' y='5' width='4' height='2' fill='%23C97B5A'/%3E%3Crect x='36' y='7' width='2' height='3' fill='%23C97B5A'/%3E%3Crect x='34' y='10' width='6' height='2' fill='%23A6614A'/%3E%3Crect x='35' y='12' width='4' height='2' fill='%23A6614A'/%3E%3Crect x='36' y='14' width='2' height='2' fill='%23A6614A'/%3E%3Crect x='26' y='18' width='32' height='18' fill='%231D1F33'/%3E%3Crect x='28' y='20' width='26' height='14' fill='%232F3149'/%3E%3Crect x='55' y='25' width='1' height='4' fill='%23B9AB8B'/%3E%3Crect x='47' y='22' width='3' height='1' fill='%23C2CFAE'/%3E%3Crect x='46' y='23' width='5' height='3' fill='%23C2CFAE'/%3E%3Crect x='47' y='26' width='3' height='1' fill='%23C2CFAE'/%3E%3Crect x='48' y='24' width='1' height='1' fill='%238DA17A'/%3E%3Crect x='33' y='28' width='5' height='2' fill='%23D4A055'/%3E%3Crect x='34' y='27' width='3' height='1' fill='%23FBF7EC'/%3E%3Crect x='35' y='30' width='1' height='2' fill='%23E08A4B'/%3E%3Crect x='31' y='22' width='1' height='1' fill='%23FBF7EC'/%3E%3Crect x='41' y='31' width='1' height='1' fill='%23FBF7EC'/%3E%3Crect x='51' y='30' width='1' height='1' fill='%23D4A055'/%3E%3C/svg%3E"),
+      linear-gradient(var(--color-parchment-deep), var(--color-parchment-deep));
+    background-repeat: no-repeat;
+    background-size:
+      128px 80px,
+      calc(100% - 32px) 96px;
+    background-position:
+      center 22px,
+      center 14px;
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 1.2;
+    image-rendering: pixelated;
+  }
+
+  /* Bottom half: the gentle note, plus the card's hard pixel shadow. */
+  .app-shell::after {
+    content: "the cockpit needs more room.\A the tea will stay warm.";
+    grid-row: 3;
+    white-space: pre-line;
+    padding: 6px 20px 20px;
+    border-top: 0;
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    z-index: 3;
+    box-shadow: 3px 3px 0 var(--color-ink);
+    color: var(--color-ink-soft);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    line-height: 1.5;
   }
 }

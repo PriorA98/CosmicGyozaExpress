@@ -87,7 +87,7 @@ export class Asteroid {
       },
     });
 
-    this.image.setTint(colorNumber(asteroidArt.flashColor)).setTintMode(Phaser.TintModes.FILL);
+    this.image.setTint(colorNumber(asteroidArt.flashColor)).setTintMode(Phaser.TintModes.SCREEN);
     this.flashUntilMs = timeMs + asteroidArt.flashMs;
   }
 
