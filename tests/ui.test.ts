@@ -49,6 +49,26 @@ describe("ui layout helpers", () => {
     expect(segmentFills(0.5, 0)).toHaveLength(1);
   });
 
+  it("never lights a phantom partial segment from float noise", () => {
+    const cases: readonly [number, number][] = [
+      [0.7, 7],
+      [0.3, 3],
+      [0.1, 1],
+      [0.8, 8],
+      [Math.round(0.7 / 0.005) * 0.005, 7],
+      [0.1 + 0.2, 3],
+    ];
+    for (const [value, lit] of cases) {
+      const fills = segmentFills(value, 10);
+      expect(fills.filter((fill) => fill === 1)).toHaveLength(lit);
+      expect(fills.slice(lit).every((fill) => fill === 0)).toBe(true);
+    }
+    // Real partials survive, slivers snap.
+    expect(segmentFills(0.75, 10)[7]).toBeCloseTo(0.5);
+    expect(segmentFills(0.7004, 10)[7]).toBe(0);
+    expect(segmentFills(0.6996, 10)[6]).toBe(1);
+  });
+
   it("sizes segments so segments plus gaps fill the bar exactly", () => {
     const width = segmentWidth(236, 10, 2);
     expect(width * 10 + 2 * 9).toBeCloseTo(236);

@@ -66,7 +66,7 @@ def sp(d: dict[int, tuple[int, int] | list[tuple[int, int]]]) -> Spans:
 # (mirror: x' = 23 - x). Head outline sits on x=5 / x=18 at its widest.
 HEAD = sp({8: (8, 15), 9: (7, 16), 10: (6, 17), 11: (6, 17), 12: (6, 17), 13: (6, 17),
            14: (6, 17), 15: (6, 17), 16: (7, 16), 17: (8, 15)})
-EAR_UP = sp({1: (7, 8), 2: (7, 9), 3: (7, 9), 4: (7, 9), 5: (7, 9), 6: (7, 9), 7: (7, 9),
+EAR_UP = sp({2: (7, 8), 3: (7, 9), 4: (7, 9), 5: (7, 9), 6: (7, 9), 7: (7, 9),
              8: (7, 9)})
 # droopy ear: rises off the crown (x14-15), bends over at rows 2-3 and hangs down
 # beside the head (x19-21) to a rounded tip on row 12. Rows 4-6 keep a 1px
@@ -82,17 +82,17 @@ FEET = sp({28: [(6, 9), (14, 17)], 29: [(6, 9), (14, 17)], 30: [(7, 9), (14, 16)
 # Arm and ticks are in FINAL coordinates (after the body is shifted DX right).
 ARM = [
     # wave1: paw out at cheek height, forearm angled out from the shoulder
-    sp({10: (2, 3), 11: (1, 4), 12: (1, 4), 13: (1, 4), 14: (2, 3), 15: (2, 4), 16: (3, 4),
+    sp({10: (3, 4), 11: (2, 5), 12: (2, 5), 13: (2, 5), 14: (3, 4), 15: (2, 4), 16: (3, 4),
         17: (3, 5), 18: (4, 6), 19: (5, 6)}),
     # wave2: paw up high beside the ear, forearm leaning out
-    sp({5: (2, 3), 6: (1, 4), 7: (1, 4), 8: (1, 4), 9: (2, 3), 10: (2, 4), 11: (2, 4),
+    sp({5: (3, 4), 6: (2, 5), 7: (2, 5), 8: (2, 5), 9: (3, 4), 10: (2, 4), 11: (2, 4),
         12: (2, 4), 13: (2, 4), 14: (2, 4), 15: (3, 4), 16: (3, 5), 17: (3, 5),
         18: (4, 6), 19: (5, 6)}),
 ]
-PAW_PAD = [[(2, 12), (3, 12)], [(2, 7), (3, 7)]]
-PAW_HI = [[(2, 11), (1, 12)], [(2, 6), (1, 7)]]
+PAW_PAD = [[(3, 12), (4, 12)], [(3, 7), (4, 7)]]
+PAW_HI = [[(3, 11), (2, 12)], [(3, 6), (2, 7)]]
 # little motion ticks beside the paw (amber, no outline)
-TICKS = [[(1, 8), (2, 8), (0, 10), (0, 14)], [(0, 2), (1, 2), (5, 2), (5, 3)]]
+TICKS = [[(2, 7), (3, 7), (1, 9)], [(1, 2), (2, 2), (5, 2), (5, 3)]]
 DX = 1  # the body is authored 1px left of its final place, then shifted right
 # Breathing frame: rows above this one shift down 1px; this (plain belly) row is dropped.
 BREATH_DROP_ROW = 25
@@ -177,9 +177,9 @@ def frame(pose: str) -> Grid:
 
     # upright ear: plaster lit edge, pink inner stripe, shaded right edge
     fill(g, EAR_UP, "C")
-    put(g, [(7, 1), (7, 2), (7, 3), (7, 4), (7, 5), (7, 6)], "W")
-    put(g, [(8, 2), (8, 3), (8, 4), (8, 5), (8, 6), (8, 7)], "P")
-    put(g, [(9, 2), (9, 3), (9, 4), (9, 5), (9, 6), (9, 7)], "S")
+    put(g, [(7, 2), (7, 3), (7, 4), (7, 5), (7, 6)], "W")
+    put(g, [(8, 3), (8, 4), (8, 5), (8, 6), (8, 7)], "P")
+    put(g, [(9, 3), (9, 4), (9, 5), (9, 6), (9, 7)], "S")
 
     # head
     fill(g, HEAD, "C")

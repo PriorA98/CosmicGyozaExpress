@@ -53,16 +53,24 @@ export function uiIconScale(uiScale = 1, base = 2): number {
   return safeScale(uiScale) >= COMPACT_UI_THRESHOLD ? base + 1 : base;
 }
 
+/** Segment fills are snapped to this many steps per segment. */
+const SEGMENT_FILL_RESOLUTION = 1000;
+/** Partial fills closer than this to empty/full snap to 0/1 (no hairline segments). */
+export const SEGMENT_FILL_EPSILON = 0.01;
+
 /**
  * Fill amount (0..1) for each segment of a segmented meter. Full segments come first, then at
  * most one partial segment, then empty ones. Values outside 0..1 are clamped.
  */
 export function segmentFills(value: number, segments: number): number[] {
   const count = Math.max(1, Math.floor(segments));
-  const filled = clamp01(value) * count;
+  // Snap to 1/1000 of a segment first so float noise (0.7 -> 0.7000000000000001) never lights a
+  // phantom partial segment; slivers below SEGMENT_FILL_EPSILON read as empty.
+  const filled = Math.round(clamp01(value) * count * SEGMENT_FILL_RESOLUTION) / SEGMENT_FILL_RESOLUTION;
   const fills: number[] = [];
   for (let index = 0; index < count; index += 1) {
-    fills.push(clamp01(filled - index));
+    const fill = clamp01(filled - index);
+    fills.push(fill < SEGMENT_FILL_EPSILON ? 0 : fill > 1 - SEGMENT_FILL_EPSILON ? 1 : fill);
   }
   return fills;
 }

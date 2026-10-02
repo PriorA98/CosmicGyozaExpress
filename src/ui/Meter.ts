@@ -17,8 +17,8 @@ export type MeterOptions = {
 
 const GAP = 2;
 const INSET = 2;
-/** Values are quantised so tiny float changes never trigger a redraw. */
-const QUANTUM = 1 / 200;
+/** Values are quantised to 1/STEPS so tiny float changes never trigger a redraw. */
+const STEPS = 200;
 
 /** Segmented bar meter on a recessed dark track. Origin: top-left. */
 export class Meter extends Phaser.GameObjects.Container {
@@ -55,7 +55,8 @@ export class Meter extends Phaser.GameObjects.Container {
   }
 
   setValue(value: number): this {
-    const next = Math.round(clamp01(value) / QUANTUM) * QUANTUM;
+    // Divide an integer step count (0.7 -> 140 / 200 = 0.7 exactly, never 0.7000000000000001).
+    const next = Math.round(clamp01(value) * STEPS) / STEPS;
     if (next === this.value) return this;
     this.value = next;
     this.redraw();

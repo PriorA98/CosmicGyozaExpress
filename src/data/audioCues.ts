@@ -351,13 +351,13 @@ type CueTrim = { readonly db: number; readonly [param: string]: number | readonl
 
 /** Per-cue peak trims (dB, before the bus) and key pitches. */
 export const SFX_TUNING = {
-  "ui-hover": { db: -15, hz: 1760 },
+  "ui-hover": { db: -7, hz: 1760 },
   "ui-confirm": { db: -12, notes: [76, 83] },
   "ui-back": { db: -14, notes: [79, 72] },
   "brake-whoosh": { db: -8, fromHz: 1900, toHz: 380, seconds: 0.42 },
-  "bump-soft": { db: -1, fromHz: 260, toHz: 170, seconds: 0.34, bodyHz: 120 },
-  "bump-dramatic": { db: -5, fromHz: 190, toHz: 105, seconds: 0.5 },
-  incident: { db: -8, fromHz: 330, toHz: 150, wobbleHz: 13, seconds: 0.95 },
+  "bump-soft": { db: -5, fromHz: 260, toHz: 170, seconds: 0.34, bodyHz: 120 },
+  "bump-dramatic": { db: -2.5, fromHz: 190, toHz: 105, seconds: 0.5 },
+  incident: { db: -2.5, fromHz: 330, toHz: 150, wobbleHz: 13, seconds: 0.95 },
   respawn: { db: -12, notes: [67, 72, 79] },
   "arrival-shimmer": { db: -14, baseNote: 79, stepInterval: 2 },
   "arrival-chime": { db: -13.5, notes: [72, 76, 79, 84, 88] },

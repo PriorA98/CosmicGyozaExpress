@@ -52,6 +52,14 @@ Frame alignment was checked with an RGBA pixel diff (`ImageChops.difference(...)
 - The art faces right. The game flips it (`landingScenery.rabbit.flipX`).
 - Wave 2 readability pass (2026-10-01/02, all in `build_sprite.py`, no manual edits outside it): a taller 3px upright ear with a pink inner stripe; the droopy ear rises off the crown, bends and hangs beside the head with a pink underside and a 1px background notch under the bend; heavy-lidded amber eyes, peach cheeks, pink nose and a tiny u smile (replacing the old dark 2px mouth, which read as a gaping mouth at 2x). Frame 2 holds the waving paw out at cheek height. Frame 3 swings it up beside the ear on a chunkier 3px forearm (it was a 2px noodle), with amber motion ticks. The paw has a pink pad. Feet fill rows 28-30 and their outline is on row 31, the bottom row, in all frames.
 
+- Wave 3 edge-margin pass (2026-10-02, critic round 3 nit 9, all in `build_sprite.py`, no manual edits): before this pass, frames 0, 2 and 3 had ear-tip ink on row 0, and frames 2 and 3 had the waving paw outline and motion ticks on column 0. Now:
+  - The upright ear starts on row 2, so its tip outline sits on row 1. The ear is 1px shorter, and the pink stripe and shading run on rows 3-7.
+  - The waving paw moved 1px right (paw rows now span x2-5 in final coordinates). In frame 2 its right outline is shared with the head outline. In frame 3 it sits right beside the upright ear. The forearm spans are unchanged.
+  - The motion ticks moved inside the frame. Frame 2 has a dash at (2-3,7) and a dot at (1,9); the old column-0 dots are gone. Frame 3 has a dash at (1-2,2) and the vertical tick at x5.
+  - New frame bboxes are (6,1,24,32), (6,2,24,32), (1,1,24,32) and (1,1,24,32), so row 0 and column 0 are empty in every frame. The feet outline stays on row 31 (bottom anchor), and the 24x32 x4 contract is unchanged. Column 23 still holds the droopy ear's outer outline. There is no room to inset it without shrinking the paw or the ear. The asset loads as a fixed-grid Phaser spritesheet with nearest filtering, and nothing trims or pads it.
+  - The wave-2 version is kept as `raw/rabbit-sprite-w2-backup.png`. Before/after previews are `previews/rabbit-sprite-w2.preview.png` and `previews/rabbit-sprite-w3.preview.png`, made with `python tools/art/pixelize.py --preview <png> --scale 8`.
+  - In-game check: `node e2e/capture.mjs --states=title,landing-settle-soft --label=w3-r3-assets-characters` gave 0 runtime errors and empty `assetFailures`. The wave frame reads cleanly beside the teahouse.
+
 ## Inspection
 - Previews were made with `python tools/art/pixelize.py --preview <png> --scale 4/8` and reviewed on cosmos and parchment backgrounds.
 - Contact sheet: `python tools/art/contact_sheet.py public/assets/characters --out e2e/out/contact-characters.png`.
@@ -60,5 +68,6 @@ Frame alignment was checked with an RGBA pixel diff (`ImageChops.difference(...)
 ## Known weaknesses
 - The happy frame's right ear is a mirror of the left ear (re-shaded for the top-left light), so the perked pose is very symmetric.
 - At 24x32 the sprite's floppy ear is a folded hook. It reads as a lop ear through its silhouette, but at 1x it can look like a loop.
-- Frame 3's raised arm is long for a chibi body, because the paw needs to clear the head outline.
+- Frame 3's raised arm is long for a chibi body, because the paw needs to clear the head outline. Since wave 3, the paw's outline also sits directly against the upright ear's outline, so there is a 2px ink seam where there used to be a gap.
+- The sprite's right column (x23) still carries the droopy ear's outline, so there is no margin on that side. After `flipX` in game, that is the left edge.
 - The raw generations are about 1 MB each at 1024px. They are kept unmodified because `build_portrait.py` depends on them for exact reproducibility.

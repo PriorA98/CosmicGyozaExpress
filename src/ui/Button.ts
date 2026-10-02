@@ -39,6 +39,10 @@ type VariantPalette = {
   readonly labelShadow: string;
   readonly highlightAlpha: number;
   readonly bevel: string;
+  /** Bevel while pressed (dark variants darken it so only the pressed face reads sunken). */
+  readonly pressedBevel: string;
+  /** Outer keyline and the hard lip under the face. */
+  readonly outline: string;
 };
 
 const VARIANTS: Readonly<Record<ButtonVariant, VariantPalette>> = {
@@ -50,6 +54,8 @@ const VARIANTS: Readonly<Record<ButtonVariant, VariantPalette>> = {
     labelShadow: colors.terracottaDeep,
     highlightAlpha: 0.32,
     bevel: colors.terracottaDeep,
+    pressedBevel: colors.terracottaDeep,
+    outline: colors.ink,
   },
   secondary: {
     fill: colors.parchmentWarm,
@@ -59,15 +65,21 @@ const VARIANTS: Readonly<Record<ButtonVariant, VariantPalette>> = {
     labelShadow: colors.border,
     highlightAlpha: 1,
     bevel: colors.border,
+    pressedBevel: colors.border,
+    outline: colors.ink,
   },
+  // Dark secondary: a raised slate face with a lit top edge and a mid-tone bevel at rest; only the
+  // pressed state drops to the near-black ink face and bevel.
   ink: {
-    fill: colors.ink,
-    hoverFill: colors.inkSoft,
-    pressedFill: colors.cosmosDeep,
+    fill: colors.inkSoft,
+    hoverFill: colors.slate700,
+    pressedFill: colors.ink,
     label: colors.plaster,
     labelShadow: colors.cosmosDeep,
-    highlightAlpha: 0.12,
-    bevel: colors.cosmosDeep,
+    highlightAlpha: 0.2,
+    bevel: colors.ink,
+    pressedBevel: colors.cosmosDeep,
+    outline: colors.cosmosDeep,
   },
 };
 
@@ -291,7 +303,7 @@ export class Button extends Phaser.GameObjects.Container {
     const g = this.graphics;
     g.clear();
     // Solid ink lip spanning the face's resting box shifted down by SHADOW: no gap is possible.
-    g.fillStyle(colorNumber(colors.ink), 1);
+    g.fillStyle(colorNumber(palette.outline), 1);
     fillSteppedRect(g, 0, SHADOW, width, height, STEPPED_CORNER.notch);
     // Face: 2px ink border, fill, top/left highlight, bottom bevel.
     fillSteppedRect(g, 0, offset, width, height, STEPPED_CORNER.notch);
@@ -303,7 +315,7 @@ export class Button extends Phaser.GameObjects.Container {
       g.fillRect(BORDER, offset + BORDER, 2, height - BORDER * 2 - BEVEL);
     }
     const bevel = pressed ? BEVEL / 2 : BEVEL;
-    g.fillStyle(colorNumber(palette.bevel), 1);
+    g.fillStyle(colorNumber(pressed ? palette.pressedBevel : palette.bevel), 1);
     g.fillRect(BORDER, offset + height - BORDER - bevel, width - BORDER * 2, bevel);
     this.drawFocusRing();
   }

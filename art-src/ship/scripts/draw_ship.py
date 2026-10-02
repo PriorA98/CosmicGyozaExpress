@@ -43,6 +43,8 @@ FLAME = [hx("#FBF7EC"), hx("#F7D77E"), hx("#F0AE55"), hx("#E08A4B"), hx("#C26954
 STEAM = [hx("#FBF7EC"), hx("#ECDFC5"), hx("#C9BFCF"), hx("#9B8FB8"), hx("#6F6690")]
 STAR = [hx("#FBF7EC"), hx("#F2CD72"), hx("#D4A055"), hx("#A6614A")]
 
+VALLEY = hx("#9A6236")  # darkest dough pixel at the root of each pleat valley
+
 CLEAR = (0, 0, 0, 0)
 
 
@@ -220,6 +222,7 @@ def draw_hull(pose: Pose) -> Layer:
     lay = Layer()
     mask = clean_mask(raster(lambda x, y: in_hull(*to_local(x, y, pose))))
     edge = boundary(mask)
+    rim = boundary(mask - edge)
     period = 2 * CRIMP_SPAN / CRIMPS
     for (x, y) in mask:
         u, v = to_local(x + 0.5, y + 0.5, pose)
@@ -247,27 +250,38 @@ def draw_hull(pose: Pose) -> Layer:
             # sheen streak on the upper-left of the body
             if -0.72 < rel < -0.2 and 2.3 < depth < 3.4 and vn < fry - 0.14:
                 col = DOUGH[0]
-            if abs(u) < CRIMP_SPAN + 0.5 and depth < 2.6:
-                # the crimped frill: each scallop lit on its left facet, shaded on its right
+            lit_side = rel < 0.3
+            if abs(u) < CRIMP_SPAN + 0.5 and depth < 2.9:
+                # the crimped frill: each scallop is a 2-value pair, a lit facet on its left
+                # (facing the top-left light) and a shadow facet on its right
                 ph = (u + CRIMP_SPAN) / period
                 p = ph - math.floor(ph)
-                if p < 0.42:
-                    col = DOUGH[0] if rel < 0.3 else DOUGH[1]
-                elif p < 0.78:
-                    col = DOUGH[1] if rel < 0.3 else DOUGH[2]
+                if p < 0.5:
+                    col = DOUGH[0] if lit_side else DOUGH[1]
                 else:
-                    col = DOUGH[3]
-            # creases run from each crimp valley down the side, curving outward
+                    col = DOUGH[2] if lit_side else DOUGH[3]
+            # creases run from each crimp valley down the side, curving outward: a dark valley
+            # line with a lit pixel on its right (the facet that faces the light)
             for uk in FOLD_US:
                 tk = v - seam(uk)
-                length = 3.6 + 1.8 * (1 - abs(uk) / HULL_RX)
-                if tk < 0.6 or tk > length:
+                length = 4.4 + 1.8 * (1 - abs(uk) / HULL_RX)
+                if tk < -0.6 or tk > length:
                     continue
                 side = 1.0 if uk > 0 else -1.0
                 cu = uk + side * (0.05 + 0.014 * abs(uk)) * tk * tk
                 d = u - cu
                 if -0.5 <= d < 0.5:
-                    col = DOUGH[4] if tk < length - 1.2 else DOUGH[3]
+                    if tk < 2.2:
+                        col = VALLEY  # deepest pixel in the pleat valley
+                    else:
+                        col = DOUGH[4] if tk < length - 1.4 else DOUGH[3]
+                elif 0.5 <= d < 1.5 and 0.4 < tk < length - 1.0:
+                    col = DOUGH[0] if lit_side else DOUGH[1]
+            # 1px darker crust rim just inside the outline of the belly and tips
+            if (x, y) in rim and abs(rel) > 0.8 and v > env_top(u) + 1.0:
+                col = CRUST[5]
+        if vn >= fry and depth > 1.5 and (x, y) in rim:
+            col = TOAST[4] if rel > 0.45 else TOAST[3]
         lay.px[(x, y)] = col
     for (x, y) in edge:
         u, v = to_local(x + 0.5, y + 0.5, pose)
@@ -311,6 +325,8 @@ def draw_dome(pose: Pose) -> Layer:
         # crisp highlight arc on the top-left inner rim
         if 0.66 <= r <= 0.82 and -165 <= ang <= -112:
             col = GLASS[0]
+        elif 0.55 <= r < 0.66 and -160 <= ang <= -122:
+            col = GLASS[1]  # second highlight row so the glass reads as a curved dome
         if 0.42 <= r < 0.58 and -150 <= ang <= -138:
             col = GLASS[0]
         lay.px[(x, y)] = col
