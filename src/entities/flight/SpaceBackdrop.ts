@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import {
   FLIGHT_ART_SCALE,
+  debrisStyle,
   debrisTextureKey,
   fallbackStarfield,
   flightCelestialBodies,
@@ -116,8 +117,7 @@ export class SpaceBackdrop {
         .image(bit.x, bit.y, debrisTextureKey, bit.frame)
         .setScale(FLIGHT_ART_SCALE)
         .setScrollFactor(bit.scrollFactor)
-        .setAlpha(bit.alpha)
-        .setTint(colorNumber(colors.duskBlue))
+        .setTint(colorNumber(debrisStyle.tints[bit.tint % debrisStyle.tints.length] ?? colors.plum))
         .setDepth(depth.parallax + 1);
 
       const drift = { t: 0 };

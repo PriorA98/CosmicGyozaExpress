@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { LANDING_ART_SCALE, landingScenery } from "../../data/landingScenery";
 import { colorNumber, colors, depth, motion } from "../../game/designTokens";
 import type { LandingPadDefinition } from "../../types/landing";
+import { guideLightRowStrength } from "./guideLight";
 import { drawSteppedGlow, snapToGrid } from "./pixelShapes";
 
 type Lantern = {
@@ -129,8 +130,9 @@ export class LandingPadSite {
   }
 
   /**
-   * Nested stepped wedges, each narrower and shorter, drawn in pad-local space (origin on the pad surface
-   * centre). Edges step in whole rows so the light reads as a pixel-art beam, not a smooth gradient.
+   * A soft pixel light standing on the pad: nested wedges (brighter core) built from whole stepped rows in
+   * pad-local space (origin on the pad surface centre). Each row's alpha ramps down in hard steps toward
+   * the top, so the beam dissolves into the sky instead of ending on a flat edge.
    */
   private createGuideLight(): Phaser.GameObjects.Graphics {
     const guide = landingScenery.guideLight;
@@ -142,14 +144,16 @@ export class LandingPadSite {
 
     for (let band = 0; band < guide.bands; band += 1) {
       const t = band / guide.bands;
-      const height = guide.height * (1 - t * 0.55);
-      const bottomHalf = baseHalf * (1 - t * 0.6);
-      const upperHalf = topHalf * (1 - t * 0.7);
-      beam.fillStyle(color, guide.bandAlpha);
+      const height = guide.height * (1 - t * guide.bandHeightFalloff);
+      const bottomHalf = baseHalf * (1 - t * guide.bandWidthFalloff);
+      const upperHalf = topHalf * (1 - t * guide.bandWidthFalloff);
       for (let y = 0; y < height; y += guide.stepPx) {
         const k = y / height;
+        const strength = guideLightRowStrength(k, guide.fadeStart, guide.fadeSteps);
+        if (strength <= 0) break;
         const half = snapToGrid(Phaser.Math.Linear(bottomHalf, upperHalf, k), art);
         const rowHeight = Math.min(guide.stepPx, height - y);
+        beam.fillStyle(color, guide.bandAlpha * strength);
         beam.fillRect(-half, -y - rowHeight, half * 2, rowHeight);
       }
     }
@@ -177,3 +181,4 @@ export class LandingPadSite {
     this.brackets.fillRect(right - t, y - arm + t, t, arm - t);
   }
 }
+

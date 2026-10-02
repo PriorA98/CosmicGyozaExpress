@@ -58,7 +58,52 @@ Critic issue addressed (assets critic, round 1, minor #5): the postcard tea hous
 postcard ship had a green dome, red dots and an elongated hull — both off-model. Also: item-steam should read on
 parchment as well as on dark.
 
-## memory-postcard v3 (current)
+## memory-postcard v4 (current, wave 3 round 3, 2026-10-02)
+
+Critic issue (assets #6, round 2): the v3 postcard pictured a different ship (flat saucer, heart-like white puff at
+the end of the trail) and a generic green moon without the teacup crater. v4 rebuilds the vignette from the SHIPPED
+sprites so the reward card shows exactly what the player just flew. No new Codex call: the Codex image_gen sky plate
+from v3 (`raw/postcard-v3.png`, codex-cli 0.159.3, prompt `scripts/prompt-postcard-v3.txt`) is reused for the dusk
+sky, stars, peach/plum clouds and the terracotta-teacup stamp.
+
+Command (deterministic, one step):
+```
+python art-src/items/scripts/compose_postcard_v4.py art-src/items/raw/postcard-v3.png art-src/items/work/w3/pc-v4d.png
+cp art-src/items/work/w3/pc-v4d.png public/assets/items/memory-postcard.png
+python tools/art/pixelize.py --preview public/assets/items/memory-postcard.png --scale 3   (-> previews/w3/)
+```
+Defaults baked into the script: `mx=-7, my=-2, md=3, sx=49, sy=10, deg=22, mode=1, rim=0, colors=48, rimk=6`.
+What it does:
+1. Plate: v3 paint-out of Codex's house + ship, `pixelize.py --size 90x58 --fit cover --opaque --key none --no-crop
+   --colors 48`, stamp corner re-sampled with an 8-colour median cut (unchanged from v3).
+2. Tea Moon: `public/assets/celestial/tea-moon.png` (192x192) integer 1/3 BOX downscale -> 64x64, hard alpha.
+   Teacup crater, crater ring shading and greens are the production sprite's own.
+   - Silhouette re-inked: boundary pixels on the shadow (lower-right) side set to dark sage #3B4A3A, as on the full sprite.
+   - Cottage: the box filter turned it into a brown blob, so it is cleared above the moon disc and replaced by a
+     hand-placed 12x9 pixel template (`COTTAGE` in the script): domed terracotta roof #E08A4B/#C97B5A/#A6614A with a
+     dark-terracotta #4A2E2C outline, cream walls, two lit amber windows, terracotta door, slate chimney, sage-grey
+     stone footing.
+   - Chimney steam: the sprite's steam breaks into specks at 1/3, so it is dropped and redrawn as three round cream
+     puffs rising up-right from the chimney.
+3. Hero ship: cell 2 (22.5 deg climb) of the shipped RotSprite sheet `public/assets/ship/rot/gyoza-fly-02-rot.png`
+   (112px cells), integer 1/2 BOX downscale, hard alpha, lone-pixel removal. Crimped crescent hull, blue glass dome,
+   cream pilot, legs and flame are all on-model, tilted exactly as the flight scene shows it.
+4. Exhaust: three simple round cream puffs (#F9F3E5 / #E3D2B6 shade, soft plum-grey #8E7F9E rim), radius 2/3/4,
+   trailing back along the ship axis from the flame tip. No heart shape, no ink.
+5. Same 3px parchment frame as v2/v3.
+
+Iteration notes (this round):
+- Resumed after an outage: candidates a-d from the interrupted attempt (`work/w3/cmp-abcd.png`: 0/34 deg, with/without
+  ink rim, rotsprite-small vs baked-cell) showed the right ship and moon but the moon lost its outline, the cottage
+  was a blob, and the 34 deg tilt looked like tipping. Baked-cell mode kept the ship outline better than re-rotating
+  the small sprite; the extra ink rim (d) was too heavy.
+- v4b: added the moon rim + cottage template at 22.5 deg -> cottage reads; chimney steam formed a vertical dotted
+  line (looked like a star). v4c: moon nudged down 2 px for headroom, steam offset up-right but detached from the
+  chimney. v4d (shipped): steam starts directly above the chimney and drifts up-right.
+- Checked in-game (`e2e/out/w3-r3-assets-items/result-soft@desktop.png`): the postcard's moon, cottage and ship match
+  the Tea Moon backdrop and hero ship on the same screen.
+
+## memory-postcard v3 (superseded by v4)
 
 Codex call (codex-cli 0.159.3, image_gen), prompt file kept verbatim at `art-src/items/scripts/prompt-postcard-v3.txt`.
 Summary: view_image `public/assets/lunar/lunar-teahouse.png` (canonical cottage), `public/assets/ship/gyoza-idle.png`
@@ -117,3 +162,7 @@ All five PNGs match the manifest exactly (tea 32x32, mochi 32x24, package 32x32,
 
 ## Unchanged this wave
 tea.png, mochi.png, package.png (round-1 files, see above).
+
+## Validation (2026-10-02, wave 3 round 3)
+memory-postcard.png 96x64 RGBA, 8.4 KB. `node e2e/capture.mjs --states=title,result-soft --label=w3-r3-assets-items`:
+0 failed captures, 0 runtime errors, failedAssets [] (probe.assetFailures empty in both JSONs).

@@ -109,30 +109,50 @@ export type ThrustTuning = {
   readonly spreadDegrees: number;
   /** Sideways jitter at the nozzle (px). */
   readonly nozzleJitter: number;
+  /** Random sideways drift (px/s, perpendicular to the exhaust) so puffs wander apart into clumps. */
+  readonly lateralSpeed: number;
+  /**
+   * Chance (0..1) that a scheduled puff is skipped. Small irregular gaps break the exhaust into
+   * separate cozy puffs instead of one continuous rope. The ignition puff is never skipped.
+   */
+  readonly gapChance: number;
   readonly drag: number;
   readonly color: readonly number[];
   readonly fade: SteppedFade;
-  /** Sheet frames played once across `animMs` (flame tongue -> warm puff -> oat wisp). */
-  readonly frames: readonly number[];
+  /**
+   * Puff variants (sheet frame lists), one picked at random per puff and played once across
+   * `animMs`: size variance comes from the authored frames, never from a fractional scale.
+   * Every variant ends on the cream puff: no rust streaks, split debris or soot wisps.
+   */
+  readonly variants: readonly (readonly number[])[];
   readonly animMs: number;
 };
 
 export const THRUST_TUNING: ThrustTuning = {
   defaultOffset: 40,
-  ratePerSecond: 40,
+  ratePerSecond: 44,
   minRateFactor: 0.45,
-  lifespanMs: { min: 380, max: 540 },
-  speed: { min: 70, max: 110 },
-  intensitySpeed: 60,
-  spreadDegrees: 8,
-  nozzleJitter: 2,
+  // About 40% shorter than round 2: a few ship-heights of puffs, not a rocket jet.
+  lifespanMs: { min: 230, max: 330 },
+  speed: { min: 60, max: 96 },
+  intensitySpeed: 48,
+  spreadDegrees: 10,
+  nozzleJitter: 3,
+  lateralSpeed: 26,
+  gapChance: 0.16,
   drag: 0.9,
-  // Warm wash only: keeps the authored ember/amber and lets the tail settle on cream, not dusk grey.
-  color: [0xffffff, 0xfff4e0, 0xfbe6d0, 0xf4e2cc],
-  // Opaque through the oat wisp frames, then gone: no muddy translucent tail.
+  // Warm wash only: keeps the authored gold core and lets the tail settle on cream, not dusk grey.
+  color: [0xffffff, 0xfff6e2, 0xfdf0dc],
+  // Opaque through the frames, then gone: no muddy translucent tail.
   fade: POP_OUT,
-  frames: [0, 1, 2, 3, 4, 5, 6],
-  animMs: 520,
+  // Frames: 0-2 gold-cored tongue (small to large), 3 ember ring puff, 4 rust dome, 5 oat puff
+  // (warm-recoloured cream), 6-7 split wisps. Rust and split frames read as rope and debris.
+  variants: [
+    [1, 3, 3, 3, 5],
+    [0, 3, 3, 5],
+    [2, 3, 5, 5],
+  ],
+  animMs: 230,
 };
 
 export type BurstTuning = {
@@ -311,16 +331,50 @@ export const PIXEL_FLAME_TUNING = {
   ignitePerSecond: 7,
   fadePerSecond: 5,
   glow: {
-    /** Art-pixel radius of the outer ring; displayed at the thrust sheet's artScale. */
-    radiusArt: 14,
-    /** Hard-edged rings from outside in: radius fraction and alpha. */
+    /** Art-pixel radius of the outer ring at the largest flicker frame; displayed at artScale. */
+    radiusArt: 9,
+    /**
+     * Glow sheet frames (radius multipliers): frame 0 is the small pilot light, frames 1-2 the
+     * full glow the flame flickers between. Hard rings at art resolution, no gradient.
+     */
+    frameScales: [0.6, 1, 0.86] as readonly number[],
+    /** Hard-edged rings from outside in: radius fraction and alpha (painted in plaster, tinted). */
     rings: [
-      { radius: 1, alpha: 0.16 },
-      { radius: 0.68, alpha: 0.26 },
-      { radius: 0.38, alpha: 0.4 },
+      { radius: 1, alpha: 0.3 },
+      { radius: 0.68, alpha: 0.55 },
+      { radius: 0.4, alpha: 0.85 },
     ] as readonly { readonly radius: number; readonly alpha: number }[],
+    /**
+     * Ember: high red, low blue, so the added light stays warm over navy. A wide, faint glow
+     * reads as a smoky grey halo; this one is small and bright, a hot core around the tongue.
+     */
     color: colors.ember,
     /** Glow centre sits this far (art px) below the nozzle, inside the tongue. */
-    offsetArt: 4,
+    offsetArt: 3,
+    /** Full glow alternates frames 1 and 2 this often (irregular hash, not a smooth pulse). */
+    flickerMs: 90,
+    /** The only two brightness levels (object alpha): no continuous fades or scale ramps. */
+    levels: { idle: 0.5, full: 1 },
   },
+} as const;
+
+/**
+ * Directional bursts (`BurstOptions.fan`): angle windows in degrees (0 = right, 90 = down).
+ * Sideways fans hug the ground so touchdown dust rolls out from the feet instead of blooming
+ * over the hull; `liftFactor` scales the burst's upward lift down to a gentle drift.
+ */
+export const BURST_FANS = {
+  left: { min: 168, max: 196 },
+  right: { min: -16, max: 12 },
+  liftFactor: 0.25,
+} as const;
+
+/** Comedic incident poof: flour blooms on a ring around the contact point, confetti rides above. */
+export const INCIDENT_TUNING = {
+  /** Flour spawn ring (px) unless the caller passes `spawnRadius`. */
+  flourSpawnRadius: 8,
+  /** Share of an explicit `count` that goes to flour (the rest is confetti). */
+  flourShare: 0.45,
+  flourSpreadFactor: 0.8,
+  defaultSpread: 110,
 } as const;

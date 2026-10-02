@@ -1,6 +1,6 @@
 # Space parallax layers: provenance
 
-Date: 2026-10-01. Producer: Claude (asset pipeline) with Codex (codex-cli 0.159.3, built-in image generation).
+Date: 2026-10-01 (nebula rebuilt 2026-10-02, round 3). Producer: Claude (asset pipeline) with Codex (codex-cli 0.159.3, built-in image generation).
 Production files are in `public/assets/space/`. Raw generations are in `raw/`, helper scripts in `scripts/`, and inspection previews in `previews/`.
 
 All commands run from the repo root. Python 3 + Pillow (dev tooling only).
@@ -20,7 +20,43 @@ All commands run from the repo root. Python 3 + Pillow (dev tooling only).
 - **Command:** `python art-src/space/scripts/starfield.py`
 - **Checks:** `previews/space-near-tile.png` (3x3 tiling over stars-far at 2x) and `previews/stars-near.preview.png`.
 
-## nebula.png (key `space-nebula`): 640x360 at TRUE art resolution, soft alpha (max 127), tiles horizontally (round 2, 2026-10-01)
+## nebula.png (key `space-nebula`): 640x360 stepped cumulus at true art resolution, flat alpha (max 127), tiles horizontally (round 3, 2026-10-02)
+
+- **Why rebuilt:** in round 2 the assets critic (8.3, minor #3) called the layer "soft, low-contrast mush". It had no authored cloud forms, every pixel was partial alpha, and it had fuzzy fringes and median-blur blobs. The flight-environment critic (8.1, minor #4) measured 80% uniform 2x2 blocks and saw chunky staircase cloud edges. The round-2 file is kept at `previews/nebula-r2-old.png`.
+- **Source:** Codex image_gen via codex-cli 0.159.3 (2026-10-02). Before generating, Codex viewed the style references with view_image (gyoza-idle.png, asteroid-probe.png, delivery-v2.png, memory-postcard.png; v5/v6 also viewed raw v3/v4). Raws are on flat black:
+  - `raw/nebula-v3.png` (1672x941): continuous stepped-cumulus banks. The shading was approved, but the plum-to-teal hue order does not wrap (see iteration notes). Used as the shading reference for v5/v6.
+  - `raw/nebula-v4.png`: the "fewer, bigger lobes" variant. Reference only.
+  - `raw/nebula-v5.png` and `raw/nebula-v6.png` (1672x941): six separate rounded clusters each (plum with amber rims, dusk-blue, teal). **These are the production sources.**
+  - The exact prompts, as Codex reported them, are kept verbatim in `raw/codex-v3.log` (v3, v4) and `raw/codex-v5.log` (v5, v6). In summary: two bands of puffy cauliflower cumulus lobes (top 28% and bottom 30%) with the middle 42% empty black, 3-4 FLAT value steps per lobe, dark bottom-right undersides, lit top-left faces and thin bright top-left rims. Amber #D4A055 rims go only on the plum lobes. The palette is plum #9B8FB8 / #6C6092 / #463C66, dusk-blue #9EB6C4 / #5E748E and teal #6FA39A / #2A5058. Step edges must be hard and crisp, with no gradients, blur, dithering, stars or text. v5/v6 also ask for six separate clusters with black side margins.
+- **Normalization (`scripts/nebula_compose.py` + `scripts/nebula_layout.py`, new):**
+  `python art-src/space/scripts/nebula_compose.py public/assets/space/nebula.png --rim 0 --back-alpha 76 --merge-mid-warm --edge-rim`
+  (defaults: `--raws raw/nebula-v5.png raw/nebula-v6.png --colors 4 --warm 2 --median 5 --soft 4.0 --mode 3 --alpha 127 --shadow-alpha 116`)
+  1. Median 5 on each raw. Each raw pixel then gets a hue family (plum / dusk / teal / warm). One shared palette is cut, with exactly **4 flat value steps per family plus 2 warm rim tones**. `--merge-mid-warm` folds the less saturated warm tone into plum, because it is only the raw's anti-aliasing between amber and plum. That leaves 12 cloud colours plus 1 amber.
+  2. Quantize at RAW resolution. Clusters are cut out as connected components on an eroded 1/4-res mask (12 clusters).
+  3. **Label-aware downscale:** each palette label's indicator is Gaussian-softened (4 raw px, which rounds off the raw's ~8 px stair grid) and box-resized to the placement scale (0.30-0.42). Each output pixel takes the label with the largest coverage. Every edge is therefore a hard 1 px step, no pixel is a blend of two colours, and there is no dark fringe at the silhouette.
+  4. **Composition** (`nebula_layout.py`): painter's order with x wrapped modulo 640, so the tile is seamless **by construction** (no seam cut at all). The top band has 4 front clusters (plum+amber, dusk, teal, plum+amber) over 2 dim back clusters. The bottom band has 4 front clusters (plum+amber, teal, dusk, plum+amber) over 2 back clusters. Clusters with a flat raw edge are always overlapped by a later neighbour. The back clusters are remapped to their family's two darkest steps at flat alpha 76, so each band reads as a continuous bank with depth. Bottom-band clusters run off the tile bottom, because the runtime stacks the layer with its vertical mirror.
+  5. `--edge-rim`: a 1 px lip in the family's lightest step on lit, top-left-facing silhouette edges of the front clusters (dusk/teal), next to the amber rims of the plum clusters. Mode-filter (3) speck cleanup is wrap-aware.
+  6. Alpha is flat per step: 127 for the body, 116 for the darkest step, 76 for the back bank. There is no soft alpha ramp anywhere.
+- **Metrics** (`python art-src/space/scripts/nebula_metrics.py public/assets/space/nebula.png`): 640x360 RGBA, 17.8 KB, 24 RGBA colours. Alpha levels are {0, 76, 116, 127}, so there are no fuzzy partial-alpha fringes. Colour edges are 49.8% on even x and 49.4% on even y (a 2x upscale would be 100%). The uniform-2x2 ratio is the same at both grid phases (0.871 / 0.873), so it comes from flat cel areas, not from upscaling. The wrap seam diff (col 639 vs col 0) is 4.3, against a mean adjacent-column diff of 4.9.
+- **Checks:**
+  - `previews/nebula-r3-tiles.png`: two tiles wrapped, plus the vertical mirror join, over stars-far at title alpha, 2x.
+  - `previews/nebula-r3-seam.png` shows the wrap region. `previews/nebula-r3-zoom4x.png` (4x), `previews/nebula.preview.png` and `e2e/out/contact-space.png` are the other previews.
+  - In-game: `node e2e/capture.mjs --states=title,flight-start,flight-cruise --label=w3-r3-assets-space` and `--states=result-soft --label=w3-r3-assets-space-result` both gave 0 runtime errors, `assetFailures: []` and 60 fps.
+  - In flight the cloud steps render as 2 screen px, matching the stars and asteroids (`e2e/out/w3-r3-assets-space/zoom-flight-nebula.png`).
+- **Iteration notes (round 3):**
+  - The interrupted earlier attempt was `scripts/nebula_puffs.py` (`work/puffs-a-view.png`): programmatic circles with offset-circle shading. Rejected because it read as strings of beads, not cumulus.
+  - `scripts/nebula_cumulus.py`, applied to the round-2 raw (`work/w3/c1-view.png`): hard steps from density plus a lighting term. Rejected because the forms were amorphous blotches, still not authored puffs.
+  - `scripts/nebula_v3.py` on `raw/nebula-v3.png` (`work/w3/v3a*`, `v3b*`): lovely continuous banks, but the plum-to-teal wrap needs a quilting cut. That cut shows as a straight diagonal hue edge through the clouds at x 0-120. Rejected.
+  - Compose on v5+v6:
+    - Attempt a: rim thinning made diagonal amber streaks, and a back cluster showed a flat raw edge.
+    - Attempt b: thinning off, back clusters swapped.
+    - **Attempt c (final):** the warm AA tone is merged and the lit edge lips are added.
+- **Known nits:**
+  - Over the dark sky the amber rims read as warm khaki, because the file caps alpha at 127.
+  - On the title (layer alpha 0.85) the clouds are more present than the round-2 haze was.
+  - Top-band tops touch row 0. The mirrored copy appears in flight only at the world's vertical extremes (at most ~16 art rows) and continues them as a reflected cloud mass.
+
+## nebula.png: round 2 (superseded 2026-10-02, kept for history): 640x360 at TRUE art resolution, soft alpha (max 127), tiles horizontally (2026-10-01)
 
 - **Why rebuilt:** the round-1 assets critic (score 7.6, issue 3, major) found the round-1 file was 100% uniform 2x2 blocks. That is 320x180 effective art drawn at artScale 2, so it rendered at 4 screen px per art px, and its chunky checker-dither fringes clashed with the 2 px stars, asteroids and moon. The round-1 file is kept for comparison at `previews/nebula-r1-old.png`.
 - **Source:** the same Codex image_gen raw as round 1, `raw/nebula-v1.png` (codex-cli 0.159.3; prompt quoted in the round-1 section below). Round 2 made no new Codex calls. The raw already had the approved composition (top and bottom bands, calm empty middle, amber top-left rims), so only the normalization changed.
@@ -65,4 +101,4 @@ All commands run from the repo root. Python 3 + Pillow (dev tooling only).
 - **Known nit:** the quilting cut leaves one short straight vertical edge in the top band near x≈80, where a teal puff meets a plum one. It is only visible when zoomed; at 50% alpha over the dark sky it reads as a cloud overlap.
 
 ## Manual edits
-None. All outputs are reproducible from the commands above. `scripts/nebula.py` is the round-1 (2x2 grid) normalizer, kept only for history. The production nebula comes from `scripts/nebula_true.py`.
+None. All outputs are reproducible from the commands above. `scripts/nebula.py` is the round-1 (2x2 grid) normalizer, kept only for history. Round 2 used `scripts/nebula_true.py`. The production nebula (round 3) comes from `scripts/nebula_compose.py` with `scripts/nebula_layout.py`. `nebula_v3.py`, `nebula_cumulus.py` and `nebula_puffs.py` are rejected round-3 experiments, kept as tools. `nebula_mirror_view.py` and `nebula_metrics.py` are inspection helpers.

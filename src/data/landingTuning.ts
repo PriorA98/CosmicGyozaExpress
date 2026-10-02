@@ -34,8 +34,8 @@ export const landingTuning = {
   descentGaugeMaxSpeed: 200,
   /** Time on the pad before the result card: long enough for the lanterns and the rabbit's wave to read. */
   settleDurationMs: 1650,
-  /** Comedic incident beat before the landing-only retry begins. */
-  incidentRestartMs: 1220,
+  /** Comedic incident beat before the landing-only retry begins (R / the touch chip retries at once). */
+  incidentRestartMs: 1100,
 } as const;
 
 export type LandingTuning = { readonly [K in keyof typeof landingTuning]: number };

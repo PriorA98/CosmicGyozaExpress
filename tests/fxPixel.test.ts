@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { colors } from "../src/game/designTokens";
 import { flashAlphaAt, irisHalfWidth, shakeOffset, snapToGrid, steppedFadeAlpha, warmRecolor, type WarmRampStop } from "../src/fx/fxMath";
-import { BURST_TUNING, FLASH_TUNING, PARTICLE_SHEETS, PIXEL_FLAME_TUNING, SHAKE_MAX_OFFSET_PX, SHAKE_TUNING, THRUST_TUNING, TRANSITION_TUNING } from "../src/fx/fxPresets";
+import { BURST_FANS, BURST_TUNING, FLASH_TUNING, PARTICLE_SHEETS, PIXEL_FLAME_TUNING, SHAKE_MAX_OFFSET_PX, SHAKE_TUNING, THRUST_TUNING, TRANSITION_TUNING } from "../src/fx/fxPresets";
 
 function rgbOf(hex: string): readonly [number, number, number] {
   const value = Number.parseInt(hex.slice(1), 16);
@@ -98,7 +98,36 @@ describe("pixel particle contract", () => {
     for (const frame of PIXEL_FLAME_TUNING.frames) expect(frame).toBeLessThan(3);
     const thresholds = [...PIXEL_FLAME_TUNING.powerThresholds];
     expect(thresholds).toEqual([...thresholds].sort((a, b) => a - b));
-    expect(THRUST_TUNING.frames.every((frame) => frame < PARTICLE_SHEETS.thrust.frameCount)).toBe(true);
+  });
+
+  it("ends every thrust puff variant on the cream puff, never on rust or split debris frames", () => {
+    expect(THRUST_TUNING.variants.length).toBeGreaterThanOrEqual(2);
+    for (const frames of THRUST_TUNING.variants) {
+      expect(frames.every((frame) => frame >= 0 && frame < PARTICLE_SHEETS.thrust.frameCount)).toBe(true);
+      expect(frames[frames.length - 1]).toBe(5);
+      // Rust dome (4) and split wisps (6, 7) read as rope and debris over navy space.
+      for (const banned of [4, 6, 7]) expect(frames).not.toContain(banned);
+    }
+    // The anim finishes before the shortest puff pops, so every puff reaches the cream frame.
+    expect(THRUST_TUNING.animMs).toBeLessThanOrEqual(THRUST_TUNING.lifespanMs.min);
+    expect(THRUST_TUNING.gapChance).toBeGreaterThan(0);
+    expect(THRUST_TUNING.gapChance).toBeLessThan(0.5);
+  });
+
+  it("keeps the nozzle glow to hard frames and exactly two brightness levels", () => {
+    const glow = PIXEL_FLAME_TUNING.glow;
+    expect(glow.frameScales.length).toBe(3);
+    for (const scale of glow.frameScales) expect(scale).toBeLessThanOrEqual(1);
+    expect(glow.levels.idle).toBeLessThan(glow.levels.full);
+    expect(glow.levels.full).toBeLessThanOrEqual(1);
+  });
+
+  it("aims side fans outward along the ground", () => {
+    expect(BURST_FANS.left.min).toBeGreaterThan(90);
+    expect(BURST_FANS.left.max).toBeLessThan(270);
+    expect(BURST_FANS.right.min).toBeGreaterThan(-90);
+    expect(BURST_FANS.right.max).toBeLessThan(90);
+    expect(BURST_FANS.liftFactor).toBeLessThan(1);
   });
 });
 

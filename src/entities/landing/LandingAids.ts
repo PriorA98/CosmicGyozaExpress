@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { ASSET } from "../../data/assetManifest";
 import { landingTuning } from "../../data/landingTuning";
 import { LANDING_ART_SCALE, landingScenery, landingZoneColors } from "../../data/landingScenery";
 import { burstDust } from "../../fx/feedback";
@@ -44,7 +45,9 @@ const SHADOW_STEP_PX = CELL * 2;
  * In-world landing aids, all coloured by the live touchdown zone (sage soft / amber bumpy / brick too fast)
  * and all drawn as pixel cells on the art grid: a ground shadow with a touchdown ring (altitude), a dotted
  * drop line, a descent gauge riding beside the ship, a pixel arrow back to the pad when off it, warm stepped
- * flame light on the ground when thrusting low, and orbiting gyro dots while the stabilizer is held.
+ * flame light on the ground when thrusting low, and (while the stabilizer is held) sage gyro stars orbiting the
+ * dumpling plus a pair of level brackets hugging it. Gyro stars are opaque fx-star sprites at the integer art
+ * scale; the ring wraps around the ship through depth (behind / in front), never through partial alpha.
  */
 export class LandingAids {
   private readonly scene: Phaser.Scene;
@@ -56,7 +59,8 @@ export class LandingAids {
   private readonly dropLine: Phaser.GameObjects.Graphics;
   private readonly wash: Phaser.GameObjects.Graphics;
   private readonly arrow: Phaser.GameObjects.Graphics;
-  private readonly gyro: Phaser.GameObjects.Graphics;
+  private readonly gyroStars: Phaser.GameObjects.Sprite[] = [];
+  private readonly levelBrackets: Phaser.GameObjects.Graphics;
   private readonly instrument: Phaser.GameObjects.Container;
   private readonly needle: Phaser.GameObjects.Graphics;
   private readonly speedText: Phaser.GameObjects.Text;
@@ -71,7 +75,8 @@ export class LandingAids {
   private ringKey = "";
   private washKey = "";
   private gaugeValue = 0;
-  private gyroAlpha = 0;
+  /** Stabilizer presence 0..1 (ramps while S is held); decides how many stars are out, never their alpha. */
+  private gyroAmount = 0;
   private gyroPhase = 0;
   private lastDustMs = 0;
   private visible = true;
@@ -86,7 +91,17 @@ export class LandingAids {
     this.dropLine = scene.add.graphics().setDepth(depth.world + 5);
     this.wash = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD).setAlpha(0).setDepth(depth.world + 6);
     this.arrow = this.createArrow();
-    this.gyro = scene.add.graphics().setDepth(depth.shipFx + 1);
+    const gyro = landingScenery.gyro;
+    for (let i = 0; i < gyro.dotCount; i += 1) {
+      this.gyroStars.push(
+        scene.add
+          .sprite(0, 0, ASSET.fxStar, 0)
+          .setScale(CELL)
+          .setTint(colorNumber(i % 2 === 0 ? gyro.dotColor : gyro.dotAltColor))
+          .setVisible(false),
+      );
+    }
+    this.levelBrackets = this.createLevelBrackets();
 
     const parts = this.createInstrument();
     this.instrument = parts.container;
@@ -114,20 +129,20 @@ export class LandingAids {
   /** Hides every aid instantly (touchdown, incident); the ground shadow keeps following via `updateShadowOnly`. */
   hide(): void {
     this.visible = false;
-    for (const object of [this.ring, this.dropLine, this.wash, this.arrow, this.gyro, this.instrument]) {
+    for (const object of [this.ring, this.dropLine, this.wash, this.arrow, this.levelBrackets, this.instrument, ...this.gyroStars]) {
       this.scene.tweens.killTweensOf(object);
       object.setVisible(false);
     }
-    this.gyroAlpha = 0;
+    this.gyroAmount = 0;
   }
 
   /** Brings the aids back for a retry. */
   show(): void {
     this.visible = true;
-    for (const object of [this.ring, this.dropLine, this.gyro, this.instrument]) object.setVisible(true);
+    for (const object of [this.ring, this.dropLine, this.instrument]) object.setVisible(true);
     this.wash.setVisible(true).setAlpha(0);
     this.instrument.setAlpha(landingScenery.instrument.alpha);
-    this.gyroAlpha = 0;
+    this.gyroAmount = 0;
     this.zoneKey = "";
     this.shownSpeed = "";
     this.ringKey = "";
@@ -222,37 +237,61 @@ export class LandingAids {
     const config = landingScenery.gyro;
     const target = frame.stabilizing ? 1 : 0;
     const step = config.fadePerSecond * frame.deltaSeconds;
-    this.gyroAlpha = target > this.gyroAlpha ? Math.min(target, this.gyroAlpha + step) : Math.max(target, this.gyroAlpha - step);
+    this.gyroAmount = target > this.gyroAmount ? Math.min(target, this.gyroAmount + step) : Math.max(target, this.gyroAmount - step);
     this.gyroPhase += config.spinRadPerSecond * frame.deltaSeconds;
 
-    this.gyro.clear();
-    if (this.gyroAlpha <= 0.01) return;
-
-    const color = colorNumber(config.dotColor);
+    // Ramp in / out by how many stars are out (opaque pixels pop, they never fade).
+    const shown = Math.round(this.gyroAmount * config.dotCount);
     const cos = Math.cos(frame.rotation);
     const sin = Math.sin(frame.rotation);
-    const cx = frame.shipX;
-    const cy = frame.shipY;
-    const dot = config.dotPx;
-    for (let i = 0; i < config.dotCount; i += 1) {
+    const twinkleSlot = Math.floor(frame.timeMs / config.twinkleStepMs);
+    for (let i = 0; i < this.gyroStars.length; i += 1) {
+      const star = this.gyroStars[i];
+      if (!star) continue;
+      if (i >= shown) {
+        star.setVisible(false);
+        continue;
+      }
       const t = this.gyroPhase + (i / config.dotCount) * Math.PI * 2;
-      // Dots on the far side of the ring (upper half) are dimmer so it wraps around the dumpling.
+      // The lower half of the tilted ring passes in front of the dumpling, the upper half behind it.
       const front = Math.sin(t) > 0;
       const lx = Math.cos(t) * config.radiusX;
       const ly = Math.sin(t) * config.radiusY + config.offsetY;
-      const px = snapToGrid(cx + lx * cos - ly * sin, CELL);
-      const py = snapToGrid(cy + lx * sin + ly * cos, CELL);
-      this.gyro.fillStyle(color, config.alpha * this.gyroAlpha * (front ? 1 : config.backAlpha));
-      this.gyro.fillRect(px - dot / 2, py - dot / 2, dot, dot);
+      const frameIndex = config.twinkleFrames[(twinkleSlot + i) % config.twinkleFrames.length] ?? 0;
+      star
+        .setVisible(true)
+        .setFrame(front ? frameIndex : config.backFrame)
+        .setPosition(snapToGrid(frame.shipX + lx * cos - ly * sin, CELL), snapToGrid(frame.shipY + lx * sin + ly * cos, CELL));
+      const starDepth = front ? depth.shipFx + 1 : depth.ship - 1;
+      if (star.depth !== starDepth) star.setDepth(starDepth);
     }
 
-    // True-level reference ticks either side: show how far the ship is from upright.
-    const levelY = snapToGrid(cy + config.offsetY, CELL);
-    const inner = config.radiusX + 8;
-    const length = config.levelLineHalfWidth;
-    this.gyro.fillStyle(colorNumber(config.levelColor), config.alpha * this.gyroAlpha);
-    this.gyro.fillRect(snapToGrid(cx - inner - length, CELL), levelY - CELL / 2, length, CELL);
-    this.gyro.fillRect(snapToGrid(cx + inner, CELL), levelY - CELL / 2, length, CELL);
+    // Level brackets stay screen-level beside the hull: the tilt reads against them.
+    const bracketsOut = this.gyroAmount >= config.bracketShowAmount;
+    this.levelBrackets.setVisible(bracketsOut);
+    if (bracketsOut) this.levelBrackets.setPosition(snapToGrid(frame.shipX, CELL), snapToGrid(frame.shipY + config.offsetY, CELL));
+  }
+
+  /** Square pixel brackets (1 art px weight) either side of the hull, drawn once around a local origin. */
+  private createLevelBrackets(): Phaser.GameObjects.Graphics {
+    const config = landingScenery.gyro;
+    const g = this.scene.add.graphics().setDepth(depth.shipFx + 1).setVisible(false);
+    const inner = config.bracketInnerPx;
+    const half = config.bracketHalfHeightPx;
+    const arm = config.bracketArmPx;
+    const draw = (color: number, offset: number): void => {
+      g.fillStyle(color, 1);
+      for (const side of [-1, 1] as const) {
+        const barX = side < 0 ? -inner - CELL + offset : inner + offset;
+        g.fillRect(barX, -half + offset, CELL, half * 2);
+        const armX = side < 0 ? barX + CELL : barX - arm;
+        g.fillRect(armX, -half + offset, arm, CELL);
+        g.fillRect(armX, half - CELL + offset, arm, CELL);
+      }
+    };
+    draw(colorNumber(colors.cosmosDeep), CELL);
+    draw(colorNumber(config.levelColor), 0);
+    return g;
   }
 
   private updateInstrument(frame: LandingAidsFrame): void {

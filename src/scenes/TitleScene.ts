@@ -14,13 +14,14 @@ import type { FlightSceneData } from "../types/flight";
 import { Button } from "../ui/Button";
 import { addUiIcon } from "../ui/icons";
 import { Keycap } from "../ui/Keycap";
-import { dotsAlongQuadratic, quadraticPoint, uiIconScale, uiScaled, uiTextSize, type Point } from "../ui/layout";
+import { dotsAlongQuadratic, quadraticPoint, uiScaled, uiSecondaryTextSize, uiTextSize, type Point } from "../ui/layout";
 import { ParchmentCard } from "../ui/ParchmentCard";
 import { RouteLogPanel, type RouteLogStat } from "../ui/RouteLogPanel";
 import { SettingsPanel } from "../ui/SettingsPanel";
 import { installSoundToast } from "../ui/SoundToast";
+import { CollectedStamp, SaveNoticeChip } from "../ui/NoticeChips";
 import { StatePill } from "../ui/StatePill";
-import { drawRecessedSurface, fillSteppedRect, STEPPED_CORNER, UI_ART_SCALE } from "../ui/surfaces";
+import { drawRecessedSurface, UI_ART_SCALE } from "../ui/surfaces";
 import { bodyStyle, bodyStrongStyle, displayTitleStyle, headingStyle, monoStyle } from "../ui/textStyles";
 import { detectTouchDevice } from "../ui/TouchControls";
 import { hasAuthoredTexture } from "../ui/uiTextures";
@@ -93,28 +94,34 @@ const COMPACT_LAYOUT: TitleLayout = {
   creditsY: 686,
 };
 
-/** Hero ship: SHIP_ART at its integer art scale, no rotation, gentle bob. */
+/**
+ * Hero ship: the 64x80 SHIP_ART at an integer 3x (about 150 px of visible saucer, the design-system
+ * 140-180 px title band). No rotation, gentle bob only.
+ */
 const SHIP = {
+  scale: 3,
   bobPx: 8,
   /** Visible art rows below the saucer centre where the baked flame ends (art px). */
   flameTipArtY: 61,
   /** Visible art box around the saucer centre, for keeping route dots off the ship (screen px). */
-  clearHalfWidth: 64,
-  clearAbove: 56,
-  clearBelow: 70,
+  clearHalfWidth: 88,
+  clearAbove: 78,
+  clearBelow: 104,
 } as const;
 
 /** Route dots: travelled part faint plaster, the part still ahead warm amber. */
 const ROUTE = { spacing: 18, dot: 4, behindAlpha: 0.5, aheadAlpha: 0.85, endInset: 2 } as const;
 
-/** Faint stepped warm glow behind the hero ship so it reads as lit and anchored on its route. */
-const SHIP_GLOW = { rings: 3, innerRadius: 52, step: 14, alpha: 0.045, band: 4 } as const;
+/**
+ * Warm additive glow (ADD blend: it only ever brightens, so nebula clouds stay visible beneath).
+ * A thin cream rim just outside the moon disc (moon art radius is ~152 screen px). The hero ship
+ * has no halo: low-alpha warm light over navy averages to grey, so its own flame carries the light.
+ */
+type WarmGlow = { readonly rings: number; readonly innerRadius: number; readonly step: number; readonly alpha: number; readonly band: number };
+const MOON_GLOW: WarmGlow = { rings: 3, innerRadius: 160, step: 12, alpha: 0.035, band: 4 };
 
 /** Warm steam puffs that leave the burner while the ship sinks through the low half of its bob. */
-const PUFFS = { pool: 6, intervalMs: 340, lifeMs: 1100, travelPx: 46, bigPx: 6, smallPx: 4, sinkThreshold: 0.2, startAlpha: 0.8 } as const;
-
-/** Stepped pixel moonlight behind the tea moon (screen px; moon art is 192 art px at 2x). */
-const MOON_GLOW = { rings: 5, innerRadius: 176, step: 16, alpha: 0.05, band: 4 } as const;
+const PUFFS = { pool: 6, intervalMs: 340, lifeMs: 1100, travelPx: 54, bigPx: 6, smallPx: 3, sinkThreshold: 0.2, startAlpha: 0.8 } as const;
 
 /** Left text-column vignette: solid core then `bands` stepped fades. */
 const VIGNETTE = { coreWidth: 400, alpha: 0.3, bands: 8, bandWidth: 24 } as const;
@@ -123,8 +130,15 @@ const VIGNETTE = { coreWidth: 400, alpha: 0.3, bands: 8, bandWidth: 24 } as cons
 const DRIFT = { far: 3, nebula: 1.2, near: 7 } as const;
 
 const PORTRAIT_FRAME = 136;
-const ITEM_TRAY_HEIGHT = 64;
+/** Item tray: 64 px art (32 art px at 2x) inset `ITEM_INSET` inside a slightly taller recessed chip. */
+const ITEM_TRAY_HEIGHT = 72;
+const ITEM_ART = 64;
+const ITEM_INSET = 4;
+const ITEM_LABEL_GAP = 8;
+
 const RESIZE_DEBOUNCE_MS = 160;
+/** Widest the save notice chip may grow (logical px); one line on both layouts. */
+const SAVE_NOTICE_MAX_WIDTH = 640;
 
 type Layer = Phaser.GameObjects.TileSprite;
 type SaveNoticeKind = keyof typeof titleCopy.saveNotice;
@@ -256,7 +270,7 @@ export class TitleScene extends Phaser.Scene {
     this.puffClockMs += clamped;
     if (!reduced && Math.sin(phase) > PUFFS.sinkThreshold && this.puffClockMs >= PUFFS.intervalMs) {
       this.puffClockMs = 0;
-      this.spawnPuff(ship.x, ship.y + (SHIP.flameTipArtY - SHIP_ART.saucerCenterY) * SHIP_ART.artScale);
+      this.spawnPuff(ship.x, ship.y + (SHIP.flameTipArtY - SHIP_ART.saucerCenterY) * SHIP.scale);
     }
   }
 
@@ -322,18 +336,27 @@ export class TitleScene extends Phaser.Scene {
       this.add.image(farPlanet.x, farPlanet.y, ASSET.planetFarPlum).setScale(UI_ART_SCALE).setDepth(depth.parallax).setAlpha(0.92);
     }
 
-    // Moonlight: stacked translucent stepped discs (whole 4px bands, no smooth curves).
-    const halo = this.add.graphics().setDepth(depth.parallax);
-    for (let ring = 0; ring < MOON_GLOW.rings; ring += 1) {
-      halo.fillStyle(colorNumber(ring < 2 ? colors.amber : colors.parchmentDeep), MOON_GLOW.alpha);
-      fillPixelDisc(halo, moon.x, moon.y, MOON_GLOW.innerRadius + ring * MOON_GLOW.step, MOON_GLOW.band);
-    }
+    // Moonlight: a thin additive cream rim (never darkens the nebula behind it).
+    const halo = this.addWarmGlow(moon.x, moon.y, MOON_GLOW, [colors.parchmentDeep, colors.amber, colors.amber], depth.parallax);
     if (!isReducedMotion()) {
       this.tweens.add({ targets: halo, alpha: { from: 0.7, to: 1 }, duration: motion.breath * 1.5, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
     }
     this.add.image(moon.x, moon.y, ASSET.celestialTeaMoon).setScale(UI_ART_SCALE).setDepth(depth.world);
 
     this.addTwinkles();
+  }
+
+  /**
+   * Stacked stepped discs on an additive blend: each ring only adds a little warm light, so the
+   * glow brightens what is beneath instead of greying it. `tints[i]` colours ring i (inner first).
+   */
+  private addWarmGlow(x: number, y: number, glow: WarmGlow, tints: readonly string[], layer: number): Phaser.GameObjects.Graphics {
+    const g = this.add.graphics().setDepth(layer).setBlendMode(Phaser.BlendModes.ADD);
+    for (let ring = 0; ring < glow.rings; ring += 1) {
+      g.fillStyle(colorNumber(tints[ring] ?? colors.amber), glow.alpha);
+      fillPixelDisc(g, x, y, glow.innerRadius + ring * glow.step, glow.band);
+    }
+    return g;
   }
 
   /** Little plus-shaped pixel sparkles that twinkle out of phase. */
@@ -422,16 +445,11 @@ export class TitleScene extends Phaser.Scene {
         repeat: -1,
       });
     }
-    const glow = this.add.graphics().setDepth(depth.ship - 2);
-    for (let ring = 0; ring < SHIP_GLOW.rings; ring += 1) {
-      glow.fillStyle(colorNumber(ring === 0 ? colors.amber : colors.parchmentDeep), SHIP_GLOW.alpha);
-      fillPixelDisc(glow, this.shipBase.x, this.shipBase.y + SHIP_GLOW.band * 2, SHIP_GLOW.innerRadius + ring * SHIP_GLOW.step, SHIP_GLOW.band);
-    }
 
     this.ship = this.add
       .sprite(this.shipBase.x, this.shipBase.y, ASSET.shipFly1)
       .setOrigin(SHIP_ART.saucerCenterX / SHIP_ART.width, SHIP_ART.saucerCenterY / SHIP_ART.height)
-      .setScale(SHIP_ART.artScale)
+      .setScale(SHIP.scale)
       .setDepth(depth.ship);
     if ((this.anims.get(cruiseKey)?.frames.length ?? 0) > 0) this.ship.play(cruiseKey);
 
@@ -504,7 +522,8 @@ export class TitleScene extends Phaser.Scene {
     cta.setName("start").setDepth(depth.hud);
     this.focusables.push(cta);
 
-    // Secondary row: ink settings, cream route log once a postcard exists.
+    // Secondary row: settings, plus the route log once a postcard exists. Both share the raised ink
+    // style so they read as one tier under the ember CTA.
     const rowY = ctaY + uiScaled(ctaHeight, s) + uiScaled(this.layout.rowGap, s);
     const secondaryHeight = uiScaled(this.layout.secondaryHeight, s);
     const ctaWidthPx = cta.buttonWidth;
@@ -532,7 +551,7 @@ export class TitleScene extends Phaser.Scene {
         label: titleCopy.routeLogButton,
         width: settings.buttonWidth,
         height: secondaryHeight,
-        variant: "secondary",
+        variant: "ink",
         icon: "memory",
         uiScale: s,
         onActivate: () => this.openRouteLog(),
@@ -559,32 +578,20 @@ export class TitleScene extends Phaser.Scene {
       nextY += keyHeight + uiScaled(18, s);
     }
 
-    if (this.saveNotice) this.createSaveNotice(x, nextY, titleCopy.saveNotice[this.saveNotice]);
+    if (this.saveNotice) {
+      const copy = this.compact ? titleCopy.saveNoticeCompact : titleCopy.saveNotice;
+      this.createSaveNotice(x, nextY, copy[this.saveNotice]);
+    }
   }
 
-  /** Gentle one-line save note: dark chip, sage dot, mono text (never an alarm). */
+  /** Gentle one-line save note (kit SaveNoticeChip: dark chip, sage dot, mono text). */
   private createSaveNotice(x: number, y: number, text: string): void {
-    const s = this.uiScale;
-    const padX = uiScaled(12, s);
-    const dot = Math.round(uiScaled(8, s) / 2) * 2;
-    const maxWidth = (this.compact ? 560 : 620) - padX * 2 - dot - padX;
-    const label = this.add
-      .text(0, 0, text, monoStyle({ size: uiTextSize(typeScale.sm, s), color: colors.parchmentDeep, wrapWidth: maxWidth }))
-      .setOrigin(0, 0);
-    const width = Math.ceil(label.width) + padX * 3 + dot;
-    const height = Math.ceil(label.height) + uiScaled(14, s);
-    const g = this.add.graphics();
-    g.fillStyle(colorNumber(colors.plaster), 0.2);
-    fillSteppedRect(g, 0, 0, width, height, STEPPED_CORNER.soft);
-    g.fillStyle(colorNumber(colors.cosmosPanel), 0.92);
-    fillSteppedRect(g, 2, 2, width - 4, height - 4, STEPPED_CORNER.notch);
-    g.fillStyle(colorNumber(colors.sage), 1);
-    fillSteppedRect(g, padX, Math.round(height / 2 - dot / 2), dot, dot, STEPPED_CORNER.notch);
-    label.setPosition(padX * 2 + dot, Math.round((height - label.height) / 2));
-    this.add.container(x, y, [g, label]).setName("save-notice").setDepth(depth.hud);
+    new SaveNoticeChip(this, { x, y, text, maxWidth: SAVE_NOTICE_MAX_WIDTH, uiScale: this.uiScale }).setName("save-notice").setDepth(depth.hud);
   }
 
   private createFooter(): void {
+    // The credit is a desktop nicety; on phones it would render below a comfortable reading size.
+    if (this.compact) return;
     this.add
       .text(this.layout.marginX, this.layout.creditsY, titleCopy.credits, monoStyle({ size: uiTextSize(typeScale.sm, this.uiScale), color: colors.parchmentDeep }))
       .setOrigin(0, 1)
@@ -605,15 +612,17 @@ export class TitleScene extends Phaser.Scene {
 
     const pillState = this.teaMoonDelivered ? "idle" : "docking";
     const pillLabel = this.teaMoonDelivered ? titleCopy.deliveredPill : titleCopy.awaitingPill;
-    if (this.layout.cardMeta) {
+    if (this.teaMoonDelivered) {
+      // Completion lives inside the card: a perforated "collected" stamp replaces the header meta.
+      this.addCollectedStamp(card, this.layout.cardMeta ? titleCopy.collectedStamp : titleCopy.collectedStampCompact);
+    } else if (this.layout.cardMeta) {
       card.addContent(
         this.add
           .text(spec.width - pad, Math.round(card.headerHeight / 2) + 2, teaMoonMission.title.toLowerCase(), monoStyle({ size: typeScale.sm, color: colors.sageDeep, bold: true }))
           .setOrigin(1, 0.5),
       );
-    } else if (!this.teaMoonDelivered) {
-      // Compact: the state pill moves into the header so the portrait column stays clear (once
-      // delivered, the sticker above the header already says so).
+    } else {
+      // Compact: the state pill moves into the header so the portrait column stays clear.
       const pill = new StatePill(this, { x: 0, y: 0, state: pillState, label: pillLabel, uiScale: s });
       pill.setPosition(spec.width - pad - pill.pillWidth, Math.round(card.headerHeight / 2 + 2 - pill.pillHeight / 2));
       card.addContent(pill);
@@ -639,8 +648,6 @@ export class TitleScene extends Phaser.Scene {
 
     const itemsY = spec.height - pad - ITEM_TRAY_HEIGHT;
     card.addContent(...this.createItems(columnX, itemsY, columnWidth));
-
-    if (this.teaMoonDelivered) this.addDeliveredStamp(card);
   }
 
   private createPortrait(x: number, y: number): Phaser.GameObjects.GameObject[] {
@@ -676,46 +683,31 @@ export class TitleScene extends Phaser.Scene {
     drawRecessedSurface(tray, x, y, width, ITEM_TRAY_HEIGHT);
     objects.push(tray);
 
-    const slot = ITEM_TRAY_HEIGHT;
+    // Art sits ITEM_INSET inside the tray on every side, side by side with a 2 px breath.
+    const cy = y + ITEM_TRAY_HEIGHT / 2;
     const itemArt: readonly { key: string; icon: "tea" | "package" }[] = [
       { key: ASSET.itemTea, icon: "tea" },
       { key: ASSET.itemMochi, icon: "package" },
     ];
     itemArt.forEach((item, index) => {
-      const cx = x + slot / 2 + index * (slot - 4);
-      const cy = y + slot / 2;
+      const cx = x + ITEM_INSET + ITEM_ART / 2 + index * (ITEM_ART + 2);
       objects.push(hasAuthoredTexture(this, item.key) ? this.add.image(cx, cy, item.key).setScale(UI_ART_SCALE) : addUiIcon(this, cx, cy, item.icon));
     });
 
-    const labelX = x + slot * 2 + 4;
+    const labelX = x + ITEM_INSET + ITEM_ART * 2 + 2 + ITEM_LABEL_GAP;
+    const label = this.compact ? titleCopy.itemsCompact : teaMoonMission.deliveryItemName;
     objects.push(
       this.add
-        .text(labelX, y + slot / 2, teaMoonMission.deliveryItemName, monoStyle({ size: uiTextSize(typeScale.sm, s), bold: true, color: colors.inkSoft, wrapWidth: width - (labelX - x) - 10 }))
+        .text(labelX, cy, label, monoStyle({ size: uiSecondaryTextSize(typeScale.sm, s), bold: true, color: colors.inkSoft, wrapWidth: width - (labelX - x) - ITEM_LABEL_GAP }))
         .setOrigin(0, 0.5),
     );
     return objects;
   }
 
-  /** Sage sticker over the card's top edge: "delivered · postcard collected". */
-  private addDeliveredStamp(card: ParchmentCard): void {
-    const s = this.uiScale;
-    const stamp = this.add.container(card.cardWidth - uiScaled(14, s), -uiScaled(16, s));
-    const text = this.add.text(0, 0, titleCopy.deliveredBadge, monoStyle({ size: uiTextSize(typeScale.sm, s), bold: true, color: colors.ink })).setOrigin(1, 0.5);
-    const iconScale = uiIconScale(s);
-    const icon = addUiIcon(this, 0, 0, "memory", { scale: iconScale });
-    const padX = uiScaled(12, s);
-    const iconSize = 16 * iconScale;
-    const widthPx = Math.ceil(text.width + padX * 3 + iconSize);
-    const height = Math.max(uiScaled(34, s), iconSize + 8);
-    const g = this.add.graphics();
-    g.fillStyle(colorNumber(colors.ink), 1);
-    fillSteppedRect(g, -widthPx + 3, -height / 2 + 3, widthPx, height, STEPPED_CORNER.notch);
-    fillSteppedRect(g, -widthPx, -height / 2, widthPx, height, STEPPED_CORNER.notch);
-    g.fillStyle(colorNumber("#C2CFAE"), 1);
-    g.fillRect(-widthPx + 2, -height / 2 + 2, widthPx - 4, height - 4);
-    text.setPosition(-padX, 0);
-    icon.setPosition(-widthPx + padX + iconSize / 2, 0);
-    stamp.add([g, icon, text]);
+  /** Kit CollectedStamp right-aligned in the card header, flush with the inner padding. */
+  private addCollectedStamp(card: ParchmentCard, label: string): void {
+    const stamp = new CollectedStamp(this, { x: 0, y: 0, label, uiScale: this.uiScale });
+    stamp.setPosition(card.cardWidth - card.padding - stamp.stampWidth, Math.round(card.headerHeight / 2 + 2 - stamp.stampHeight / 2)).setName("collected-stamp");
     card.addContent(stamp);
   }
 

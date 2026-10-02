@@ -40,16 +40,25 @@ export class LunarScenery {
       .setDepth(depth.world - 1);
     this.createHighStars(scene, width, rise);
 
-    // The painted sky wraps horizontally into the overscan; it is a vertical gradient so the seam is invisible.
+    // The painted sky sits at the canvas origin and never wraps (its right edge carries a planet). The shake
+    // overscan either side repeats the sky's own edge column, so a shaken frame shows more of the same sky.
     const skyFrame = scene.textures.getFrame(sky.key);
     const skyArtWidth = skyFrame?.width ?? width / art;
     const skyArtHeight = skyFrame?.height ?? height / art;
     const overArt = Math.ceil(over / art);
+    scene.add.image(0, 0, sky.key).setOrigin(0, 0).setScale(art).setDepth(depth.backdrop);
+    const edgeStretch = overArt * art;
     scene.add
-      .tileSprite(-overArt * art, 0, skyArtWidth + overArt * 2, skyArtHeight, sky.key)
+      .image(-edgeStretch, 0, sky.key)
       .setOrigin(0, 0)
-      .setScale(art)
-      .setTilePosition(-overArt, 0)
+      .setCrop(0, 0, 1, skyArtHeight)
+      .setScale(edgeStretch, art)
+      .setDepth(depth.backdrop);
+    scene.add
+      .image(skyArtWidth * art - (skyArtWidth - 1) * edgeStretch, 0, sky.key)
+      .setOrigin(0, 0)
+      .setCrop(skyArtWidth - 1, 0, 1, skyArtHeight)
+      .setScale(edgeStretch, art)
       .setDepth(depth.backdrop);
 
     this.createTwinkles(scene, width);

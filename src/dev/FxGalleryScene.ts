@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { ASSET, SHIP_ART } from "../data/assetManifest";
+import { rotationCellIndex } from "../entities/GyozaShip";
 import { colorNumber, colors, depth, fontStacks, typeScale } from "../game/designTokens";
 import { emitGameEvent, onGameEvent, type GameEvent } from "../game/events";
 import {
@@ -7,6 +8,7 @@ import {
   burstIncident,
   burstSparkles,
   burstStars,
+  createNozzleGlow,
   createPixelFlame,
   createSteam,
   createThrustTrail,
@@ -17,6 +19,7 @@ import {
   settleBursts,
   shakeCamera,
   squash,
+  type NozzleGlow,
   type PixelFlame,
   type ThrustTrail,
 } from "../fx/feedback";
@@ -48,11 +51,16 @@ const CELLS: readonly { readonly col: number; readonly row: number; readonly spa
   { col: 3, row: 1, span: 1, label: "steam" },
 ];
 const CELL = { cruise: 0, hover: 1, dust: 2, sparkle: 3, incident: 4, stars: 5, steam: 6 } as const;
-/** Ship contract: integer artScale, origin on the saucer centre. */
-const SHIP_ORIGIN = { x: SHIP_ART.saucerCenterX / SHIP_ART.width, y: SHIP_ART.saucerCenterY / SHIP_ART.height } as const;
+/**
+ * Ship rotation contract: pixel art is never rotated at runtime. The gallery ships show the
+ * RotSprite-baked angle cell nearest their heading (cells are centred on the saucer pivot).
+ */
+const SHIP_ROT_ORIGIN = 0.5;
 /** Art px below the saucer centre: trail (below the baked flame) and nozzle (saucer underside). */
 const SHIP_TRAIL_OFFSET = 30 * SHIP_ART.artScale;
 const SHIP_NOZZLE_OFFSET = 14 * SHIP_ART.artScale;
+/** Ground line for the touchdown side-fan demo, below the dust cell centre (px). */
+const DUST_GROUND_DY = 74;
 const ORBIT = { radiusX: 196, radiusY: 26, periodMs: 4200 } as const;
 // Intervals are shorter than each burst's lifespan so any single capture shows live particles.
 const BURST_LOOPS = [
@@ -96,6 +104,7 @@ export class FxGalleryScene extends Phaser.Scene {
   private orbitShip: Phaser.GameObjects.Image | null = null;
   private hoverShip: Phaser.GameObjects.Image | null = null;
   private hoverFlame: PixelFlame | null = null;
+  private orbitGlow: NozzleGlow | null = null;
   private statusText: Phaser.GameObjects.Text | null = null;
   private muteText: Phaser.GameObjects.Text | null = null;
   private elapsedMs = 0;
@@ -113,6 +122,7 @@ export class FxGalleryScene extends Phaser.Scene {
     this.elapsedMs = 0;
     this.burstClock.clear();
     this.hoverFlame = null;
+    this.orbitGlow = null;
 
     this.add.rectangle(0, 0, width, height, colorNumber(colors.cosmosDeep)).setOrigin(0, 0).setDepth(depth.backdrop);
     this.add
@@ -153,6 +163,8 @@ export class FxGalleryScene extends Phaser.Scene {
       for (const stop of this.stopSteam) stop();
       this.hoverFlame?.destroy();
       this.hoverFlame = null;
+      this.orbitGlow?.destroy();
+      this.orbitGlow = null;
     });
 
     registerDevState("fx", () => ({
@@ -222,21 +234,26 @@ export class FxGalleryScene extends Phaser.Scene {
   private buildThrustCells(): void {
     const orbit = this.cell(CELL.cruise);
     this.orbitShip = this.add
-      .image(orbit.cx, orbit.cy, ASSET.shipFly2)
-      .setOrigin(SHIP_ORIGIN.x, SHIP_ORIGIN.y)
+      .image(orbit.cx, orbit.cy, ASSET.shipFly2Rot, 0)
+      .setOrigin(SHIP_ROT_ORIGIN, SHIP_ROT_ORIGIN)
       .setScale(SHIP_ART.artScale)
       .setDepth(depth.ship);
     this.trails.push(createThrustTrail(this, { offset: SHIP_TRAIL_OFFSET, depth: depth.ship - 1 }));
+    // Stepped pixel nozzle light (the flight ShipEngine recipe): two hard levels, no gradient.
+    this.orbitGlow = createNozzleGlow(this, { depth: depth.ship - 0.5 });
 
     const hover = this.cell(CELL.hover);
     this.hoverShip = this.add
-      .image(hover.cx, hover.cy - 40, ASSET.shipIdle)
-      .setOrigin(SHIP_ORIGIN.x, SHIP_ORIGIN.y)
+      .image(hover.cx, hover.cy - 40, ASSET.shipIdleRot, 0)
+      .setOrigin(SHIP_ROT_ORIGIN, SHIP_ROT_ORIGIN)
       .setScale(SHIP_ART.artScale)
       .setDepth(depth.ship);
     this.trails.push(createThrustTrail(this, { offset: SHIP_TRAIL_OFFSET, depth: depth.ship - 1 }));
     this.hoverFlame = createPixelFlame(this, { depth: depth.ship - 0.5 });
     this.add.rectangle(hover.cx, hover.y + hover.h - 18, 150, 6, colorNumber(colors.sageDeep)).setDepth(depth.world);
+    // Ground line under the touchdown side fans in the dust cell.
+    const dust = this.cell(CELL.dust);
+    this.add.rectangle(dust.cx, dust.cy + DUST_GROUND_DY + 8, 150, 6, colorNumber(colors.sageDeep)).setDepth(depth.world);
   }
 
   private updateThrust(delta: number): void {
@@ -248,8 +265,12 @@ export class FxGalleryScene extends Phaser.Scene {
       const y = Math.round(orbit.cy + Math.sin(phase) * ORBIT.radiusY);
       // Nose follows the orbit tangent (ship convention: 0 = up, clockwise): nose = (sin r, -cos r).
       const rotation = Math.atan2(-Math.sin(phase) * ORBIT.radiusX, -Math.cos(phase) * ORBIT.radiusY);
-      this.orbitShip.setPosition(x, y).setRotation(rotation);
-      orbitTrail.update(x, y, rotation, true, 0.6 + 0.4 * Math.sin(phase * 2));
+      this.orbitShip.setPosition(x, y).setFrame(rotationCellIndex(rotation));
+      const intensity = 0.6 + 0.4 * Math.sin(phase * 2);
+      orbitTrail.update(x, y, rotation, true, intensity);
+      const nozzleX = x - Math.sin(rotation) * SHIP_NOZZLE_OFFSET;
+      const nozzleY = y + Math.cos(rotation) * SHIP_NOZZLE_OFFSET;
+      this.orbitGlow?.update(nozzleX, nozzleY, rotation, intensity > 0.5 ? "full" : "idle", this.elapsedMs);
     }
     if (this.hoverShip && hoverTrail) {
       const hover = this.cell(CELL.hover);
@@ -257,7 +278,8 @@ export class FxGalleryScene extends Phaser.Scene {
       const bob = Math.round(Math.sin(this.elapsedMs / 450) * 2) * SHIP_ART.artScale;
       const firing = Math.floor(this.elapsedMs / 1400) % 3 !== 2;
       const y = hover.cy - 40 + bob;
-      this.hoverShip.setPosition(hover.cx, y).setRotation(sway);
+      // Position and baked cell only: the image itself is never recreated, cropped or rotated.
+      this.hoverShip.setPosition(hover.cx, y).setFrame(rotationCellIndex(sway));
       hoverTrail.update(hover.cx, y, sway, firing, 1);
       const nozzleX = hover.cx - Math.sin(sway) * SHIP_NOZZLE_OFFSET;
       const nozzleY = y + Math.cos(sway) * SHIP_NOZZLE_OFFSET;
@@ -269,7 +291,10 @@ export class FxGalleryScene extends Phaser.Scene {
     const cell = this.cell(index);
     switch (index) {
       case CELL.dust:
-        burstDust(this, cell.cx, cell.cy + 30, { spread: 70 });
+        burstDust(this, cell.cx, cell.cy + 10, { spread: 70 });
+        // Touchdown feet: two low side fans rolling outward along a ground line.
+        burstDust(this, cell.cx - 26, cell.cy + DUST_GROUND_DY, { count: 4, spread: 60, fan: "left" });
+        burstDust(this, cell.cx + 26, cell.cy + DUST_GROUND_DY, { count: 4, spread: 60, fan: "right" });
         return;
       case CELL.sparkle:
         burstSparkles(this, cell.cx, cell.cy + 20);

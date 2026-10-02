@@ -7,6 +7,7 @@ import {
   type LandingZone,
   type LandingZoneReading,
 } from "../../systems/LandingSystem";
+import type { LandingIncidentKind } from "../../types/landing";
 
 /**
  * Pure formatting for every landing readout. The scene builds one `LandingReadouts` per frame and hands the
@@ -28,6 +29,8 @@ export type LandingReadouts = {
   readonly drift: LandingReadout;
   readonly tilt: LandingReadout;
   readonly altitude: LandingReadout;
+  /** Compact-HUD pad status ("lined up" / "find the pad" / "off blanket"). */
+  readonly pad: LandingReadout;
   /** Overall "touch down now" zone for the gauge (off pad counts as rough). */
   readonly overallZone: LandingZone;
   /** Gauge chip label: zone word, the most limiting reading, or "find the pad". */
@@ -94,6 +97,59 @@ export function formatAltitudeReadout(altitudePx: number, onPad: boolean, units:
   return { word, number, unit, zone, text: onPad ? `${number} ${unit}` : `${number} ${unit} · ${word}` };
 }
 
+export function formatPadReadout(onPad: boolean): LandingReadout {
+  const word = onPad ? landingCopy.padStatus.onPad : landingCopy.padStatus.offPad;
+  return { word, number: "", unit: "", zone: onPad ? "soft" : "rough", text: word };
+}
+
+function statusReadout(word: string, zone: LandingZone): LandingReadout {
+  return { word, number: "", unit: "", zone, text: word };
+}
+
+/** The touchdown descent reading, re-labelled with a resting prefix ("hit at 14.1 m/s"). */
+function touchdownDescent(descent: LandingReadout, prefix: string): LandingReadout {
+  return { ...descent, word: prefix, text: `${prefix} ${descent.number} ${descent.unit}` };
+}
+
+/**
+ * Readouts frozen at an incident: the descent row keeps the touchdown speed (the cause), while drift,
+ * tilt, altitude and pad switch to what the tumbling dumpling actually does, so the HUD never claims
+ * "level" while it lies on its side.
+ */
+export function buildIncidentReadouts(touchdown: LandingReadouts, kind: LandingIncidentKind, driftArrow: string = ""): LandingReadouts {
+  const rows = landingCopy.restingRows.incident;
+  const onBlanket = kind !== "off-pad";
+  const blanket = onBlanket ? landingCopy.padStatus.onBlanket : landingCopy.padStatus.offBlanket;
+  const driftWord = rows.drift[kind];
+  const driftText = kind === "skid" && driftArrow !== "" ? `${driftWord} ${driftArrow}` : driftWord;
+  return {
+    descent: touchdownDescent(touchdown.descent, rows.descentPrefix),
+    drift: { ...statusReadout(driftWord, kind === "skid" ? "rough" : "soft"), text: driftText },
+    tilt: statusReadout(rows.tilt[kind], "rough"),
+    altitude: { word: blanket, number: "0", unit: landingCopy.units.altitude, zone: onBlanket ? "soft" : "rough", text: `0 ${landingCopy.units.altitude} · ${blanket}` },
+    pad: statusReadout(blanket, onBlanket ? "soft" : "rough"),
+    overallZone: "rough",
+    chip: touchdown.chip,
+    gauge: touchdown.gauge,
+  };
+}
+
+/** Readouts frozen at a soft or bumpy touchdown while the ship settles on the blanket. */
+export function buildSettledReadouts(touchdown: LandingReadouts): LandingReadouts {
+  const rows = landingCopy.restingRows.settled;
+  const blanket = landingCopy.padStatus.onBlanket;
+  return {
+    descent: touchdownDescent(touchdown.descent, rows.descentPrefix),
+    drift: statusReadout(rows.drift, "soft"),
+    tilt: statusReadout(rows.tilt, "soft"),
+    altitude: { word: blanket, number: "0", unit: landingCopy.units.altitude, zone: "soft", text: `0 ${landingCopy.units.altitude} · ${blanket}` },
+    pad: statusReadout(blanket, "soft"),
+    overallZone: touchdown.overallZone,
+    chip: touchdown.chip,
+    gauge: touchdown.gauge,
+  };
+}
+
 export function gaugeChipLabel(reading: LandingZoneReading): string {
   if (!reading.onPad) return landingCopy.offPad;
   if (reading.zone === "rough") return landingCopy.roughBecause[reading.limiting];
@@ -111,6 +167,7 @@ export function buildLandingReadouts(
     drift: formatDriftReadout(velocityX, units),
     tilt: formatTiltReadout(reading.angleDegrees),
     altitude: formatAltitudeReadout(reading.altitude, reading.onPad, units),
+    pad: formatPadReadout(reading.onPad),
     overallZone: reading.onPad ? reading.zone : "rough",
     chip: gaugeChipLabel(reading),
     gauge: reading.descentGauge,

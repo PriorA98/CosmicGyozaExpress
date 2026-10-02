@@ -79,8 +79,8 @@ export const landingScenery = {
   teahouse: {
     key: ASSET.lunarTeahouse,
     x: 1062,
-    /** Moved inward on touch layouts so the right touch tiles never cover it. */
-    touchX: 1004,
+    /** Moved inward on touch layouts so the right touch tiles keep a clear gap from it. */
+    touchX: 992,
     baseSinkPx: 4,
     steamOffsetX: 42,
     steamOffsetY: 150,
@@ -88,7 +88,7 @@ export const landingScenery = {
   rabbit: {
     key: ASSET.rabbitSprite,
     x: 924,
-    touchX: 880,
+    touchX: 874,
     baseSinkPx: 2,
     /** Flip so the rabbit faces the pad (art is authored facing right). */
     flipX: true,
@@ -113,16 +113,22 @@ export const landingScenery = {
     { x: 1236, offsetY: 60, frame: 0, flipX: false },
   ] as const,
   rockAlpha: 1,
-  /** Soft guide light standing over the pad, built from stepped pixel rows. */
+  /** Soft guide light standing on the pad, built from stepped pixel rows that dissolve toward the top. */
   guideLight: {
-    height: 470,
-    baseWidthRatio: 0.92,
-    topWidthRatio: 1.45,
+    height: 400,
+    baseWidthRatio: 0.74,
+    topWidthRatio: 1.02,
     /** Each band is a nested stepped wedge; more bands = brighter core. */
-    bands: 5,
-    bandAlpha: 0.035,
+    bands: 4,
+    bandAlpha: 0.03,
+    /** Inner bands are this much shorter / narrower (share of the outer band, scaled by band index). */
+    bandHeightFalloff: 0.5,
+    bandWidthFalloff: 0.55,
     /** Row height of the stepped edge (screen px, multiple of the art scale). */
-    stepPx: 8,
+    stepPx: 4,
+    /** Rows keep full strength up to this share of the height, then step down to 0 at the top. */
+    fadeStart: 0.25,
+    fadeSteps: 6,
     color: "#F9F3E5",
     /** Alpha multiplier while the ship is off the pad vs aligned over it. */
     idleIntensity: 0.55,
@@ -178,7 +184,8 @@ export const landingScenery = {
   },
   /** Descent gauge that rides beside the ship. */
   instrument: {
-    offsetX: 100,
+    /** Clear of the gyro ring and level brackets (they reach ~84 px from the ship centre). */
+    offsetX: 116,
     offsetY: -6,
     barWidth: 10,
     barHeight: 92,
@@ -196,21 +203,27 @@ export const landingScenery = {
     /** Keeps the gauge (and its chip) above the pad surface by this margin. */
     surfaceMarginPx: 8,
   },
-  /** Gyro dots orbiting the ship while S (stabilizer) is held. */
+  /** Gyro stars (fx-star sprites, opaque) orbiting the ship while S (stabilizer) is held, plus level brackets. */
   gyro: {
     radiusX: 76,
     radiusY: 20,
     offsetY: 8,
-    dotCount: 14,
-    dotPx: 4,
-    alpha: 0.95,
-    /** Bright dots read on the dusk sky; the level ticks use the "soft" sage. */
-    dotColor: colors.plaster,
-    backAlpha: 0.4,
+    dotCount: 10,
+    dotColor: colors.sage,
+    dotAltColor: colors.teal,
     levelColor: colors.sage,
     spinRadPerSecond: 3.2,
+    /** Stabilizer presence gained / lost per second (0..1): sets how many stars are out. */
     fadePerSecond: 6,
-    levelLineHalfWidth: 26,
+    /** fx-star frames cycled by the stars in front of the hull; the far side shows the small frame. */
+    twinkleFrames: [2, 1, 2, 2, 1] as const,
+    twinkleStepMs: 90,
+    backFrame: 1,
+    /** Level brackets: inner edge distance from the ship centre, half height, and arm length (screen px). */
+    bracketInnerPx: 64,
+    bracketHalfHeightPx: 8,
+    bracketArmPx: 4,
+    bracketShowAmount: 0.5,
   },
   /** Baked pixel flames (ship-fly-1..3) chosen by thrust power, plus the shared fx-thrust puffs. */
   thrust: {
@@ -228,7 +241,7 @@ export const landingScenery = {
     /** The fx puffs start this far inside the baked flame tip so they read as coming out of it. */
     trailInsetPx: 12,
     /** Trail intensity at full thrust power (fx-thrust puff rate/speed). */
-    trailIntensity: 1,
+    trailIntensity: 0.55,
   },
   ship: {
     /** Fallback feet line (fraction of texture height below the origin) if the texture cannot be measured. */
@@ -251,6 +264,31 @@ export const landingScenery = {
     offPadShiftPx: 28,
     shockRingRadiusPx: 72,
     shockRingMs: 420,
+    /** The skid leaves puffs this far behind the sliding ship. */
+    skidTrailBehindPx: 40,
+  },
+  /**
+   * Incident poof layers: flour blooms behind the hull at the contact point; the confetti fans up from a
+   * ring around the ship (spawnRadius) in front of it, so nothing smears across the dumpling.
+   */
+  incidentPoof: {
+    flourCount: 10,
+    flourSpread: 110,
+    flourSpawnRadiusPx: 20,
+    confettiCount: 18,
+    confettiSpread: 118,
+    confettiSpawnRadiusPx: 58,
+  },
+  /** Per-incident dust (behind the ship unless `front`); kept small so the tumbling pose reads. */
+  incidentDust: {
+    hardDropImpact: { count: 10, spread: 110, spawnRadiusPx: 16, front: false },
+    hardDropBounce: { count: 6, spread: 80, spawnRadiusPx: 16, front: false },
+    skid: { count: 8, spread: 76, spawnRadiusPx: 12, front: false },
+    skidTrail: { count: 3, spread: 40, spawnRadiusPx: 0, front: false },
+    tiltTip: { count: 6, spread: 70, spawnRadiusPx: 12, front: false },
+    offPad: { count: 12, spread: 104, spawnRadiusPx: 18, front: false },
+    /** The final plop into soft moon dust is the one puff allowed in front of the ship. */
+    offPadPlop: { count: 6, spread: 64, spawnRadiusPx: 36, front: true },
   },
   caption: {
     offsetY: 168,
@@ -261,10 +299,14 @@ export const landingScenery = {
     /** Keeps the caption this far from the canvas edges. */
     edgeMarginPx: 24,
   },
+  /**
+   * Touchdown dust, behind the hull at the feet: count per side scales with the touchdown speed (share of the
+   * bumpy limit), so the gentlest landing gets the smallest puff. Bumpy landings add a few front puffs.
+   */
   touchdownDust: {
-    soft: { count: 10, spread: 46 },
-    bumpy: { count: 18, spread: 78 },
-    footSpreadPx: 34,
+    soft: { minCountPerSide: 3, maxCountPerSide: 4, spread: 34, lifespanMs: 460, footSpreadPx: 46 },
+    bumpy: { minCountPerSide: 5, maxCountPerSide: 7, spread: 72, lifespanMs: 620, footSpreadPx: 44 },
+    bumpyFront: { countPerSide: 2, spread: 52, lifespanMs: 380, footSpreadPx: 52 },
   },
   /** Arrival cinematic: camera eases down from the high sky while the ship drifts in from the top. */
   intro: {
@@ -306,9 +348,16 @@ export const landingScenery = {
   hud: {
     x: 20,
     y: 20,
-    width: 300,
+    /** Wide enough for the longest chatter line (see `tickerChromePx` / `tickerCharWidthPx`, unit-tested). */
+    width: 332,
     /** Narrower panel on phone-class displays (it is scaled up there). */
     compactWidth: 264,
+    /** Opaque backing under the translucent HudPanel / ticker surfaces, inset past their rounded corners. */
+    backingInsetPx: 6,
+    /** DashboardTicker space that is not text: prompt + left pad (28), right pad (12), caret gap + caret (11). */
+    tickerChromePx: 51,
+    /** JetBrains Mono 14 px advance (8.4 px) rounded up, so copy checks stay conservative. */
+    tickerCharWidthPx: 8.5,
     /** Extra boost on top of `compactUiScale` so phone labels clear ~12 CSS px. */
     compactBoost: 1.12,
     tickerGap: 8,
@@ -329,11 +378,16 @@ export const landingScenery = {
     padX: 12,
     padY: 8,
   },
+  /** Touch-layout retry chip, pinned top-right (screen px of the logical canvas). */
+  retryChip: {
+    marginX: 22,
+    marginY: 20,
+  },
   /** Touch tiles (screen px of the logical canvas). Left: tilt pair. Right edge: steady stacked over thrust. */
   touch: {
-    tileWidth: 124,
+    tileWidth: 116,
     tileHeight: 118,
-    marginX: 22,
+    marginX: 18,
     marginBottom: 20,
     gap: 14,
   },

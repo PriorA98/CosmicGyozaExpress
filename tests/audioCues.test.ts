@@ -204,6 +204,16 @@ describe("audio tuning data", () => {
     expect(AUDIO_MIX.sfxTrimDb).toBeLessThan(0);
   });
 
+  it("keeps a clear severity ladder: scrape < dramatic bump <= incident", () => {
+    // Severity is carried by loudness as well as pitch (measured with analyzeCues: momentary
+    // bump-soft -25.1, bump-dramatic -19.0, incident -16.1 dBFS; worst-case stack peak -3.7).
+    expect(SFX_TUNING["bump-dramatic"].db - SFX_TUNING["bump-soft"].db).toBeGreaterThanOrEqual(2);
+    expect(SFX_TUNING.incident.db).toBeGreaterThanOrEqual(SFX_TUNING["bump-dramatic"].db);
+    // UI hover stays a gentle tick, but loud enough to survive laptop speakers.
+    expect(SFX_TUNING["ui-hover"].db).toBeGreaterThan(-10);
+    expect(SFX_TUNING["ui-hover"].db).toBeLessThan(SFX_TUNING["ui-confirm"].db + 6);
+  });
+
   it("defines a playable lullaby for every mood", () => {
     for (const mood of MUSIC_MOODS) {
       const tuning = MUSIC_TUNING[mood];

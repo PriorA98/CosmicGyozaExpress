@@ -19,12 +19,16 @@ import { landingCopy } from "../src/data/landingCopy";
 import { landingScenery } from "../src/data/landingScenery";
 import { SHIP_ART } from "../src/data/assetManifest";
 import {
+  buildIncidentReadouts,
   buildLandingReadouts,
+  buildSettledReadouts,
   formatDescentReadout,
+  formatPadReadout,
   formatDriftReadout,
   formatSpeedNumber,
 } from "../src/entities/landing/landingReadouts";
 import { landingTouchTiles } from "../src/entities/landing/landingTouchLayout";
+import { guideLightRowStrength } from "../src/entities/landing/guideLight";
 import { dottedLineCells, filledEllipseSpans, outlineEllipseSpans, snapToGrid } from "../src/entities/landing/pixelShapes";
 import { lowestOpaqueRow, shipDisplayScale } from "../src/entities/landing/shipFootprint";
 import { stepThrustPower, thrustFlameFrame } from "../src/entities/landing/thrustFlame";
@@ -363,6 +367,73 @@ describe("landing presentation helpers", () => {
       expect(overlaps(tile, rabbit)).toBe(false);
       expect(overlaps(tile, house)).toBe(false);
     }
+
+    // The right tile column keeps a clear gap from the tea house (opaque art spans art x 4..91).
+    const houseRight = landingScenery.teahouse.touchX - 48 * art + 92 * art;
+    const rightColumn = Math.min(...tiles.map((tile) => tile.x).filter((x) => x > width / 2));
+    expect(rightColumn - houseRight).toBeGreaterThanOrEqual(48);
+    // ...and the rabbit stands between the right lantern and the tea house without touching either.
+    const lanternRight = landingTuning.startX + (176 * art) / 2 + landingScenery.lanterns.outsetFromPadEnd + 12 * art;
+    expect(rabbit.x).toBeGreaterThanOrEqual(lanternRight);
+    expect(rabbit.x + rabbit.width).toBeLessThanOrEqual(landingScenery.teahouse.touchX - 48 * art + 4 * art + 8);
+  });
+
+  it("fits every dashboard chatter line in the ticker without an ellipsis", () => {
+    const hud = landingScenery.hud;
+    const maxChars = Math.floor((hud.width - hud.tickerChromePx) / hud.tickerCharWidthPx);
+    const lines = [...Object.values(landingCopy.notes), ...Object.values(landingCopy.incidentNotes)];
+    for (const line of lines) expect(line.length, line).toBeLessThanOrEqual(maxChars);
+  });
+
+  it("freezes incident and settle readouts to what the resting ship shows", () => {
+    const pad = createTeaMoonLandingPad();
+    const state: LandingKinematicState = { ...createLandingState(), velocityY: landingTuning.bumpyVerticalSpeed + 40, rotation: 0.08 };
+    const touchdown = buildLandingReadouts(readLandingZone(state, pad), 30, state.velocityY);
+
+    const tipped = buildIncidentReadouts(touchdown, "hard-drop");
+    expect(tipped.descent.number).toBe(touchdown.descent.number);
+    expect(tipped.descent.text.startsWith(landingCopy.restingRows.incident.descentPrefix)).toBe(true);
+    expect(tipped.tilt.text).toBe(landingCopy.restingRows.incident.tilt["hard-drop"]);
+    expect(tipped.tilt.text).not.toMatch(/level|\d/);
+    expect(tipped.pad.text).toBe(landingCopy.padStatus.onBlanket);
+
+    const offPad = buildIncidentReadouts(touchdown, "off-pad");
+    expect(offPad.pad.text).toBe(landingCopy.padStatus.offBlanket);
+    expect(offPad.altitude.text).toContain(landingCopy.padStatus.offBlanket);
+    expect(offPad.altitude.zone).toBe("rough");
+
+    const skid = buildIncidentReadouts(touchdown, "skid", landingCopy.driftArrows.right);
+    expect(skid.drift.text).toContain(landingCopy.driftArrows.right);
+
+    const settled = buildSettledReadouts(touchdown);
+    expect(settled.tilt.text).toBe(landingCopy.restingRows.settled.tilt);
+    expect(settled.drift.text).toBe(landingCopy.restingRows.settled.drift);
+    expect(settled.descent.number).toBe(touchdown.descent.number);
+  });
+
+  it("names the pad status for the compact HUD", () => {
+    expect(formatPadReadout(true).text).toBe(landingCopy.padStatus.onPad);
+    const off = formatPadReadout(false);
+    expect(off.text).toBe(landingCopy.padStatus.offPad);
+    expect(off.zone).toBe("rough");
+  });
+
+  it("dissolves the guide light toward the top in hard steps", () => {
+    const guide = landingScenery.guideLight;
+    expect(guideLightRowStrength(0, guide.fadeStart, guide.fadeSteps)).toBe(1);
+    expect(guideLightRowStrength(guide.fadeStart, guide.fadeStart, guide.fadeSteps)).toBe(1);
+    expect(guideLightRowStrength(1, guide.fadeStart, guide.fadeSteps)).toBe(0);
+    let previous = 1;
+    const levels = new Set<number>();
+    for (let k = 0; k < 1; k += 0.01) {
+      const strength = guideLightRowStrength(k, guide.fadeStart, guide.fadeSteps);
+      expect(strength).toBeLessThanOrEqual(previous);
+      previous = strength;
+      levels.add(strength);
+    }
+    // Stepped (a handful of levels) and the top row is already faint, so no hard top edge.
+    expect(levels.size).toBeLessThanOrEqual(guide.fadeSteps + 1);
+    expect(guideLightRowStrength(0.99, guide.fadeStart, guide.fadeSteps)).toBeCloseTo(1 / (guide.fadeSteps + 1), 6);
   });
 
   it("keeps the landing ship at an integer display scale", () => {

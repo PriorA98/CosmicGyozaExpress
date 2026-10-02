@@ -74,6 +74,10 @@ export const fallbackStarfield = {
   alphaMax: 0.85,
 } as const;
 
+/**
+ * Distant bodies barely move with the camera (scroll factor <= 0.1), so their screen positions are
+ * effectively fixed: lay them out against the HUD safe zones, not against the world.
+ */
 export type CelestialBodyDefinition = {
   readonly id: string;
   readonly textureKey: AssetKey;
@@ -109,8 +113,10 @@ export const flightCelestialBodies: readonly CelestialBodyDefinition[] = [
   {
     id: "far-plum",
     textureKey: ASSET.planetFarPlum,
-    x: 500,
-    y: 96,
+    // Upper right: clear of the route-note ticker (desktop top centre, phones beside the panel), the
+    // instrument panel, the edge indicator and the Tea Moon halo when the dock is framed.
+    x: 1000,
+    y: 155,
     scrollFactor: 0.04,
     scale: FLIGHT_ART_SCALE,
     tint: "#B4AECB",
@@ -128,8 +134,11 @@ export const flightCelestialBodies: readonly CelestialBodyDefinition[] = [
   {
     id: "im-fine",
     textureKey: ASSET.celestialImFine,
-    x: 150,
-    y: 660,
+    // Low centre, a distant world under the route: above the hint strip, between the phone touch
+    // pads, and clear of the hero asteroids in every showcase framing (start, cruise, bump,
+    // incident, approach).
+    x: 611,
+    y: 580,
     scrollFactor: 0.1,
     scale: FLIGHT_ART_SCALE,
     tint: "#C3C1D6",
@@ -194,9 +203,14 @@ export const asteroidArt = {
   fallbackTextureKey: ASSET.asteroidSleepy,
   squashScale: 0.12,
   squashMs: 120,
-  /** Screen-blend flash toward warm cream (brightens the rock but keeps its face readable). */
-  flashColor: colors.border,
-  flashMs: 140,
+  /**
+   * Screen-blend warm flash: a mid-warm lift for `flashPeakMs`, then a softer step until `flashMs`
+   * (cream would wash the rock to a blank disc; this keeps its face and craters readable).
+   */
+  flashColor: "#6E5638",
+  flashSettleColor: "#382C20",
+  flashPeakMs: 50,
+  flashMs: 150,
   nudgePx: { "soft-bump": 6, "dramatic-bump": 10, "gyoza-incident": 14 } as const,
 } as const;
 
@@ -214,7 +228,8 @@ export type DebrisDefinition = {
   readonly x: number;
   readonly y: number;
   readonly scrollFactor: number;
-  readonly alpha: number;
+  /** Index into `debrisStyle.tints` (a warm plum/ink ramp; debris stays fully opaque). */
+  readonly tint: number;
   readonly driftX: number;
   readonly driftY: number;
   readonly driftPeriodMs: number;
@@ -226,18 +241,29 @@ export type DebrisDefinition = {
 };
 
 export const debrisTextureKey: AssetKey = ASSET.asteroidDebris;
+// Only the warm frames (0 mauve chip, 1 cream pebble) are used: frames 2-3 are green/blue-grey,
+// outside the plum/ink palette, and turn muddy under the tint.
+
+/**
+ * Midground debris look: opaque (partial alpha over navy turned the rocks into flat grey-green
+ * lumps) and multiply-tinted per instance from a soft plum/lilac ramp, so their authored cream
+ * highlights and ink outline survive while they sit back behind the hero asteroids.
+ */
+export const debrisStyle = {
+  tints: ["#C9B9D9", "#B5A6C9", "#D8C6CF"] as const,
+} as const;
 
 export const flightDebris: readonly DebrisDefinition[] = [
-  { frame: 0, x: 210, y: 150, scrollFactor: 0.6, alpha: 0.5, driftX: 18, driftY: 8, driftPeriodMs: 9000, tumbleMs: 2600 },
-  { frame: 2, x: 760, y: 470, scrollFactor: 0.55, alpha: 0.45, driftX: -14, driftY: 10, driftPeriodMs: 11000, tumbleMs: 3400 },
-  { frame: 1, x: 1180, y: 250, scrollFactor: 0.65, alpha: 0.5, driftX: 20, driftY: -6, driftPeriodMs: 10000, tumbleMs: 0 },
-  { frame: 3, x: 1520, y: 820, scrollFactor: 0.6, alpha: 0.42, driftX: -10, driftY: -12, driftPeriodMs: 12500, tumbleMs: 3000 },
-  { frame: 0, x: 1890, y: 420, scrollFactor: 0.7, alpha: 0.48, driftX: 16, driftY: 10, driftPeriodMs: 9500, tumbleMs: 0 },
-  { frame: 2, x: 2240, y: 980, scrollFactor: 0.6, alpha: 0.46, driftX: -18, driftY: 6, driftPeriodMs: 13000, tumbleMs: 3800 },
-  { frame: 1, x: 2620, y: 300, scrollFactor: 0.68, alpha: 0.44, driftX: 12, driftY: 14, driftPeriodMs: 10500, tumbleMs: 2800 },
-  { frame: 3, x: 980, y: 1080, scrollFactor: 0.62, alpha: 0.46, driftX: 14, driftY: -10, driftPeriodMs: 11500, tumbleMs: 0 },
-  { frame: 0, x: 2980, y: 760, scrollFactor: 0.66, alpha: 0.42, driftX: -12, driftY: -8, driftPeriodMs: 12000, tumbleMs: 3200 },
-  { frame: 2, x: 420, y: 760, scrollFactor: 0.58, alpha: 0.4, driftX: 10, driftY: 12, driftPeriodMs: 10000, tumbleMs: 0 },
+  { frame: 0, x: 210, y: 150, scrollFactor: 0.6, tint: 0, driftX: 18, driftY: 8, driftPeriodMs: 9000, tumbleMs: 2600 },
+  { frame: 0, x: 760, y: 470, scrollFactor: 0.55, tint: 1, driftX: -14, driftY: 10, driftPeriodMs: 11000, tumbleMs: 3400 },
+  { frame: 1, x: 1180, y: 250, scrollFactor: 0.65, tint: 2, driftX: 20, driftY: -6, driftPeriodMs: 10000, tumbleMs: 0 },
+  { frame: 1, x: 1520, y: 820, scrollFactor: 0.6, tint: 0, driftX: -10, driftY: -12, driftPeriodMs: 12500, tumbleMs: 3000 },
+  { frame: 0, x: 1890, y: 420, scrollFactor: 0.7, tint: 1, driftX: 16, driftY: 10, driftPeriodMs: 9500, tumbleMs: 0 },
+  { frame: 0, x: 2240, y: 980, scrollFactor: 0.6, tint: 2, driftX: -18, driftY: 6, driftPeriodMs: 13000, tumbleMs: 3800 },
+  { frame: 1, x: 2620, y: 300, scrollFactor: 0.68, tint: 0, driftX: 12, driftY: 14, driftPeriodMs: 10500, tumbleMs: 2800 },
+  { frame: 1, x: 980, y: 1080, scrollFactor: 0.62, tint: 1, driftX: 14, driftY: -10, driftPeriodMs: 11500, tumbleMs: 0 },
+  { frame: 0, x: 2980, y: 760, scrollFactor: 0.66, tint: 2, driftX: -12, driftY: -8, driftPeriodMs: 12000, tumbleMs: 3200 },
+  { frame: 0, x: 420, y: 760, scrollFactor: 0.58, tint: 0, driftX: 10, driftY: 12, driftPeriodMs: 10000, tumbleMs: 0 },
 ];
 
 /** Colour per docking state, shared by the arrival beacon, indicator, and HUD status pill. */
@@ -266,28 +292,41 @@ export const arrivalBeaconStyle = {
   lanternCount: 8,
   /** Lanterns light up in a slow chase. */
   lanternChaseMs: 1400,
-  /** Chevron badge sits inside the ring, this far from the centre along the bottom direction. */
-  badgeDistance: 41,
-  plateRadius: 13,
-  chevronLength: 8,
-  chevronHalfWidth: 7,
-  chevronThickness: 3,
-  chevronSpacing: 6,
+  /**
+   * Chevron badge sits inside the ring, this far from the centre along the bottom direction: in the
+   * gap between the ghost and the moon limb (the limb is ~28 art px from the dock centre).
+   */
+  badgeDistance: 17,
+  plateRadius: 9,
+  plateAlpha: 0.9,
+  plateRimAlpha: 0.45,
+  chevronLength: 5,
+  chevronHalfWidth: 5,
+  chevronThickness: 2,
+  chevronSpacing: 4,
   chevronBobArtPx: 1,
   chevronBobMs: 900,
   /** Progress arc band just outside the ring. */
   progressGap: 5,
   progressThickness: 3,
-  /** Ghost target pose: cream 1-art-px outline + a faint dither (a dense dither read as grey), pulsing gently. */
+  /**
+   * Ghost target pose traced from the ship's pre-rotated idle cell: cream 1-art-px outline plus a
+   * checker fill, pulsing gently. It sits `ghostBackArt` art px back from the centre (away from the moon).
+   */
   ghostColor: colors.parchment,
-  ghostFillAlpha: 0.14,
+  ghostFillAlpha: 0.18,
+  /** Inked interior detail of the source art (dark pixels) is traced at this alpha, so the pleated crust, dome and legs read. */
+  ghostDetailAlpha: 0.75,
+  ghostBackArt: 9,
   ghostAlphaMin: 0.55,
   ghostAlphaMax: 0.95,
   ghostPulseMs: 1600,
   idleAlpha: 0.55,
   activeAlpha: 0.95,
-  /** Label pill sits this far (screen px) below the ring's outer edge. */
+  /** Label pill sits this far (screen px) below the ring's outer edge (or above it when blocked). */
   labelGap: 24,
+  /** Screen px the label keeps from HUD controls and the screen edge before it hops above the ring. */
+  labelClearancePx: 8,
 } as const;
 
 export const destinationIndicatorStyle = {
@@ -310,6 +349,10 @@ export const destinationIndicatorStyle = {
   pillRadius: 6,
   pillAlpha: 0.82,
   pulseMs: 1200,
+  /** Half width (px before uiScale) of the pin + label column, for HUD avoidance. */
+  footprintHalfWidth: 48,
+  /** Pin centre keeps this far (px before uiScale) above HUD controls in its column. */
+  avoidClearance: 46,
   /** Fiction units: 100 world px = 1 "km" on the instrument readout. */
   pxPerUnit: 100,
   unitLabel: "km",
@@ -331,19 +374,23 @@ export const shipVisualStyle = {
   /** Same offsets in screen px for the legacy art at legacyFlightScale. */
   legacyEngineOffset: 36,
   legacyTrailOffset: 46,
-  engineGlowRadius: 16,
-  engineGlowColor: colors.amber,
-  engineGlowIdleAlpha: 0.1,
-  engineGlowThrustAlpha: 0.7,
+  /**
+   * Nozzle glow (fx stepped pixel glow at FLIGHT_ART_SCALE): fixed alpha per hard level, never a
+   * continuous fade. `pilot` is the idle pilot light; thrust flickers between the two thrust levels.
+   */
+  engineGlowLevels: { pilot: 0.35, thrust: 1, thrustLow: 0.7 } as const,
   engineFlickerMs: 70,
   squash: { "soft-bump": 0.16, "dramatic-bump": 0.22, "gyoza-incident": 0.26 } as const,
   squashMs: 130,
   /**
-   * Brief warm flash on the hull when bumped (ms), its colour and blend: `screen` brightens the hull
-   * toward amber while keeping its pixel detail (a solid fill read as a blank silhouette).
+   * Brief warm flash on the hull when bumped (ms), its colour and blend: `screen` with a mid-warm
+   * colour lifts the hull without washing it out (face, dome and pleats stay readable), then steps
+   * down to a softer warm for the rest of the flash. Bright colours read as a blank silhouette.
    */
-  bumpFlashMs: { "soft-bump": 110, "dramatic-bump": 150 } as const,
-  bumpFlashColor: colors.amber,
+  bumpFlashMs: { "soft-bump": 120, "dramatic-bump": 160 } as const,
+  bumpFlashColor: "#7A5C38",
+  bumpFlashSettleColor: "#3E3022",
+  bumpFlashPeakMs: 50,
   bumpFlashMode: "screen",
   /** Thrust intensity reaches 1 at this speed (px/s). */
   intensitySpeed: 260,
@@ -353,6 +400,8 @@ export const shipVisualStyle = {
 export const flightHudLayout = {
   margin: 16,
   panelWidth: 268,
+  /** Narrower instrument panel on phones (before compactUiScale), so four rows stay compact. */
+  compactPanelWidth: 236,
   stackGap: 8,
   /** Keycap hint strip, bottom centre (keyboard devices only). */
   hintBottom: 14,

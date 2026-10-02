@@ -1,11 +1,12 @@
 import Phaser from "phaser";
-import { ASSET } from "../../data/assetManifest";
+import { ASSET, SHIP_ROTATION } from "../../data/assetManifest";
 import { FLIGHT_ART_SCALE, arrivalBeaconStyle, dockingStateColors, flightHudCopy } from "../../data/flightScenery";
 import { colorNumber, colors, depth } from "../../game/designTokens";
 import { directionVector } from "../../systems/ShipMovementSystem";
 import type { DockingState, DockingStateKind, FlightDestinationDefinition } from "../../types/flight";
 import { StatePill, type UiState } from "../../ui";
-import type { ShipArtLayout } from "../GyozaShip";
+import { rotationCellIndex, type ShipArtLayout } from "../GyozaShip";
+import type { HudScreenRect } from "./FlightDashboard";
 import {
   ensureOutlineTexture,
   ensurePixelChevrons,
@@ -32,7 +33,8 @@ const PILL_STATE: Readonly<Record<DockingStateKind, UiState>> = {
  * Cozy landing beacon drawn around the delivery ring, entirely on the 2x pixel grid: a dashed ring
  * with chase-lit pixel lanterns, a chevron badge (inside the ring) pointing where the ship's BOTTOM
  * must face, a cream outline ghost of the target pose, a stepped progress arc while the landing
- * window holds, and a label pill below the ring so nothing overlaps the dashes.
+ * window holds, and a label pill below the ring so nothing overlaps the dashes. When the label
+ * would land on a HUD control (touch pads, hint strip) or off screen, it moves above the ring.
  */
 export class ArrivalBeacon {
   private readonly ring: Phaser.GameObjects.Image;
@@ -51,7 +53,10 @@ export class ArrivalBeacon {
   private readonly bottomAngle: number;
   private readonly badgeX: number;
   private readonly badgeY: number;
-  private readonly labelY: number;
+  private readonly labelBelowY: number;
+  private readonly labelAboveBaseY: number;
+  private labelAbove = false;
+  private avoidRects: readonly HudScreenRect[] = [];
   private lastKind: DockingStateKind | undefined;
   private lastProgressCount = -1;
 
@@ -120,30 +125,36 @@ export class ArrivalBeacon {
     this.progress = scene.add.graphics().setDepth(depth.world + 1.1);
     this.lanterns = scene.add.graphics().setDepth(depth.world + 1.2);
 
-    // Ghost of the target pose: cream outline, bottom toward the moon.
+    // Ghost of the target pose, traced from the ship's own pre-rotated idle cell (never a runtime
+    // rotation): cream 1-art-px outline + checker fill, bottom toward the moon. It sits a little
+    // back from the centre so the chevron badge fits between it and the moon limb.
+    const ghostRotation = destination.requiredBottomFacingRadians - Math.PI;
+    const rotated = scene.textures.exists(ASSET.shipIdleRot);
+    const cell = rotationCellIndex(ghostRotation, SHIP_ROTATION.angles);
     const ghostKey = ensureOutlineTexture(scene, {
-      key: `${KEY_PREFIX}-ghost-${shipLayout.contract ? "contract" : "legacy"}`,
-      sourceKey: ASSET.shipIdle,
+      key: rotated ? `${KEY_PREFIX}-ghost-rot-${cell}` : `${KEY_PREFIX}-ghost-${shipLayout.contract ? "contract" : "legacy"}`,
+      sourceKey: rotated ? ASSET.shipIdleRot : ASSET.shipIdle,
+      ...(rotated ? { frame: cell } : {}),
       color: style.ghostColor,
       fillAlpha: style.ghostFillAlpha,
+      detailAlpha: style.ghostDetailAlpha,
     });
-    this.ghost = scene.add
-      .image(x, y, ghostKey)
-      .setOrigin(shipLayout.originX, shipLayout.originY)
-      .setScale(shipLayout.scale)
-      .setRotation(destination.requiredBottomFacingRadians - Math.PI)
-      .setDepth(depth.world + 0.5);
+    const ghostX = x - Math.round(bottom.x * style.ghostBackArt) * ART;
+    const ghostY = y - Math.round(bottom.y * style.ghostBackArt) * ART;
+    this.ghost = scene.add.image(ghostX, ghostY, ghostKey).setScale(shipLayout.scale).setDepth(depth.world + 0.5);
+    if (rotated) this.ghost.setOrigin(0.5, 0.5);
+    else this.ghost.setOrigin(shipLayout.originX, shipLayout.originY).setRotation(ghostRotation);
 
-    // Chevron badge inside the ring, between the ghost and the moon side of the ring.
+    // Chevron badge between the ghost and the moon limb (clear of the moon art).
     this.badgeX = x + Math.round(bottom.x * style.badgeDistance) * ART;
     this.badgeY = y + Math.round(bottom.y * style.badgeDistance) * ART;
     const plateKey = ensurePixelPlate(scene, {
       key: `${KEY_PREFIX}-plate`,
       radius: style.plateRadius,
       fill: colors.cosmosPanel,
-      fillAlpha: 0.86,
+      fillAlpha: style.plateAlpha,
       rim: colors.plaster,
-      rimAlpha: 0.4,
+      rimAlpha: style.plateRimAlpha,
     });
     this.plate = scene.add.image(this.badgeX, this.badgeY, plateKey).setScale(ART).setDepth(depth.world + 1.3);
     const chevronKey = ensurePixelChevrons(scene, {
@@ -160,10 +171,17 @@ export class ArrivalBeacon {
     });
     this.chevrons = scene.add.image(this.badgeX, this.badgeY, chevronKey).setScale(ART).setDepth(depth.world + 1.4);
 
-    // Label pill below the ring (never on the dashes or the bright moon).
-    this.labelY = y + destination.radius + style.ringShadowThickness * ART + style.labelGap;
+    // Label pill below the ring (never on the dashes or the bright moon); the above slot mirrors it.
+    const ringOuter = destination.radius + style.ringShadowThickness * ART + style.labelGap;
+    this.labelBelowY = y + ringOuter;
+    this.labelAboveBaseY = y - ringOuter;
     this.label = this.createLabel("idle", flightHudCopy.beaconLabel);
     this.centreLabel();
+  }
+
+  /** Screen rects (HUD space) the label must avoid, e.g. touch pads; see FlightDashboard.labelAvoidRects. */
+  setAvoidRects(rects: readonly HudScreenRect[]): void {
+    this.avoidRects = rects;
   }
 
   /** Compact (phone) displays get a larger label pill so it stays legible after FIT scaling. */
@@ -208,15 +226,46 @@ export class ArrivalBeacon {
 
     this.drawProgress(ready ? progress : 0);
     this.drawLanterns(colorNumber(dockingStateColors[docking.kind]), ready, active, timeMs);
+    this.placeLabel();
   }
 
   private createLabel(state: UiState, text: string): StatePill {
-    const pill = new StatePill(this.scene, { x: this.destination.x, y: this.labelY, state, label: text, uiScale: this.uiScale });
+    const pill = new StatePill(this.scene, { x: this.destination.x, y: this.labelBelowY, state, label: text, uiScale: this.uiScale });
     return pill.setDepth(depth.world + 2);
   }
 
+  private labelWorldY(above: boolean): number {
+    return Math.round(above ? this.labelAboveBaseY - this.label.pillHeight : this.labelBelowY);
+  }
+
   private centreLabel(): void {
-    this.label.setPosition(Math.round(this.destination.x - this.label.pillWidth / 2), Math.round(this.labelY));
+    this.label.setPosition(Math.round(this.destination.x - this.label.pillWidth / 2), this.labelWorldY(this.labelAbove));
+  }
+
+  /**
+   * Keeps the label below the ring unless that slot (in screen space, padded) hits an avoid rect or
+   * leaves the screen; then it sits above. Coming back needs twice the clearance, so it never flickers.
+   */
+  private placeLabel(): void {
+    const clearance = arrivalBeaconStyle.labelClearancePx;
+    const camera = this.scene.cameras.main;
+    const width = this.label.pillWidth;
+    const height = this.label.pillHeight;
+    const left = Math.round(this.destination.x - width / 2) - camera.scrollX;
+    const top = this.labelWorldY(false) - camera.scrollY;
+    const blocked = (padding: number): boolean =>
+      top + height + padding > this.scene.scale.height ||
+      this.avoidRects.some(
+        (rect) =>
+          left - padding < rect.x + rect.width &&
+          left + width + padding > rect.x &&
+          top - padding < rect.y + rect.height &&
+          top + height + padding > rect.y,
+      );
+    const above = blocked(this.labelAbove ? clearance * 2 : clearance);
+    if (above === this.labelAbove) return;
+    this.labelAbove = above;
+    this.centreLabel();
   }
 
   /** Stepped arc: the first `progress` share of the ring's art pixels, clockwise from the top. */

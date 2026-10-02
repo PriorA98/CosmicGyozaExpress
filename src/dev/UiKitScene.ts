@@ -4,13 +4,15 @@ import { sampleTickerLines, soundToastCopy, stateLabels, uiKitCopy } from "../da
 import { colorNumber, colors, depth, typeScale } from "../game/designTokens";
 import { emitGameEvent } from "../game/events";
 import { Button, type ButtonOptions, type ButtonVisualState } from "../ui/Button";
-import { DashboardTicker } from "../ui/DashboardTicker";
+import { DashboardTicker, dashboardTickerHeight } from "../ui/DashboardTicker";
 import { HudPanel } from "../ui/HudPanel";
 import { addUiIcon, ICON_DISPLAY_SIZE } from "../ui/icons";
 import { Keycap } from "../ui/Keycap";
 import { formatReadout } from "../ui/layout";
 import { Meter } from "../ui/Meter";
+import { CollectedStamp, SaveNoticeChip } from "../ui/NoticeChips";
 import { ParchmentCard } from "../ui/ParchmentCard";
+import { drawStepperKey, drawToggleSwitch, SETTINGS_CONTROL } from "../ui/settingsControls";
 import { installSoundToast } from "../ui/SoundToast";
 import { StatePill, STATE_PILL_HEIGHT } from "../ui/StatePill";
 import { UI_STATES, type MeterAccent } from "../ui/statePalette";
@@ -24,11 +26,14 @@ const GRID = {
   columns: [40, 452, 864] as const,
   columnWidth: 376,
   wellPad: 14,
-  sectionGap: 16,
+  /** Wells span y wellTop..(height - wellTop); content keeps `bottomPad` clear above the edge. */
+  wellTop: 14,
+  bottomPad: 16,
+  sectionGap: 14,
   labelHeight: 26,
   buttonGap: 16,
-  buttonHeight: 46,
-  buttonRowGap: 16,
+  buttonHeight: 42,
+  buttonRowGap: 14,
 } as const;
 
 type GalleryButton = {
@@ -58,11 +63,17 @@ const GALLERY_METERS: readonly { readonly accent: MeterAccent; readonly value: n
   { accent: "amber", value: 0.18 },
 ];
 
+/** DOM mute toast replica height (matches .sound-toast at 15px text + keycap). */
+const TOAST_HEIGHT = 46;
+
 const GALLERY_KEYS: readonly string[] = ["W", "A", "S", "D", "space", "enter", "M", "esc"];
 const GALLERY_HELD_KEY = "W";
 
 /** Touch tile size in the gallery (square tiles + one wide thrust tile). */
 const TILE = { size: 84, wide: 168, gap: 12 } as const;
+
+/** Mini settings card in the gallery (screen px). */
+const SETTINGS_SAMPLE = { height: 112, padding: 14, labelWidth: 64, controlGap: 8, percentWidth: 44, meterHeight: 16, volume: 0.7 } as const;
 
 /**
  * Dev-only gallery of the src/ui component kit (owner: ui package). Opened with
@@ -93,7 +104,7 @@ export class UiKitScene extends Phaser.Scene {
     const g = this.add.graphics().setDepth(depth.parallax);
     for (const x of GRID.columns) {
       g.fillStyle(colorNumber(colors.cosmosDeep), 0.5);
-      fillSteppedRect(g, x - GRID.wellPad, 14, GRID.columnWidth + GRID.wellPad * 2, height - 28, STEPPED_CORNER.round);
+      fillSteppedRect(g, x - GRID.wellPad, GRID.wellTop, GRID.columnWidth + GRID.wellPad * 2, height - GRID.wellTop * 2, STEPPED_CORNER.round);
     }
   }
 
@@ -110,13 +121,19 @@ export class UiKitScene extends Phaser.Scene {
     return this.add.text(x, y, text, monoStyle({ size: typeScale.sm, color: colors.parchmentDeep })).setOrigin(originX, 0).setAlpha(0.7).setDepth(depth.hud);
   }
 
+  /** Dev guard: every column keeps `GRID.bottomPad` clear above its well edge. */
+  private assertFits(bottom: number): void {
+    const limit = this.scale.height - GRID.wellTop - GRID.bottomPad;
+    if (bottom > limit) console.warn(`[ui-kit] column content ends at ${Math.round(bottom)}, past ${limit}`);
+  }
+
   private buildColumnA(): void {
     const x = GRID.columns[0];
     let y: number = GRID.top - 6;
-    this.add.text(x, y, uiKitCopy.title, displayTitleStyle({ size: 44, color: colors.plaster })).setShadow(3, 3, colors.terracottaDeep, 0, false, true).setDepth(depth.hud);
-    y += 54;
+    this.add.text(x, y, uiKitCopy.title, displayTitleStyle({ size: 40, color: colors.plaster })).setShadow(3, 3, colors.terracottaDeep, 0, false, true).setDepth(depth.hud);
+    y += 50;
     this.note(x, y, uiKitCopy.subtitle);
-    y += 30;
+    y += 26;
 
     y = this.section(x, y, uiKitCopy.sections.type);
     const specimens: readonly Phaser.GameObjects.Text[] = [
@@ -127,7 +144,7 @@ export class UiKitScene extends Phaser.Scene {
       this.add.text(x, y + 112, "pixel label · silkscreen", pixelLabelStyle({ color: colors.amber })),
     ];
     for (const text of specimens) text.setDepth(depth.hud);
-    y += 136 + GRID.sectionGap;
+    y += 130 + GRID.sectionGap;
 
     y = this.section(x, y, uiKitCopy.sections.buttons);
     const rowStep = GRID.buttonHeight + GRID.buttonRowGap;
@@ -152,12 +169,16 @@ export class UiKitScene extends Phaser.Scene {
       else button.showState(spec.state);
       if (spec.focused) button.setFocused(true);
     });
-    y = gridY + Math.ceil(GALLERY_BUTTONS.length / 2) * rowStep + GRID.sectionGap - 6;
+    y = gridY + Math.ceil(GALLERY_BUTTONS.length / 2) * rowStep + GRID.sectionGap - 10;
 
-    // Static replicas of the DOM mute toast (src/ui/SoundToast.ts) for side-by-side review.
-    y = this.section(x, y, uiKitCopy.sections2.toast);
-    const onChip = this.toastChip(x, y + 4, false);
-    this.toastChip(x + onChip + 16, y + 4, true);
+    // Notices: static replicas of the DOM mute toast (src/ui/SoundToast.ts) and the title's save note.
+    y = this.section(x, y, uiKitCopy.sections2.notices);
+    const onChip = this.toastChip(x, y + 2, false);
+    this.toastChip(x + onChip + 16, y + 2, true);
+    y += 2 + TOAST_HEIGHT + 3 + 12;
+    const notice = new SaveNoticeChip(this, { x, y, text: uiKitCopy.noticeSamples.save, maxWidth: GRID.columnWidth });
+    notice.setDepth(depth.hud);
+    this.assertFits(y + notice.chipHeight);
   }
 
   private buildColumnB(): void {
@@ -190,42 +211,77 @@ export class UiKitScene extends Phaser.Scene {
     });
     y += 4 + 3 * (STATE_PILL_HEIGHT + 10) + GRID.sectionGap - 4;
 
+    // The phone grid: every flight row kept in two columns (HudPanel `columns: 2`).
     y = this.section(x, y, uiKitCopy.sections.hud);
+    const rows = uiKitCopy.hudGridRows;
     const panel = new HudPanel(this, {
       x,
       y: y + 2,
       width: GRID.columnWidth,
-      title: uiKitCopy.hudTitle,
+      title: uiKitCopy.hudGridTitle,
       icon: "radar",
+      columns: 2,
       rows: [
-        { id: "speed", label: uiKitCopy.hudRows.speed, value: formatReadout(128.4, { decimals: 1, width: 6, unit: "px/s" }) },
-        { id: "heading", label: uiKitCopy.hudRows.heading, value: formatReadout(-12, { width: 4, unit: "deg", signed: true }) },
-        { id: "drift", label: uiKitCopy.hudRows.drift, kind: "meter", value: 0.35, accent: "sage" },
-        { id: "package", label: uiKitCopy.hudRows.package, kind: "meter", value: 0.82, accent: "ember" },
+        { id: "speed", label: rows.speed, value: formatReadout(1.7, { decimals: 1, unit: "km/s" }) },
+        { id: "moon", label: rows.moon, value: formatReadout(14, { decimals: 1, unit: "km" }) },
+        { id: "bottom", label: rows.bottom, value: "269°" },
+        { id: "package", label: rows.package, kind: "meter", value: 0.82, accent: "sage" },
       ],
     });
     panel.setDepth(depth.hud);
     y += 2 + panel.panelHeight + GRID.sectionGap;
 
+    // Two-line ticker: long chatter wraps instead of losing its punchline to an ellipsis.
     y = this.section(x, y, uiKitCopy.sections.ticker);
-    const ticker = new DashboardTicker(this, { x, y: y + 2, width: GRID.columnWidth, lines: sampleTickerLines });
+    const ticker = new DashboardTicker(this, { x, y: y + 2, width: GRID.columnWidth, lines: sampleTickerLines, maxLines: 2 });
     ticker.setDepth(depth.hud).finishReveal();
-    y += 2 + 34 + GRID.sectionGap + 4;
+    y += 2 + dashboardTickerHeight(2) + GRID.sectionGap;
 
-    // Parchment-surface variants: the same kit sitting on a light card.
-    y = this.section(x, y, uiKitCopy.sections2.surfaces);
-    const card = new ParchmentCard(this, { x, y: y + 2, width: GRID.columnWidth, height: 84 });
+    // Settings controls on parchment: toggles on/off, the volume stepper row.
+    y = this.section(x, y, uiKitCopy.sections2.settings);
+    this.settingsControls(x, y + 2);
+  }
+
+  /** Mini settings card: two toggles side by side, then a -/meter/+ volume row. */
+  private settingsControls(x: number, y: number): void {
+    const spec = SETTINGS_SAMPLE;
+    const card = new ParchmentCard(this, { x, y, width: GRID.columnWidth, height: spec.height, padding: spec.padding });
     card.setDepth(depth.hud);
     const pad = card.padding;
-    const done = new Button(this, { x: pad, y: pad, label: uiKitCopy.surfaceLabels.done, width: 132, height: 42, variant: "secondary" });
-    const esc = new Keycap(this, { x: pad + 132 + 24, y: pad + 5, label: "esc" });
-    const enter = new Keycap(this, { x: esc.x + esc.keyWidth + 8, y: pad + 5, label: "enter" });
+    const labels = uiKitCopy.settingsSample;
+    const label = (lx: number, ly: number, text: string): Phaser.GameObjects.Text =>
+      this.add.text(lx, ly, text, monoStyle({ size: typeScale.base, bold: true, color: colors.ink })).setOrigin(0, 0.5);
+    const g = this.add.graphics();
+    const half = Math.floor((GRID.columnWidth - pad * 2) / 2);
+    const rowA = pad + SETTINGS_CONTROL.switchHeight / 2 + 2;
+    drawToggleSwitch(g, pad + half - SETTINGS_CONTROL.switchWidth - spec.controlGap * 2, rowA, true);
+    drawToggleSwitch(g, pad + half * 2 - SETTINGS_CONTROL.switchWidth, rowA, false);
+
+    const stepper = SETTINGS_CONTROL.stepperSize;
+    const rowB = spec.height - pad - stepper / 2 - 4;
+    const minusX = pad + spec.labelWidth;
+    const plusX = GRID.columnWidth - pad - spec.percentWidth - stepper;
+    const meterX = minusX + stepper + spec.controlGap;
+    drawStepperKey(g, minusX, rowB - stepper / 2, -1, false);
+    drawStepperKey(g, plusX, rowB - stepper / 2, 1, false);
+    const meter = new Meter(this, {
+      x: meterX,
+      y: rowB - spec.meterHeight / 2,
+      width: plusX - spec.controlGap - meterX,
+      height: spec.meterHeight,
+      segments: 10,
+      accent: "dusk",
+      value: spec.volume,
+    });
     card.addContent(
-      done,
-      esc,
-      enter,
-      this.add.text(enter.x + enter.keyWidth + 10, pad + 5 + enter.keyHeight / 2, uiKitCopy.surfaceLabels.close, monoStyle({ size: typeScale.sm, color: colors.inkSoft })).setOrigin(0, 0.5),
+      g,
+      meter,
+      label(pad, rowA, labels.sound),
+      label(pad + half + spec.controlGap, rowA, labels.motion),
+      label(pad, rowB, labels.music),
+      this.add.text(GRID.columnWidth - pad, rowB, `${Math.round(spec.volume * 100)}%`, monoStyle({ size: typeScale.md, bold: true, color: colors.ink })).setOrigin(1, 0.5),
     );
+    this.assertFits(y + spec.height + 3);
   }
 
   /** Draws a toast replica; returns its width. */
@@ -234,7 +290,7 @@ export class UiKitScene extends Phaser.Scene {
     const icon = addUiIcon(this, 0, 0, muted ? "soundOff" : "soundOn", { originX: 0 });
     const key = new Keycap(this, { x: 0, y: 0, label: soundToastCopy.hint });
     const padX = 10;
-    const height = 46;
+    const height = TOAST_HEIGHT;
     const width = Math.ceil(padX + ICON_DISPLAY_SIZE + 10 + label.width + 10 + key.keyWidth + padX);
     const g = this.add.graphics();
     g.fillStyle(colorNumber(colors.ink), 1);
@@ -266,14 +322,18 @@ export class UiKitScene extends Phaser.Scene {
     y += 4 + GALLERY_METERS.length * 24 + GRID.sectionGap - 6;
 
     y = this.section(x, y, uiKitCopy.sections.card);
-    const cardHeight = 128;
+    const cardHeight = 118;
     const card = new ParchmentCard(this, { x, y: y + 2, width: GRID.columnWidth, height: cardHeight, title: uiKitCopy.sampleCardTitle });
     card.setDepth(depth.hud);
+    // Completion stamp lives inside the header, flush with the inner padding (as on the title card).
+    const stamp = new CollectedStamp(this, { x: 0, y: 0, label: uiKitCopy.noticeSamples.stamp });
+    stamp.setPosition(GRID.columnWidth - card.padding - stamp.stampWidth, Math.round(card.headerHeight / 2 + 2 - stamp.stampHeight / 2));
     card.addContent(
+      stamp,
       addUiIcon(this, card.padding + ICON_DISPLAY_SIZE / 2, card.contentTop + ICON_DISPLAY_SIZE / 2, "moon"),
       this.add.text(card.padding + ICON_DISPLAY_SIZE + 12, card.contentTop - 2, uiKitCopy.sampleCardBody, bodyStyle({ size: 15, color: colors.inkSoft, wrapWidth: GRID.columnWidth - card.padding * 2 - ICON_DISPLAY_SIZE - 12 })),
     );
-    y += 2 + cardHeight + GRID.sectionGap + 2;
+    y += 2 + cardHeight + GRID.sectionGap;
 
     y = this.section(x, y, uiKitCopy.sections.icons);
     const names = Object.keys(UI_ICON_FRAME) as UiIconName[];
@@ -289,6 +349,7 @@ export class UiKitScene extends Phaser.Scene {
     y = this.section(x, y, uiKitCopy.sections.touch);
     this.touchRow(x, y + 2, "ink", "thrust");
     this.touchRow(x, y + 2 + TILE.size + TILE.gap, "cream", "left");
+    this.assertFits(y + 2 + TILE.size * 2 + TILE.gap + 4);
   }
 
   /** One row of touch tiles (left, right, wide thrust) in a tone, with one tile shown held. */

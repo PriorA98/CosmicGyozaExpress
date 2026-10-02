@@ -18,7 +18,7 @@ import { PARTICLE_SHEETS, PIXEL_FLAME_TUNING, WARM_RECOLOR, type ParticleSheet, 
 
 const SUBSTITUTE_SUFFIX = "~fx-substitute";
 const WARM_SUFFIX = "~fx-warm";
-const GLOW_KEY = "fx-pixel-glow";
+const GLOW_KEY = "fx-pixel-glow-sheet";
 
 function isFallbackTexture(texture: Phaser.Textures.Texture): boolean {
   if (texture.key === "__MISSING") return true;
@@ -112,18 +112,27 @@ function createWarmSheet(scene: Phaser.Scene, sourceKey: string, sheet: Particle
 // Stepped pixel glow (hard-edged alpha rings, painted at art resolution)
 // ---------------------------------------------------------------------------------------------
 
-/** A disc of 2-3 hard-edged alpha rings (no gradient) for nozzle light; display at artScale. */
+/**
+ * Stepped pixel glow sheet: one frame per `PIXEL_FLAME_TUNING.glow.frameScales` entry (small
+ * pilot light, then two full-size flicker frames), each a disc of 2-3 hard-edged alpha rings
+ * (no gradient) painted in plaster so callers tint it. Display at artScale with ADD blend.
+ */
 export function pixelGlowTextureKey(scene: Phaser.Scene): string {
   if (scene.textures.exists(GLOW_KEY)) return GLOW_KEY;
   try {
-    const { radiusArt, rings, color } = PIXEL_FLAME_TUNING.glow;
+    const { radiusArt, rings, frameScales } = PIXEL_FLAME_TUNING.glow;
     const size = radiusArt * 2;
-    const texture = scene.textures.createCanvas(GLOW_KEY, size, size);
+    const frames = Math.max(1, frameScales.length);
+    const texture = scene.textures.createCanvas(GLOW_KEY, size * frames, size);
     if (!texture) return GLOW_KEY;
     const ctx = texture.getContext();
-    ctx.clearRect(0, 0, size, size);
-    const painter = makePainter(ctx, 0, size, size);
-    for (const ring of rings) painter.disc(radiusArt, radiusArt, radiusArt * ring.radius, color, ring.alpha, true);
+    ctx.clearRect(0, 0, size * frames, size);
+    for (let frame = 0; frame < frames; frame += 1) {
+      const painter = makePainter(ctx, frame * size, size, size);
+      const outer = radiusArt * (frameScales[frame] ?? 1);
+      for (const ring of rings) painter.disc(radiusArt, radiusArt, outer * ring.radius, colors.plaster, ring.alpha, true);
+      texture.add(frame, 0, frame * size, 0, size, size);
+    }
     ctx.globalAlpha = 1;
     texture.refresh();
   } catch {

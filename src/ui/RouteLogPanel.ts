@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { colorNumber, colors, typeScale } from "../game/designTokens";
 import { Button } from "./Button";
 import { addUiIcon } from "./icons";
-import { uiIconScale, uiScaled, uiTextSize } from "./layout";
+import { uiIconScale, uiScaled, uiSecondaryTextSize, uiTextSize } from "./layout";
 import { Modal } from "./Modal";
 import { CARD_HEADER_HEIGHT } from "./ParchmentCard";
 import { drawRecessedSurface, UI_ART_SCALE } from "./surfaces";
@@ -65,7 +65,7 @@ export class RouteLogPanel {
 
     // Measure the entry column first so the modal is exactly as tall as its content.
     const entryTitle = scene.add.text(0, 0, options.copy.entryTitle, headingStyle({ size: uiTextSize(typeScale.xl, s), color: colors.ink }));
-    const meta = scene.add.text(0, 0, options.copy.entryMeta, monoStyle({ size: uiTextSize(typeScale.sm, s), bold: true, color: colors.sageDeep }));
+    const meta = scene.add.text(0, 0, options.copy.entryMeta, monoStyle({ size: uiSecondaryTextSize(typeScale.sm, s), bold: true, color: colors.sageDeep }));
     const caption = scene.add.text(0, 0, options.copy.postcardCaption, bodyStyle({ size: uiTextSize(typeScale.base, s), color: colors.inkSoft, wrapWidth: columnWidth }));
     const metaGap = uiScaled(2, s);
     const captionGap = uiScaled(10, s);
@@ -112,8 +112,8 @@ export class RouteLogPanel {
     options.stats.forEach((stat, index) => {
       const y = statsTop + index * statRow + Math.round(statRow / 2);
       card.addContent(
-        scene.add.text(columnX, y, stat.label, monoStyle({ size: uiTextSize(typeScale.sm, s), color: colors.inkSoft })).setOrigin(0, 0.5),
-        scene.add.text(columnX + columnWidth, y, stat.value, monoStyle({ size: uiTextSize(typeScale.sm, s), bold: true, color: colors.ink })).setOrigin(1, 0.5),
+        scene.add.text(columnX, y, stat.label, monoStyle({ size: uiSecondaryTextSize(typeScale.sm, s), color: colors.inkSoft })).setOrigin(0, 0.5),
+        scene.add.text(columnX + columnWidth, y, stat.value, monoStyle({ size: uiSecondaryTextSize(typeScale.sm, s), bold: true, color: colors.ink })).setOrigin(1, 0.5),
       );
     });
 

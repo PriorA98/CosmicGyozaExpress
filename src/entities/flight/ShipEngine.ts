@@ -1,79 +1,81 @@
 import Phaser from "phaser";
-import { shipVisualStyle } from "../../data/flightScenery";
-import { colorNumber, colors, depth } from "../../game/designTokens";
+import { FLIGHT_ART_SCALE, shipVisualStyle } from "../../data/flightScenery";
+import { depth } from "../../game/designTokens";
 import { createThrustTrail, type ThrustTrail } from "../../fx/feedback";
+import { pixelGlowTextureKey } from "../../fx/fxTextures";
 import { clamp } from "../../utils/math";
-import { ensureRadialGlowTexture } from "./textureFallbacks";
+import { snapToArtGrid } from "./pixelArt";
 
-/** Fraction per second the glow eases toward its target brightness. */
-const GLOW_EASE_PER_SECOND = 10;
-const GLOW_TEXTURE_KEY = "flight-engine-glow";
-const GLOW_TEXTURE_SIZE = 64;
-
-/**
- * Bottom-thruster dressing for the flight ship: the shared thrust trail (exhaust leaves the
- * bottom) plus a soft additive engine glow that warms up while thrusting and idles as a tiny
- * pilot light.
- */
+/** Screen px from the saucer centre to the engine glow / particle trail, along the ship's down axis. */
 export type ShipEngineOffsets = {
-  /** Screen px from the saucer centre to the engine glow / particle trail, along the ship's down axis. */
   readonly engine: number;
   readonly trail: number;
 };
 
+/** Hard brightness levels of the nozzle glow (no continuous fades or scaling). */
+type GlowLevel = "off" | "pilot" | "thrust" | "thrustLow";
+
+/**
+ * Bottom-thruster dressing for the flight ship: the shared thrust trail (exhaust leaves the
+ * bottom) plus the fx package's hard-edged stepped pixel glow at the nozzle. The glow sits at the
+ * integer art scale and switches between a few fixed levels (pilot light, thrust, thrust flicker),
+ * so it never mixes smooth gradients or resampled pixels into the pixel FX.
+ */
 export class ShipEngine {
   private readonly trail: ThrustTrail;
   private readonly glow: Phaser.GameObjects.Image;
-  private readonly core: Phaser.GameObjects.Image;
-  private glowLevel = 0;
+  private level: GlowLevel = "off";
 
   constructor(
     scene: Phaser.Scene,
     private readonly offsets: ShipEngineOffsets,
   ) {
     this.trail = createThrustTrail(scene, { depth: depth.ship - 1, offset: offsets.trail });
-    const key = ensureRadialGlowTexture(scene, GLOW_TEXTURE_KEY, GLOW_TEXTURE_SIZE);
     this.glow = scene.add
-      .image(0, 0, key)
-      .setTint(colorNumber(shipVisualStyle.engineGlowColor))
+      .image(0, 0, pixelGlowTextureKey(scene))
+      .setScale(FLIGHT_ART_SCALE)
       .setBlendMode(Phaser.BlendModes.ADD)
       .setDepth(depth.ship - 0.5)
-      .setAlpha(0);
-    this.core = scene.add
-      .image(0, 0, key)
-      .setTint(colorNumber(colors.parchmentWarm))
-      .setBlendMode(Phaser.BlendModes.ADD)
-      .setDepth(depth.ship - 0.4)
-      .setAlpha(0);
+      .setVisible(false);
   }
 
   /**
    * @param x,y visible ship centre; `rotation` uses ship convention (0 = nose up).
    * @param visible false hides the glow and stops the trail (e.g. during an incident).
    */
-  update(x: number, y: number, rotation: number, thrusting: boolean, speed: number, timeMs: number, deltaMs: number, visible: boolean): void {
-    const intensity = clamp(speed / shipVisualStyle.intensitySpeed, 0.25, 1);
-    const active = visible && thrusting;
-    this.trail.update(x, y, rotation, active, intensity);
-
-    const flicker = 0.85 + 0.15 * Math.sin(timeMs / shipVisualStyle.engineFlickerMs);
-    const target = !visible ? 0 : thrusting ? shipVisualStyle.engineGlowThrustAlpha * flicker : shipVisualStyle.engineGlowIdleAlpha;
-    const ease = clamp((deltaMs / 1000) * GLOW_EASE_PER_SECOND, 0, 1);
-    this.glowLevel += (target - this.glowLevel) * ease;
+  update(x: number, y: number, rotation: number, thrusting: boolean, speed: number, timeMs: number, visible: boolean): void {
+    const style = shipVisualStyle;
+    const intensity = clamp(speed / style.intensitySpeed, 0.25, 1);
+    this.trail.update(x, y, rotation, visible && thrusting, intensity);
 
     const offset = this.offsets.engine;
-    const gx = x - Math.sin(rotation) * offset;
-    const gy = y + Math.cos(rotation) * offset;
-    const diameter = shipVisualStyle.engineGlowRadius * 2;
-    const glowScale = ((0.7 + this.glowLevel * 1.6) * diameter) / GLOW_TEXTURE_SIZE;
-    const coreScale = ((0.35 + this.glowLevel * 0.5) * diameter) / GLOW_TEXTURE_SIZE;
-    this.glow.setPosition(gx, gy).setAlpha(this.glowLevel).setScale(glowScale);
-    this.core.setPosition(gx, gy).setAlpha(clamp(this.glowLevel * 1.4, 0, 1)).setScale(coreScale);
+    // On the art grid so the stepped rings line up with the ship's pixels.
+    const gx = snapToArtGrid(x - Math.sin(rotation) * offset, FLIGHT_ART_SCALE);
+    const gy = snapToArtGrid(y + Math.cos(rotation) * offset, FLIGHT_ART_SCALE);
+    this.glow.setPosition(gx, gy);
+    this.setLevel(!visible ? "off" : thrusting ? flickerLevel(timeMs) : "pilot");
   }
 
   destroy(): void {
     this.trail.destroy();
     this.glow.destroy();
-    this.core.destroy();
   }
+
+  private setLevel(level: GlowLevel): void {
+    if (level === this.level) return;
+    this.level = level;
+    const alpha = shipVisualStyle.engineGlowLevels;
+    if (level === "off") {
+      this.glow.setVisible(false);
+      return;
+    }
+    this.glow.setVisible(true).setAlpha(alpha[level]);
+  }
+}
+
+/** Irregular but deterministic flicker between the two thrust levels (cheap integer hash per tick). */
+function flickerLevel(timeMs: number): GlowLevel {
+  const tick = Math.floor(timeMs / shipVisualStyle.engineFlickerMs);
+  const hash = Math.imul(tick ^ 0x5bd1e995, 0x27d4eb2d) >>> 0;
+  return hash % 4 === 0 ? "thrustLow" : "thrust";
 }

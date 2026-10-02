@@ -2,8 +2,9 @@
  * Portrait phones: the 16:9 canvas would shrink to an unreadable strip, so the shell shows one
  * centred parchment "turn sideways" card (pixel phone illustration, heading, short note) over a
  * dimmed canvas. The card is two grid pseudo-elements stacked in .app-shell (top: art + heading,
- * bottom: note) so it needs no extra DOM. The canvas stays live underneath and pointer events pass
- * through, so nothing breaks if the phone cannot rotate.
+ * bottom: note) so it needs no extra DOM. The canvas keeps running underneath (audio, timers and
+ * state survive a rotation) but takes no pointer input while the card covers it, so a tap on the
+ * card can never press a canvas button hidden beneath it (navigation only by visible buttons).
  */
 @media (orientation: portrait) and (max-width: 720px) {
   .app-shell {
@@ -21,6 +22,7 @@
      strip, so portrait shows one intentional state rather than a tiny letterboxed game. */
   .game-root canvas {
     box-shadow: none;
+    pointer-events: none;
     filter: brightness(0.45) saturate(0.6) blur(3px);
     opacity: 0.22;
     transition:
@@ -90,5 +92,26 @@
     font-family: var(--font-mono);
     font-size: 14px;
     line-height: 1.5;
+  }
+}
+
+/*
+ * Wide, short phones in landscape: Scale.FIT leaves side bands (~70 px each on 844x390). There the
+ * framed "lit window" reads as a small box in a dark page, so the frame is dropped and the canvas
+ * edge is feathered into a page painted in the scene's own cosmos navy with the same pixel stars,
+ * which lets the scenery appear to continue into the bands instead of stopping at a keyline.
+ */
+@media (orientation: landscape) and (max-height: 540px) {
+  body {
+    background:
+      radial-gradient(1px 1px at 12px 18px, rgb(251 247 236 / 45%) 50%, transparent 51%) 0 0 / 97px 89px,
+      radial-gradient(1px 1px at 61px 47px, rgb(212 160 85 / 35%) 50%, transparent 51%) 0 0 / 131px 113px,
+      radial-gradient(1px 1px at 33px 71px, rgb(158 182 196 / 30%) 50%, transparent 51%) 0 0 / 173px 157px,
+      var(--color-cosmos-panel);
+  }
+
+  /* Measured: the title/flight canvases average ~#14162b at their edges, so the band matches it. */
+  .game-root canvas {
+    box-shadow: 0 0 24px 12px var(--color-cosmos-panel);
   }
 }

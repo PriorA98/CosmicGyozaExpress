@@ -35,7 +35,8 @@
 
 /*
  * Mute toast (src/ui/SoundToast.ts): a small parchment chip with an ink keyline, a hard 3px pixel
- * shadow, a 16px pixel speaker drawn at 2x, and the M keycap. Fixed to the canvas top-centre.
+ * shadow, a 16px pixel speaker drawn at 2x, and the M keycap. Fixed to the canvas top-centre, pushed below
+ * gameplay HUD strips (soundToastTopFraction).
  */
 .sound-toast {
   position: fixed;

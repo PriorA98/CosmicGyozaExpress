@@ -11,6 +11,7 @@ export type LandingDashboardView = {
   readonly drift: LandingReadout;
   readonly tilt: LandingReadout;
   readonly altitude: LandingReadout;
+  readonly pad: LandingReadout;
   readonly packageLabel: string;
   readonly note: string;
 };
@@ -22,15 +23,17 @@ export type LandingDashboardOptions = {
   readonly scale: number;
 };
 
-type ReadoutRowId = "descent" | "drift" | "tilt" | "altitude";
+type ReadoutRowId = "descent" | "drift" | "tilt" | "altitude" | "pad";
 const FULL_ROWS: readonly ReadoutRowId[] = ["descent", "drift", "tilt", "altitude"];
-const COMPACT_ROWS: readonly ReadoutRowId[] = ["descent"];
+/** Phones keep descent plus the pad status (the altitude row, which carries "find the pad", is dropped). */
+const COMPACT_ROWS: readonly ReadoutRowId[] = ["descent", "pad"];
 
 /**
  * Landing telemetry on the shared UI kit: a HudPanel (descent / drift / tilt / altitude / package) and a
- * DashboardTicker chatter line underneath. Compact displays keep only descent + package and drop the ticker;
+ * DashboardTicker chatter line underneath. Compact displays keep descent + pad + package and drop the ticker;
  * drift and tilt are still called out by the in-world gauge chip. Values arrive pre-formatted (one shared
- * `LandingReadouts`), so the HUD and the gauge always agree.
+ * `LandingReadouts`), so the HUD and the gauge always agree. An opaque backing sits under the kit's
+ * translucent surfaces so sky stars never show through between a label and its value.
  */
 export class LandingDashboard {
   readonly root: Phaser.GameObjects.Container;
@@ -51,9 +54,15 @@ export class LandingDashboard {
     ];
 
     this.panel = new HudPanel(scene, { x: 0, y: 0, width, title: landingCopy.dashboardTitle, icon: "moon", rows, uiScale: options.scale });
-    const children: Phaser.GameObjects.GameObject[] = [this.panel];
+    const backing = scene.add.graphics();
+    backing.fillStyle(colorNumber(colors.cosmosPanel), 1);
+    const inset = config.backingInsetPx;
+    backing.fillRect(inset, inset, width - inset * 2, this.panel.panelHeight - inset * 2);
+    const children: Phaser.GameObjects.GameObject[] = [backing, this.panel];
     if (!options.compact) {
-      this.ticker = new DashboardTicker(scene, { x: 0, y: this.panel.panelHeight + config.tickerGap, width });
+      const tickerY = this.panel.panelHeight + config.tickerGap;
+      backing.fillRect(inset, tickerY + inset, width - inset * 2, TICKER_HEIGHT - inset * 2);
+      this.ticker = new DashboardTicker(scene, { x: 0, y: tickerY, width });
       children.push(this.ticker);
     }
     this.root = scene.add
@@ -69,13 +78,14 @@ export class LandingDashboard {
     return height;
   }
 
-  update(view: LandingDashboardView, timeMs: number): void {
+  /** `immediateNote`: phase changes (touchdown, incident) retype the chatter at once, skipping the debounce. */
+  update(view: LandingDashboardView, timeMs: number, immediateNote = false): void {
     for (const id of this.rows) {
       const readout = view[id];
       this.panel.setValue(id, readout.text, landingZoneTextColors[readout.zone]);
     }
     this.panel.setValue("package", view.packageLabel);
-    this.updateNote(view.note, timeMs);
+    this.updateNote(view.note, timeMs, immediateNote);
   }
 
   setAlpha(alpha: number): void {
@@ -87,7 +97,7 @@ export class LandingDashboard {
   }
 
   /** Retypes the chatter only once a new line has held for a moment, so tapping thrust never stutters it. */
-  private updateNote(note: string, timeMs: number): void {
+  private updateNote(note: string, timeMs: number, immediate: boolean): void {
     if (!this.ticker) return;
     if (note !== this.pendingNote) {
       this.pendingNote = note;
@@ -95,7 +105,7 @@ export class LandingDashboard {
     }
     const first = this.shownNote === "";
     if (note === this.shownNote) return;
-    if (!first && timeMs - this.pendingSinceMs < landingScenery.hud.noteDebounceMs) return;
+    if (!first && !immediate && timeMs - this.pendingSinceMs < landingScenery.hud.noteDebounceMs) return;
     this.shownNote = note;
     this.ticker.say(note);
   }

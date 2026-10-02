@@ -40,6 +40,18 @@ export function uiTextSize(px: number, uiScale = 1): number {
   return essentialTextSize(px * safeScale(uiScale));
 }
 
+/**
+ * Secondary text (footnotes, stat labels, notices) never drops below this size *before* the
+ * compact multiplier, so on a phone it still renders at ~12 CSS px (critic floor: >= 10 px).
+ */
+export const COMPACT_SECONDARY_MIN_PX = 15;
+
+/** Like `uiTextSize`, but compact displays lift secondary text to `COMPACT_SECONDARY_MIN_PX`. */
+export function uiSecondaryTextSize(px: number, uiScale = 1): number {
+  const compact = safeScale(uiScale) >= COMPACT_UI_THRESHOLD;
+  return uiTextSize(compact ? Math.max(px, COMPACT_SECONDARY_MIN_PX) : px, uiScale);
+}
+
 /** Silkscreen label size snapped to its 8px grid: 16 at desktop, 24 once the UI is compact. */
 export function uiPixelLabelSize(uiScale = 1, base = 16): number {
   const scale = safeScale(uiScale);
@@ -124,6 +136,67 @@ export function truncateToChars(line: string, maxChars: number): string {
   if (line.length <= limit) return line;
   if (limit === 1) return ELLIPSIS;
   return `${line.slice(0, limit - 1).trimEnd()}${ELLIPSIS}`;
+}
+
+/**
+ * Greedy word wrap for monospaced text: at most `maxLines` lines of `maxChars` characters. Words
+ * longer than a line are hard-split. Text that still does not fit ends the last line with an
+ * ellipsis (via `truncateToChars`). Whitespace runs collapse to single spaces.
+ */
+export function wrapMonoLines(text: string, maxChars: number, maxLines: number): string[] {
+  const limit = Number.isFinite(maxChars) ? Math.floor(maxChars) : Number.MAX_SAFE_INTEGER;
+  const linesAllowed = Math.max(1, Number.isFinite(maxLines) ? Math.floor(maxLines) : 1);
+  if (limit <= 0) return [];
+  const words = text.trim().split(/\s+/).filter((word) => word.length > 0);
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    let rest = word;
+    while (rest.length > 0) {
+      const candidate = current.length === 0 ? rest : `${current} ${rest}`;
+      if (candidate.length <= limit) {
+        current = candidate;
+        rest = "";
+      } else if (current.length > 0) {
+        lines.push(current);
+        current = "";
+      } else {
+        // A single word wider than the line: split it hard.
+        lines.push(rest.slice(0, limit));
+        rest = rest.slice(limit);
+      }
+    }
+  }
+  if (current.length > 0) lines.push(current);
+  if (lines.length <= linesAllowed) return lines;
+  const kept = lines.slice(0, linesAllowed - 1);
+  const overflow = lines.slice(linesAllowed - 1).join(" ");
+  kept.push(truncateToChars(overflow, limit));
+  return kept;
+}
+
+/**
+ * Dashboard ticker text metrics (DashboardTicker uses these; pure so copy-length tests can check
+ * scene chatter against a ticker width without Phaser). JetBrains Mono advances 0.6 em per glyph.
+ */
+export const TICKER_METRICS = {
+  fontPx: 14,
+  monoAdvanceEm: 0.6,
+  /** Prompt column (padding + "›" + gap) before the text. */
+  textInsetLeft: 28,
+  /** Right padding + caret gap + caret width after the text. */
+  textInsetRight: 23,
+} as const;
+
+/** Characters that fit on one ticker line of a given width (screen px at ticker scale 1). */
+export function tickerCharsPerLine(width: number, charWidth: number = TICKER_METRICS.fontPx * TICKER_METRICS.monoAdvanceEm): number {
+  return monoCharsThatFit(width - TICKER_METRICS.textInsetLeft - TICKER_METRICS.textInsetRight, charWidth);
+}
+
+/** True when a chatter line fits a ticker of `width` in `maxLines` lines without an ellipsis. */
+export function fitsTicker(line: string, width: number, maxLines = 1): boolean {
+  const wrapped = wrapMonoLines(line, tickerCharsPerLine(width), maxLines);
+  return !wrapped.some((wrappedLine) => wrappedLine.endsWith(ELLIPSIS));
 }
 
 /** How many monospaced characters of width `charWidth` fit in `availableWidth`. */

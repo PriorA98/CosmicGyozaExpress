@@ -181,6 +181,9 @@ export class FlightScene extends Phaser.Scene {
     const applyUiScale = (): void => {
       this.indicator.setUiScale(this.hud.uiScale);
       this.beacon.setUiScale(this.hud.uiScale);
+      // World labels stay clear of the touch pads / hint strip (re-read after the HUD re-lays out).
+      this.indicator.setAvoidRects(this.hud.labelAvoidRects);
+      this.beacon.setAvoidRects(this.hud.labelAvoidRects);
     };
     applyUiScale();
     const onResize = (): void => applyUiScale();
@@ -207,6 +210,7 @@ export class FlightScene extends Phaser.Scene {
       docking: evaluateDocking(this.ship.kinematics, route.destination).kind,
       arrivalProgress: this.arrivalProgress,
       debugVisible: this.debugVisible,
+      camera: { scrollX: Math.round(this.cameras.main.scrollX), scrollY: Math.round(this.cameras.main.scrollY) },
     }));
   }
 
@@ -400,7 +404,10 @@ export class FlightScene extends Phaser.Scene {
 
     if (contact) this.asteroids.get(contact.obstacleId)?.react(severity, contact.normalX, contact.normalY, time);
     this.ship.playSquash(shipVisualStyle.squash[severity], shipVisualStyle.squashMs);
-    this.ship.flashHull(colorNumber(shipVisualStyle.bumpFlashColor), shipVisualStyle.bumpFlashMs[severity], shipVisualStyle.bumpFlashMode);
+    this.ship.flashHull(colorNumber(shipVisualStyle.bumpFlashColor), shipVisualStyle.bumpFlashMs[severity], shipVisualStyle.bumpFlashMode, {
+      color: colorNumber(shipVisualStyle.bumpFlashSettleColor),
+      peakMs: shipVisualStyle.bumpFlashPeakMs,
+    });
     burstDust(this, hitX, hitY, { count: severity === "soft-bump" ? 12 : 16, spread: severity === "soft-bump" ? 48 : 70, depth: depth.shipFx });
     if (severity === "dramatic-bump") shakeCamera(this, "soft");
   }
@@ -543,7 +550,7 @@ export class FlightScene extends Phaser.Scene {
       { bobPx: shipVisualStyle.bobPx, bobPeriodMs: shipVisualStyle.bobPeriodMs, tiltRadians: shipVisualStyle.tiltBobRadians },
       bobStrength,
     );
-    this.engine.update(this.ship.visualX, this.ship.visualY, this.ship.visualRotation, controls.thrust, speed, time, delta, !incident);
+    this.engine.update(this.ship.visualX, this.ship.visualY, this.ship.visualRotation, controls.thrust, speed, time, !incident);
 
     for (const asteroid of this.asteroids.values()) asteroid.update(time);
 

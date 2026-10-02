@@ -135,3 +135,39 @@ Previews (dark + parchment, 3-4x): `preview/*.preview.png`. Contact sheet: `e2e/
   The tea moon and plum planet render on the title. Flight states (`w1-assets-celestial-extra`) show
   the plum planet and I'm Fine in the parallax with no failures.
 - All PNGs are 1.4 to 5.2 KB.
+
+---
+
+## Wave 3, critic round 3 (2026-10-01/02): atmospheric perspective for the far planet layer
+
+Critic issue (flight-environment, minor): the far planets used the same density, saturation, contrast
+and outline treatment as the foreground asteroids, so they read as stickers on one plane.
+
+Method: programmatic Pillow post-process (no new Codex generation; the wave-2 Codex paintings are kept).
+`scripts/atmos_w3.py` compresses value contrast around the body mean (form shading and surface detail are
+scaled separately via a blur split), desaturates, blends toward a navy-plum haze #4B4C70, dims overall
+value, reduces the palette, and replaces the silhouette ring (lit-side highlight + ink re-ink) with one
+uniform soft haze-dark limb (#2C2C48 blend). Accent pixels listed in `--keep` (the I'm Fine bandage) get
+the treatment at quarter strength so the gag still reads. Hard alpha, same canvas sizes, same keys.
+
+Inputs: the wave-2 production PNGs archived as `work/w3/pre-w3-planet-far-plum.png` and
+`work/w3/pre-w3-planet-im-fine.png`.
+
+Exact build (reproducible, byte-identical output verified):
+`python art-src/celestial/scripts/build_w3.py`, which runs
+- `python art-src/celestial/scripts/atmos_w3.py art-src/celestial/work/w3/pre-w3-planet-far-plum.png public/assets/celestial/planet-far-plum.png --contrast 0.65 --haze 0.32 --sat 0.65 --colors 16 --limb 0.5 --value 0.88 --detail 0.55`
+- `python art-src/celestial/scripts/atmos_w3.py art-src/celestial/work/w3/pre-w3-planet-im-fine.png public/assets/celestial/planet-im-fine.png --contrast 0.65 --haze 0.3 --sat 0.7 --colors 20 --limb 0.55 --value 0.92 --detail 0.6 --keep "#E4A271,#FBEED1,#F1DFC2"`
+
+Iteration notes:
+- a1-a5 (`work/w3/plum-a*.png`, `fine-a*.png`): the interrupted first attempt of this round. a4/a5 were
+  shipped briefly, but their exact parameters were not logged, so they are superseded.
+- b1 (current production, `work/w3/plum-b1.png`, `fine-b1.png`): slightly stronger push than a4/a5. The bright
+  lilac top-left rim on I'm Fine is gone, the bandage is a touch duller but still reads. Comparison at 2x with
+  the runtime multiply tint next to two asteroids: `work/w3/cmp-b1.png` (top = a4/a5, bottom = b1), made with
+  `scripts/sim_w3.py`.
+- tea-moon.png is unchanged (it is the destination and should stay vivid).
+
+Validation: `e2e/out/w3-r3-assets-celestial/` (title, flight-start/cruise/incident, result-bumpy): 0 runtime
+errors, `probe.assetFailures` empty. Contact sheet `e2e/out/contact-celestial.png`. Files: 2.2 KB, 5.1 KB.
+Layout (ring planet under the route-note pill; asteroids crossing I'm Fine) is scene data in
+`src/data/flightScenery.ts` and was passed on as integration requests. It is not changed here.

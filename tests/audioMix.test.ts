@@ -4,7 +4,9 @@ import { AUDIO_MIX, LOOP_TUNING, MUSIC_ENGINE, MUSIC_TUNING, SFX_TUNING, mapGame
 describe("wave-2 mix balance", () => {
   it("keeps the thrust loop trimmed under the music bed and soft bumps audible", () => {
     expect(LOOP_TUNING.thrust.db).toBeLessThanOrEqual(-18);
-    expect(SFX_TUNING["bump-soft"].db).toBeGreaterThanOrEqual(-2);
+    // Round 3: the scrape sits a clear step under the dramatic bump but stays above the bed
+    // (analyzeCues peak -12.5 dBFS vs music peaks -10 to -14 dBFS).
+    expect(SFX_TUNING["bump-soft"].db).toBeGreaterThanOrEqual(-6);
     expect(AUDIO_MIX.loopDuck.db).toBeLessThan(0);
   });
 

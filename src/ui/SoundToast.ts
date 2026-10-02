@@ -2,9 +2,9 @@ import type Phaser from "phaser";
 import { onGameEvent } from "../game/events";
 import { isReducedMotion } from "../fx/feedback";
 import { ICON_OVERRIDE_PALETTE, ICON_OVERRIDES, ICON_OVERRIDE_SIZE } from "./iconBitmaps";
-import { SOUND_TOAST_TIMING, soundToastAnchor, soundToastContent, type SoundToastContent } from "./soundToastModel";
+import { SOUND_TOAST_TIMING, soundToastAnchor, soundToastContent, soundToastTopFraction, type SoundToastContent } from "./soundToastModel";
 
-export { SOUND_TOAST_TIMING, soundToastAnchor, soundToastContent, type SoundToastContent, type ToastAnchor } from "./soundToastModel";
+export { SOUND_TOAST_TIMING, soundToastAnchor, soundToastContent, soundToastTopFraction, type SoundToastContent, type ToastAnchor } from "./soundToastModel";
 
 /**
  * Mute feedback (owner: ui). A small warm DOM toast ("sound on" / "sound off" with a pixel
@@ -77,7 +77,9 @@ export function installSoundToast(game: Phaser.Game): () => void {
       view.label.textContent = content.label;
       view.key.textContent = content.keyHint;
       const rect = game.canvas?.getBoundingClientRect();
-      const anchor = soundToastAnchor(rect ?? { left: window.innerWidth / 2, top: 0, width: 0, height: 0 });
+      // Below any top-centre HUD strip of the running scene (flight chatter, landing keycaps).
+      const activeKeys = game.scene.getScenes(true).map((scene) => scene.scene.key);
+      const anchor = soundToastAnchor(rect ?? { left: window.innerWidth / 2, top: 0, width: 0, height: 0 }, soundToastTopFraction(activeKeys));
       const root = view.root;
       root.style.left = `${anchor.left}px`;
       root.style.top = `${anchor.top}px`;

@@ -139,23 +139,39 @@ export function ensurePixelHalo(scene: Phaser.Scene, options: PixelHaloOptions):
 export type OutlineOptions = {
   readonly key: string;
   readonly sourceKey: string;
+  /** Optional frame of `sourceKey` (e.g. one pre-rotated cell of a ship sheet). */
+  readonly frame?: number;
   readonly color: string;
   /** Sparse checker fill inside the silhouette (0 = outline only). */
   readonly fillAlpha: number;
+  /**
+   * Alpha for interior pixels that are dark in the source (its ink lines), so internal shapes such
+   * as a ship's crust/dome seam survive in the ghost. Omit for a plain silhouette.
+   */
+  readonly detailAlpha?: number;
 };
 
-/** 1-art-px outline of a sprite's silhouette (plus an optional dithered fill), for ghost poses. */
+/** Source pixels darker than this (0..255 luma) count as ink detail. */
+const OUTLINE_DETAIL_LUMA = 70;
+
+/**
+ * 1-art-px outline of a sprite's silhouette (plus an optional checker fill), for ghost poses.
+ * With `frame`, only that frame's rectangle is traced (the texture is frame-sized).
+ */
 export function ensureOutlineTexture(scene: Phaser.Scene, options: OutlineOptions): string {
   if (scene.textures.exists(options.key)) return options.key;
-  const source = scene.textures.get(options.sourceKey).getSourceImage() as CanvasImageSource & { width: number; height: number };
-  const { width, height } = source;
   if (typeof document === "undefined") return options.sourceKey;
+  const frame = scene.textures.getFrame(options.sourceKey, options.frame);
+  const source = frame?.source.image;
+  if (!frame || !source) return options.sourceKey;
+  const width = frame.cutWidth;
+  const height = frame.cutHeight;
   const scratch = document.createElement("canvas");
   scratch.width = width;
   scratch.height = height;
   const scratchContext = scratch.getContext("2d");
   if (!scratchContext) return options.sourceKey;
-  scratchContext.drawImage(source, 0, 0);
+  scratchContext.drawImage(source, frame.cutX, frame.cutY, width, height, 0, 0, width, height);
   const pixels = scratchContext.getImageData(0, 0, width, height).data;
   const solid = (x: number, y: number): boolean =>
     x >= 0 && y >= 0 && x < width && y < height && (pixels[(y * width + x) * 4 + 3] ?? 0) > 127;
@@ -167,8 +183,13 @@ export function ensureOutlineTexture(scene: Phaser.Scene, options: OutlineOption
     for (let x = 0; x < width; x += 1) {
       if (solid(x, y)) {
         const edge = !solid(x - 1, y) || !solid(x + 1, y) || !solid(x, y - 1) || !solid(x, y + 1);
+        const offset = (y * width + x) * 4;
+        const luma = 0.299 * (pixels[offset] ?? 0) + 0.587 * (pixels[offset + 1] ?? 0) + 0.114 * (pixels[offset + 2] ?? 0);
         if (edge) {
           context.globalAlpha = 1;
+          context.fillRect(x, y, 1, 1);
+        } else if (options.detailAlpha !== undefined && luma < OUTLINE_DETAIL_LUMA) {
+          context.globalAlpha = options.detailAlpha;
           context.fillRect(x, y, 1, 1);
         } else if (options.fillAlpha > 0 && (x + y) % 2 === 0) {
           context.globalAlpha = options.fillAlpha;

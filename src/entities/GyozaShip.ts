@@ -213,16 +213,26 @@ export class GyozaShip extends Phaser.GameObjects.Sprite {
 
   /**
    * Brief hull flash (bump feedback). `fill` paints a solid silhouette; `screen` brightens toward
-   * the colour while keeping the pixel detail readable. Restores normal tinting afterwards.
+   * the colour while keeping the pixel detail readable. With `settle`, the flash steps down to that
+   * softer colour after `peakMs` (a hard two-step pop, never a smooth fade). Restores normal
+   * tinting afterwards.
    */
-  flashHull(color: number, durationMs: number, mode: HullFlashMode = "fill"): void {
+  flashHull(color: number, durationMs: number, mode: HullFlashMode = "fill", settle?: { readonly color: number; readonly peakMs: number }): void {
     this.flashTimer?.remove(false);
     this.setTint(color).setTintMode(mode === "screen" ? Phaser.TintModes.SCREEN : Phaser.TintModes.FILL);
-    this.flashTimer = this.scene.time.delayedCall(durationMs, () => {
+    const restore = (): void => {
       this.clearTint();
       this.setTintMode(Phaser.TintModes.MULTIPLY);
       this.flashTimer = undefined;
-    });
+    };
+    if (settle && settle.peakMs < durationMs) {
+      this.flashTimer = this.scene.time.delayedCall(settle.peakMs, () => {
+        this.setTint(settle.color);
+        this.flashTimer = this.scene.time.delayedCall(durationMs - settle.peakMs, restore);
+      });
+      return;
+    }
+    this.flashTimer = this.scene.time.delayedCall(durationMs, restore);
   }
 
   private pickTextureKey(thrusting: boolean): string {

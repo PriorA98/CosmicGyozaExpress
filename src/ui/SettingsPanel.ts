@@ -3,7 +3,7 @@ import type { SettingsPanelCopy } from "../data/uiCopy";
 import { colorNumber, colors, typeScale } from "../game/designTokens";
 import { emitGameEvent } from "../game/events";
 import { Button } from "./Button";
-import { uiScaled, uiTextSize } from "./layout";
+import { uiScaled, uiSecondaryTextSize, uiTextSize } from "./layout";
 import { Meter } from "./Meter";
 import { Modal } from "./Modal";
 import {
@@ -19,7 +19,8 @@ import {
   type SettingsValues,
   type SoundRestore,
 } from "./settingsModel";
-import { drawRecessedSurface, fillSteppedRect, STEPPED_CORNER } from "./surfaces";
+import { drawStepperKey, drawToggleSwitch, SETTINGS_CONTROL } from "./settingsControls";
+import { drawRecessedSurface } from "./surfaces";
 import { bodyStrongStyle, monoStyle } from "./textStyles";
 
 export type SettingsPanelOptions = {
@@ -45,9 +46,8 @@ const PANEL = {
   rowGap: 6,
   caretSize: 10,
   labelX: 44,
-  switchWidth: 84,
-  switchHeight: 32,
-  stepperSize: 34,
+  switchWidth: SETTINGS_CONTROL.switchWidth,
+  stepperSize: SETTINGS_CONTROL.stepperSize,
   meterWidth: 168,
   meterHeight: 16,
   percentWidth: 58,
@@ -108,7 +108,7 @@ export class SettingsPanel {
     const rowHeight = uiScaled(PANEL.rowHeight, s);
     const rowGap = uiScaled(PANEL.rowGap, s);
     const toggleRows = SETTINGS_ROWS.filter((row) => row !== "done");
-    const footnoteSize = uiTextSize(typeScale.sm, s);
+    const footnoteSize = uiSecondaryTextSize(typeScale.sm, s);
     const headerSpace = uiScaled(52, s);
     const height =
       headerSpace + toggleRows.length * (rowHeight + rowGap) + uiScaled(PANEL.footerHeight, s) + (showHints ? footnoteSize * 2 + uiScaled(8, s) : footnoteSize) + uiScaled(28, s);
@@ -345,46 +345,13 @@ export class SettingsPanel {
   }
 
   private drawSwitch(g: Phaser.GameObjects.Graphics, x: number, midY: number, on: boolean): void {
-    const s = this.uiScale;
-    const width = uiScaled(PANEL.switchWidth, s);
-    const height = Math.round(uiScaled(PANEL.switchHeight, s) / 2) * 2;
-    const y = midY - height / 2;
-    const border = 2;
     g.clear();
-    g.fillStyle(colorNumber(colors.ink), 1);
-    fillSteppedRect(g, x, y, width, height, STEPPED_CORNER.round);
-    g.fillStyle(colorNumber(on ? colors.sage : colors.border), 1);
-    fillSteppedRect(g, x + border, y + border, width - border * 2, height - border * 2, STEPPED_CORNER.soft);
-    // Knob: plaster block with an ink outline and a 2px lip.
-    const knob = height - border * 4;
-    const knobX = on ? x + width - border * 2 - knob : x + border * 2;
-    g.fillStyle(colorNumber(colors.ink), 1);
-    fillSteppedRect(g, knobX - border, y + border, knob + border * 2, knob + border * 2, STEPPED_CORNER.notch);
-    g.fillStyle(colorNumber(colors.plaster), 1);
-    g.fillRect(knobX, y + border * 2, knob, knob - 2);
-    g.fillStyle(colorNumber(colors.parchmentDeep), 1);
-    g.fillRect(knobX, y + border * 2 + knob - 2, knob, 2);
+    drawToggleSwitch(g, x, midY, on, this.uiScale);
   }
 
   private drawStepper(stepper: StepperView, volume: number): void {
-    const s = this.uiScale;
-    const size = uiScaled(PANEL.stepperSize, s);
-    const g = stepper.graphics;
     const disabled = (stepper.direction < 0 && volume <= 0) || (stepper.direction > 0 && volume >= 1);
-    g.clear();
-    g.fillStyle(colorNumber(colors.ink), 1);
-    fillSteppedRect(g, stepper.x, stepper.y, size, size, STEPPED_CORNER.notch);
-    g.fillStyle(colorNumber(disabled ? colors.parchmentDeep : colors.plaster), 1);
-    g.fillRect(stepper.x + 2, stepper.y + 2, size - 4, size - 7);
-    g.fillStyle(colorNumber(colors.borderStrong), 1);
-    g.fillRect(stepper.x + 2, stepper.y + size - 5, size - 4, 3);
-    // Minus / plus glyph in whole pixels.
-    const bar = Math.max(2, Math.round(uiScaled(3, s) / 2) * 2);
-    const length = Math.round(size * 0.42 / 2) * 2;
-    const cx = stepper.x + Math.round(size / 2);
-    const cy = stepper.y + Math.round((size - 3) / 2);
-    g.fillStyle(colorNumber(disabled ? colors.borderStrong : colors.ink), 1);
-    g.fillRect(cx - length / 2, cy - bar / 2, length, bar);
-    if (stepper.direction > 0) g.fillRect(cx - bar / 2, cy - length / 2, bar, length);
+    stepper.graphics.clear();
+    drawStepperKey(stepper.graphics, stepper.x, stepper.y, stepper.direction, disabled, this.uiScale);
   }
 }

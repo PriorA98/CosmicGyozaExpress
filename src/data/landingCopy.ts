@@ -12,6 +12,7 @@ export const landingCopy = {
     drift: "drift",
     tilt: "tilt",
     altitude: "altitude",
+    pad: "pad",
     package: "package",
   },
   /** Display units after converting screen px with `landingScenery.readouts.pixelsPerMeter`. */
@@ -57,7 +58,7 @@ export const landingCopy = {
   } satisfies Record<Exclude<LandingZone, "rough">, string>,
   notes: {
     descendingIdle: "please apply soup-facing thrust",
-    thrusting: "single-thruster confidence: moderate",
+    thrusting: "one-thruster confidence: moderate",
     stabilizing: "gyro humming, dumpling leveling",
     tilted: "bottom not pointed at problem",
     offPad: "the pad is the glowing blanket",
@@ -67,9 +68,42 @@ export const landingCopy = {
   incidentNotes: {
     "hard-drop": "moon blanket says: softer, please",
     skid: "sideways soup maneuver detected",
-    "tilt-tip": "bottom thruster argued with geometry",
+    "tilt-tip": "bottom thruster lost to geometry",
     "off-pad": "landing blanket missed the snack",
   } satisfies Record<LandingIncidentKind, string>,
+  /** Compact-HUD pad row (phones hide the altitude row, which carries "find the pad" on desktop). */
+  padStatus: {
+    onPad: "lined up",
+    offPad: "find the pad",
+    onBlanket: "on blanket",
+    offBlanket: "off blanket",
+  },
+  /**
+   * Frozen HUD readouts once the ship has touched down, so the rows describe what the player sees:
+   * the descent row keeps the touchdown speed (prefixed), the others switch to a resting status.
+   */
+  restingRows: {
+    incident: {
+      descentPrefix: "hit at",
+      drift: {
+        "hard-drop": "bounced",
+        skid: "skidded",
+        "tilt-tip": "stopped",
+        "off-pad": "stopped",
+      } satisfies Record<LandingIncidentKind, string>,
+      tilt: {
+        "hard-drop": "tipped over",
+        skid: "on its side",
+        "tilt-tip": "tipped over",
+        "off-pad": "tipped over",
+      } satisfies Record<LandingIncidentKind, string>,
+    },
+    settled: {
+      descentPrefix: "landed at",
+      drift: "parked",
+      tilt: "level",
+    },
+  },
   incidentTitle: "gyoza incident",
   retrying: "re-steaming for another try",
   touchdown: {
@@ -90,6 +124,8 @@ export const landingCopy = {
     { keys: ["S"], label: "steady" },
     { keys: ["R"], label: "retry" },
   ],
+  /** Touch layouts have no R key: a small parchment chip in the top-right corner retries instead. */
+  touchRetry: "retry",
   touchLabels: {
     rotateLeft: "tilt",
     rotateRight: "tilt",

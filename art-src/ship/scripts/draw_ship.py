@@ -325,8 +325,10 @@ def draw_dome(pose: Pose) -> Layer:
         # crisp highlight arc on the top-left inner rim
         if 0.66 <= r <= 0.82 and -165 <= ang <= -112:
             col = GLASS[0]
+        elif 0.82 < r <= 0.97 and -172 <= ang <= -98:
+            col = GLASS[1]  # second, softer highlight row outside the arc: the glass reads curved
         elif 0.55 <= r < 0.66 and -160 <= ang <= -122:
-            col = GLASS[1]  # second highlight row so the glass reads as a curved dome
+            col = GLASS[1]
         if 0.42 <= r < 0.58 and -150 <= ang <= -138:
             col = GLASS[0]
         lay.px[(x, y)] = col

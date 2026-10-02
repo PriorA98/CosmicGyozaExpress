@@ -14,9 +14,11 @@ import {
   type MutablePoint,
 } from "./fxMath";
 import {
+  BURST_FANS,
   BURST_TUNING,
   FLASH_TUNING,
   FX_BUDGET,
+  INCIDENT_TUNING,
   PARTICLE_SHEETS,
   PIXEL_FLAME_TUNING,
   SHAKE_TUNING,
@@ -46,6 +48,21 @@ export type BurstOptions = {
   readonly lifespanMs?: number;
   /** Spawn on a ring of this radius (px) around (x, y), flying outward: a halo around an object. */
   readonly spawnRadius?: number;
+  /**
+   * Direction window: `radial` (default, the recipe's own angles), or a low ground-hugging fan
+   * that rolls out `left`, `right` or both ways (`sideways`) with a much smaller lift. Use the
+   * side fans for touchdown dust at the feet so puffs spread outward instead of over the hull.
+   */
+  readonly fan?: BurstFan;
+};
+
+export type BurstFan = "radial" | "sideways" | "left" | "right";
+
+export type IncidentBurstOptions = BurstOptions & {
+  /** Confetti layer (default: above the ship, `depth.shipFx`, or `depth` when that is higher). */
+  readonly confettiDepth?: number;
+  /** Confetti fans upward from here (e.g. the ship centre); default: the burst point. */
+  readonly confettiOrigin?: { readonly x: number; readonly y: number };
 };
 
 export type ShakeOptions = {
@@ -72,6 +89,19 @@ export type PixelFlame = {
   readonly power: number;
   setDepth(value: number): void;
   setVisible(value: boolean): void;
+  destroy(): void;
+};
+
+/** Nozzle light: `off`, a dim small `idle` pilot light, or the `full` flickering glow. */
+export type NozzleGlowLevel = "off" | "idle" | "full";
+
+export type NozzleGlow = {
+  /**
+   * Call every frame with the nozzle point (px) and ship rotation (0 = nose up). The glow sits
+   * `PIXEL_FLAME_TUNING.glow.offsetArt` art px further down the ship's bottom axis.
+   */
+  update(nozzleX: number, nozzleY: number, rotation: number, level: NozzleGlowLevel, timeMs: number): void;
+  setDepth(value: number): void;
   destroy(): void;
 };
 
@@ -320,10 +350,11 @@ export function createThrustTrail(scene: Phaser.Scene, options: { readonly depth
 
   try {
     const textureKey = particleTextureKey(scene, "thrust");
-    const anim = particleAnimKey(scene, textureKey, tuning.frames, tuning.animMs, false);
+    const anims = tuning.variants.map((frames) => particleAnimKey(scene, textureKey, frames, tuning.animMs, false));
     emitter = scene.add.particles(0, 0, textureKey, {
       emitting: false,
-      anim,
+      // One puff variant per particle at random: size variance through authored frames only.
+      anim: { anims, cycle: false },
       lifespan: { min: tuning.lifespanMs.min, max: tuning.lifespanMs.max },
       speed: 0,
       scale: sheet.artScale,
@@ -343,6 +374,7 @@ export function createThrustTrail(scene: Phaser.Scene, options: { readonly depth
   const step: EmissionStep = { count: 0, carry: 0 };
   let carry = 0;
   let wasActive = false;
+  let ignition = false;
 
   return {
     update(x, y, rotation, active, intensity) {
@@ -359,6 +391,7 @@ export function createThrustTrail(scene: Phaser.Scene, options: { readonly depth
         // Kick off with one puff so a tap of thrust still reads.
         carry = 1;
         wasActive = true;
+        ignition = true;
       }
 
       const factor = reducedFactor() ?? 1;
@@ -373,6 +406,9 @@ export function createThrustTrail(scene: Phaser.Scene, options: { readonly depth
         const perpX = Math.cos(rotation);
         const perpY = Math.sin(rotation);
         for (let i = 0; i < count; i += 1) {
+          // Irregular gaps break the exhaust into separate puffs (never the ignition puff).
+          if (!ignition && Math.random() < tuning.gapChance) continue;
+          ignition = false;
           // Spread spawns along the nozzle's path this frame so fast turns stay continuous.
           const along = (i + 1) / count;
           const jitter = (Math.random() * 2 - 1) * tuning.nozzleJitter;
@@ -383,8 +419,10 @@ export function createThrustTrail(scene: Phaser.Scene, options: { readonly depth
           const angle = Phaser.Math.DegToRad(baseAngle + (Math.random() * 2 - 1) * tuning.spreadDegrees);
           const speed = inRange(tuning.speed, Math.random()) + tuning.intensitySpeed * clampedIntensity;
           const lifeSeconds = particle.life / 1000;
-          particle.velocityX = Math.cos(angle) * speed;
-          particle.velocityY = Math.sin(angle) * speed;
+          // Perpendicular drift so neighbouring puffs wander apart into clumps.
+          const drift = (Math.random() * 2 - 1) * tuning.lateralSpeed;
+          particle.velocityX = Math.cos(angle) * speed + perpX * drift;
+          particle.velocityY = Math.sin(angle) * speed + perpY * drift;
           particle.accelerationX = lifeSeconds > 0 ? (-particle.velocityX * tuning.drag) / lifeSeconds : 0;
           particle.accelerationY = lifeSeconds > 0 ? (-particle.velocityY * tuning.drag) / lifeSeconds : 0;
           // The flame-tongue frames are directional, so puffs follow the ship's heading.
@@ -400,6 +438,7 @@ export function createThrustTrail(scene: Phaser.Scene, options: { readonly depth
     },
     clear() {
       wasActive = false;
+      ignition = false;
       carry = 0;
       if (emitter?.active) emitter.killAll();
     },
@@ -436,7 +475,8 @@ export function createPixelFlame(scene: Phaser.Scene, options: { readonly depth?
       .setDepth(options.depth ?? depthBands.shipFx);
     if (options.glow === true) {
       glow = scene.add
-        .image(0, 0, pixelGlowTextureKey(scene))
+        .image(0, 0, pixelGlowTextureKey(scene), 1)
+        .setTint(colorNumber(tuning.glow.color))
         .setScale(sheet.artScale)
         .setBlendMode(Phaser.BlendModes.ADD)
         .setVisible(false)
@@ -488,11 +528,12 @@ export function createPixelFlame(scene: Phaser.Scene, options: { readonly depth?
       tongue.setFrame(frame).setPosition(x, y).setRotation(rotation).setVisible(true);
       if (glow) {
         const offset = tuning.glow.offsetArt * sheet.artScale;
-        // Two hard glow levels: dim while igniting/fading, full once the tongue is long.
-        const level = power >= (tuning.powerThresholds[1] ?? 0.5) ? 1 : 0.5;
+        // Two hard glow levels: small and dim while igniting/fading, full once the tongue is long.
+        const full = power >= (tuning.powerThresholds[1] ?? 0.5);
         glow
+          .setFrame(full ? glowFlickerFrame(timeMs) : 0)
           .setPosition(Math.round(x - Math.sin(rotation) * offset), Math.round(y + Math.cos(rotation) * offset))
-          .setAlpha(level)
+          .setAlpha(full ? tuning.glow.levels.full : tuning.glow.levels.idle)
           .setVisible(true);
       }
     },
@@ -512,6 +553,58 @@ export function createPixelFlame(scene: Phaser.Scene, options: { readonly depth?
       glow?.destroy();
       tongue = null;
       glow = null;
+    },
+  };
+}
+
+/** Full-glow flicker frame (1 or 2) from a cheap stable hash of the flicker tick. */
+function glowFlickerFrame(timeMs: number): number {
+  const tick = Math.floor(timeMs / PIXEL_FLAME_TUNING.glow.flickerMs);
+  const hash = Math.imul(tick ^ 0x2c1b3c6d, 0x297a2d39) >>> 0;
+  return hash % 3 === 0 ? 2 : 1;
+}
+
+/**
+ * Hard-edged stepped nozzle light for an engine (flight ship): the fx pixel glow sheet at the
+ * thrust sheet's integer artScale with ADD blend, in exactly two brightness levels (`idle`
+ * pilot light, `full` flicker between two baked frames). No gradients, no scale ramps.
+ */
+export function createNozzleGlow(scene: Phaser.Scene, options: { readonly depth?: number; readonly tint?: number } = {}): NozzleGlow {
+  const tuning = PIXEL_FLAME_TUNING.glow;
+  const scale = PARTICLE_SHEETS.thrust.artScale;
+  let image: Phaser.GameObjects.Image | null = null;
+  try {
+    image = scene.add
+      .image(0, 0, pixelGlowTextureKey(scene), 0)
+      .setTint(options.tint ?? colorNumber(tuning.color))
+      .setScale(scale)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setVisible(false)
+      .setDepth(options.depth ?? depthBands.ship - 0.5);
+  } catch {
+    image = null;
+  }
+  return {
+    update(nozzleX, nozzleY, rotation, level, timeMs) {
+      if (!image || !image.active) return;
+      if (level === "off" || !Number.isFinite(nozzleX) || !Number.isFinite(nozzleY)) {
+        image.setVisible(false);
+        return;
+      }
+      const offset = tuning.offsetArt * scale;
+      const full = level === "full";
+      image
+        .setFrame(full ? glowFlickerFrame(timeMs) : 0)
+        .setAlpha(full ? tuning.levels.full : tuning.levels.idle)
+        .setPosition(Math.round(nozzleX - Math.sin(rotation) * offset), Math.round(nozzleY + Math.cos(rotation) * offset))
+        .setVisible(true);
+    },
+    setDepth(value) {
+      image?.setDepth(value);
+    },
+    destroy() {
+      image?.destroy();
+      image = null;
     },
   };
 }
@@ -572,8 +665,9 @@ function burst(scene: Phaser.Scene, kind: BurstKind, x: number, y: number, optio
     emitter.setParticleTint(options.tint !== undefined ? options.tint : [...tuning.tints]);
     const lifeCap = options.lifespanMs !== undefined && Number.isFinite(options.lifespanMs) ? Math.max(60, options.lifespanMs) : null;
     const ring = options.spawnRadius !== undefined && Number.isFinite(options.spawnRadius) ? Math.max(0, options.spawnRadius) : 0;
+    const fan = options.fan ?? "radial";
     // Emit one by one so each particle gets an upward lift: bursts bloom instead of spraying flat.
-    const lift = tuning.lift * scale;
+    const lift = tuning.lift * scale * (fan === "radial" ? 1 : BURST_FANS.liftFactor);
     for (let i = 0; i < count; i += 1) {
       const around = ((i + Math.random() * 0.6) / count) * Math.PI * 2;
       const px = Math.round(x + Math.cos(around) * ring);
@@ -585,6 +679,15 @@ function burst(scene: Phaser.Scene, kind: BurstKind, x: number, y: number, optio
         const speed = Math.hypot(particle.velocityX, particle.velocityY);
         particle.velocityX = Math.cos(around) * speed;
         particle.velocityY = Math.sin(around) * speed;
+      }
+      if (fan !== "radial") {
+        // Ground-hugging fan: roll outward left/right along the surface.
+        const side = fan === "sideways" ? (i % 2 === 0 ? "left" : "right") : fan;
+        const window = BURST_FANS[side];
+        const angle = Phaser.Math.DegToRad(window.min + Math.random() * (window.max - window.min));
+        const speed = Math.hypot(particle.velocityX, particle.velocityY);
+        particle.velocityX = Math.cos(angle) * speed;
+        particle.velocityY = Math.sin(angle) * speed;
       }
       particle.velocityY -= lift * (0.6 + Math.random() * 0.4);
       if (lifeCap !== null && particle.life > lifeCap) {
@@ -605,12 +708,34 @@ export function burstSparkles(scene: Phaser.Scene, x: number, y: number, options
   burst(scene, "sparkle", x, y, options);
 }
 
-/** Comedic gyoza mishap: a flour poof plus a little confetti of fillings. */
-export function burstIncident(scene: Phaser.Scene, x: number, y: number, options: BurstOptions = {}): void {
-  const flourCount = options.count !== undefined ? Math.ceil(options.count * 0.45) : undefined;
+/**
+ * Comedic gyoza mishap: a flour poof that blooms on a ring around the contact point (at `depth`,
+ * typically behind the ship) plus an upward confetti fan of fillings that rides above the ship
+ * (`confettiDepth`, default `depth.shipFx`), optionally fired from `confettiOrigin`.
+ */
+export function burstIncident(scene: Phaser.Scene, x: number, y: number, options: IncidentBurstOptions = {}): void {
+  const tuning = INCIDENT_TUNING;
+  const flourCount = options.count !== undefined ? Math.ceil(options.count * tuning.flourShare) : undefined;
   const confettiCount = options.count !== undefined ? Math.max(1, options.count - (flourCount ?? 0)) : undefined;
-  burst(scene, "incidentFlour", x, y, { ...options, count: flourCount, tint: undefined, spread: (options.spread ?? 110) * 0.8 });
-  burst(scene, "incidentConfetti", x, y, { ...options, count: confettiCount, spread: options.spread ?? 110 });
+  const spread = options.spread ?? tuning.defaultSpread;
+  const flourDepth = options.depth ?? depthBands.worldFx;
+  const { confettiDepth, confettiOrigin, ...shared } = options;
+  burst(scene, "incidentFlour", x, y, {
+    ...shared,
+    count: flourCount,
+    tint: undefined,
+    spread: spread * tuning.flourSpreadFactor,
+    spawnRadius: options.spawnRadius ?? tuning.flourSpawnRadius,
+    depth: flourDepth,
+  });
+  burst(scene, "incidentConfetti", confettiOrigin?.x ?? x, confettiOrigin?.y ?? y, {
+    ...shared,
+    count: confettiCount,
+    spread,
+    spawnRadius: 0,
+    fan: "radial",
+    depth: confettiDepth ?? Math.max(flourDepth, depthBands.shipFx),
+  });
 }
 
 /** Twinkling stars (arrival, delivery celebration). */

@@ -25,6 +25,7 @@ export class Asteroid {
   private nudgeX = 0;
   private nudgeY = 0;
   private flashUntilMs = 0;
+  private flashSettleAtMs = 0;
   private reactionTween: Phaser.Tweens.Tween | undefined;
 
   constructor(
@@ -59,14 +60,19 @@ export class Asteroid {
       this.image.setScale(this.baseScale);
     }
 
+    if (this.flashSettleAtMs > 0 && timeMs >= this.flashSettleAtMs) {
+      this.flashSettleAtMs = 0;
+      this.image.setTint(colorNumber(asteroidArt.flashSettleColor));
+    }
     if (this.flashUntilMs > 0 && timeMs >= this.flashUntilMs) {
       this.flashUntilMs = 0;
+      this.flashSettleAtMs = 0;
       this.image.clearTint();
       this.image.setTintMode(Phaser.TintModes.MULTIPLY);
     }
   }
 
-  /** Squash away from the hit, brief warm flash, tiny nudge along the contact normal. */
+  /** Squash away from the hit, brief two-step warm flash, tiny nudge along the contact normal. */
   react(severity: BumpSeverity, normalX: number, normalY: number, timeMs: number): void {
     const nudge = asteroidArt.nudgePx[severity];
     const squashAmount = asteroidArt.squashScale * (severity === "soft-bump" ? 0.7 : 1);
@@ -88,6 +94,7 @@ export class Asteroid {
     });
 
     this.image.setTint(colorNumber(asteroidArt.flashColor)).setTintMode(Phaser.TintModes.SCREEN);
+    this.flashSettleAtMs = timeMs + asteroidArt.flashPeakMs;
     this.flashUntilMs = timeMs + asteroidArt.flashMs;
   }
 

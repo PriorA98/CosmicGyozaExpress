@@ -152,3 +152,51 @@ Manual edits: none outside the scripts.
 
 Known weaker point: the package ears are still a symmetric pair. The glyph now reads as a
 cloth bundle, but at 16 px it can still suggest bunny ears.
+
+### icons.png v4 (wave 3 round 3, 2026-10-02; ui critic r2 nit 7)
+
+Source: programmatic (Claude-side Pillow, `scripts/make_icons.py`). No Codex dispatch: the two
+glyphs are 16x16 pixel maps, where exact placement beats image generation. Snapshot of the v3
+script: `scripts/make_icons_v3.py`; v3 strip: `previews/icons-v3.png`.
+
+Command (unchanged):
+`python art-src/ui/scripts/make_icons.py public/assets/ui/icons.png art-src/ui/previews/icons.preview.png`
+
+Changed frames (all other 14 frames are pixel-identical to v3):
+- **1 package -> delivery gyoza.** Critic: the furoshiki "reads as a spotted cookie or acorn".
+  It is now a crescent dumpling in the hero ship's golds, sampled from
+  `ship/gyoza-idle.png`: highlight `#F9DFA6`, light `#F0C982`, mid `#E0AE64`, shade `#C27A40`
+  and pleat brown `#A35F33`, added as palette keys `1`..`5`. It has four rounded crimp bumps on
+  the top seam. The 1px ink notches between the bumps come from the auto outline. A 2px pleat
+  crease (pleat brown over shade) leans down from each notch, and the round belly shades
+  light-left to brown at the bottom. The fill stays inside x 2..13 and y 5..10. The frame key and
+  index (`package`, 1) are unchanged.
+- **8 tea: cream steam wisps.** Critic: the outlined dusk-blue steam dots read as navy/white
+  checker grit on the ember CTA. The steam rows were removed from the fill map. There are now
+  three short leaning wisps (centre one tallest) drawn as an **overlay** after the outline, so
+  they have no ink edge. The bases are parchment-warm `#F9F3E5` and the tips are plaster
+  `#FBF7EC`. The cup is unchanged.
+
+Iterations for the gyoza (rendered with a scratch viewer on cosmos, ember and parchment at 12x
+and 2x; the final set is in `previews/gyoza-variants.png`):
+1. Wide loaf with fold dots in the middle. Rejected because the dots read as a face.
+2. Up-turned crescent tips with deep V notches. Rejected because it read as a crown or boat.
+3. Scalloped dome. Rejected because it read as a bread loaf.
+4. Final: rounded crimp bumps level with the seam, crescent belly, creases attached to the
+   notches. At 2x it reads as a small version of the ship's dumpling hull.
+
+Validation:
+- `previews/focus-v4.png`: both glyphs on cosmos, ember, terracotta and parchment at 6x, 2x and 3x.
+- `previews/icons.preview.png`: the full strip.
+- `e2e/out/contact-ui.png`: contact sheet.
+- `node e2e/capture.mjs --states=title,ui-kit --viewports=desktop,wide --label=w3-r3-assets-ui`:
+  0 runtime errors and `assetFailures` `[]`. `title@wide` failed once with "execution context
+  destroyed" (a dev-server reload during the capture), and the retry under the label
+  `w3-r3-assets-ui-wide` passed.
+- Strip alpha is 0/255 only. Size is 2.1 KB.
+
+Known limits:
+- On plain parchment the cream steam is faint. This is by design (the critic asked for cream with
+  no navy outline). The tea icon only renders on terracotta/ember buttons. On the parchment item
+  tray it is only a fallback behind the authored `items/` art.
+- The gyoza is shorter (6 rows) than most glyphs because it is a wide crescent.

@@ -22,6 +22,8 @@ Preview: `python art-src/particles/scripts/preview.py public/assets/particles ar
 Palette glyphs: plaster FBF7EC, butter FCE7A8 (hot core), parchment F4ECDC, parchment-deep ECDFC5, amber D4A055,
 ember E08A4B, terracotta C97B5A, terracotta-deep A6614A, dusk-blue 9EB6C4, plus in-between shades
 B2A5AD (warm grey, Codex), C9AE9B (warm taupe smoke), A79BB0 (dusk shadow) added by Claude.
+Wave 3 round 3 tail shades (Claude): E9E0E6 (lavender cream), CFC4D8 (lavender grey), B8ACC8 (soft plum grey),
+DCCFCB (warm oat). B2A5AD / C9AE9B / A79BB0 are no longer used by any frame.
 
 ## Per file
 
@@ -48,5 +50,20 @@ centre. Steam rises from the bottom centre. Sparkle/star centred.
 - v4: highlight restricted to the main lobe, thrust f4 given an amber ring + butter core, f5-8 re-laid out as
   symmetric cloud puffs (`previews/thrust-v4-12x.png`, `previews/v4-all.png`).
 - v5: dust f5-6 clumps separated and rim colours softened (`previews/dust-v5-12x.png`). Final: `previews/final-all.png`.
+
+- **Wave 3 round 3 (2026-10-02, Claude, Python + Pillow, no Codex call)** — assets critic issue 7: thrust f6-8
+  and dust f5-6 went mid/dark grey on the cosmos sky (charcoal / soot). Fix in `scripts/make_particles.py`:
+  - thrust f6 bands `DKGM`@215 -> `HDOV`@245 (cream puff, oat rim, lavender-grey deep rim); f7 `KGMM`@150 ->
+    `HNVU`@220 (lavender cream, slightly smaller lobes); f8 `GMMM`@80 -> `NNVV`@230 (small pale wisp).
+  - dust f5 `PPDC`@175 -> `HPDV`@240; f6 `PPDD`@95 -> `HNNV`@230 (cream/lavender-cream flour clumps).
+  - steam (same soot issue, not cited): ribbon frames alpha 220/225/220/200 -> 245/245/240/235, f5 150 -> 230,
+    f6 85 -> 205 with its dusk-blue shade swapped for lavender cream/grey (N/V).
+  - sparkle f4 (brown cross on navy, nit): `.A./AYA/.A.`@140 -> pale butter `.Y./YWY/.Y.`@235.
+  The fade is now carried by shrinking shapes and a cream -> lavender colour shift with only gently falling alpha.
+  Verified: minimum composited luma of every tail pixel over cosmos #1A1B2E is 154-195 (sky luma 29), so tails fade
+  out lighter than the sky instead of darkening into it. Previews: `previews/r3-all.png` (8x, navy + parchment),
+  `previews/thrust-r3-3x.png`; contact sheet `e2e/out/contact-particles.png`; in-game
+  `e2e/out/w3-r3-assets-particles/` (title, fx-gallery, flight-cruise, landing-thrust: 0 errors, 0 asset failures).
+  Frame sizes / counts unchanged (manifest untouched).
 
 No manual pixel edits outside the scripts. All PNGs < 1 KB.

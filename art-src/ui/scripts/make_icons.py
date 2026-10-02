@@ -53,6 +53,12 @@ PALETTE: dict[str, RGBA] = {
     "h": hexa("#93C1B6"),  # teal light
     "r": hexa("#C26954"),  # brick
     "R": hexa("#9E4F3E"),  # brick deep
+    # hero-ship gyoza golds (sampled from public/assets/ship/gyoza-idle.png)
+    "1": hexa("#F9DFA6"),  # gyoza highlight
+    "2": hexa("#F0C982"),  # gyoza light
+    "3": hexa("#E0AE64"),  # gyoza mid
+    "4": hexa("#C27A40"),  # gyoza shade
+    "5": hexa("#A35F33"),  # gyoza pleat / deep shade
 }
 
 Grid = list[list[str]]
@@ -92,23 +98,26 @@ THRUST = pad([
     ".....rreerr.....",
 ], 3)
 
-# v3: furoshiki bundle matching items/package.png -- two cloth ears flaring out of a pinched
-# deep-terracotta knot, a round body with a diagonal fold and scattered (not paired) cream dots.
+# v4 (wave 3 r3): the "package" glyph is the delivery gyoza itself -- a crescent in the hero
+# ship's golden palette: four rounded crimp bumps on the top seam (the 1px ink notches between
+# them come from the auto outline), a 2px pleat crease leaning down from each notch, and a
+# rounded belly shading to the ship's pleat brown. Fill stays in x 2..13.
+# (v3 furoshiki read as a spotted cookie / acorn at 16 px.)
 PACKAGE = from_rows([
     "................",
     "................",
-    "...ee......ee...",
-    "..eeet....tetT..",
-    "...ettt..ttTT...",
-    ".....ttTTtT.....",
-    "......tTTt......",
-    "....eettTttt....",
-    "...eePettTttT...",
-    "..eettttPtTttT..",
-    "..ePtttttttTtT..",
-    "..etttPttttTTT..",
-    "...ttttttPtTT...",
-    "....TTTTTTTT....",
+    "................",
+    "................",
+    "................",
+    "..11.22.22.33...",
+    "..125125225335..",
+    "..122422423434..",
+    "...2222233334...",
+    "....22333344....",
+    ".....445555.....",
+    "................",
+    "................",
+    "................",
     "................",
     "................",
 ])
@@ -149,10 +158,12 @@ MEMORY = pad([
     "....aao...oo....",
 ], 3)
 
+# v4 (wave 3 r3): steam is an overlay of cream wisps with no ink outline (the v3 outlined
+# dusk-blue dots read as dark grit on the ember CTA).
 TEA = pad([
-    "......c..c......",
-    ".......c..c.....",
-    "......c..c......",
+    "................",
+    "................",
+    "................",
     "................",
     "...WWWWWWWW.....",
     "...hqqqqqqQqq...",
@@ -161,6 +172,17 @@ TEA = pad([
     ".....QQQQQ......",
     "....dddddddd....",
 ], 3)
+
+
+def tea_overlay(img: Image.Image) -> None:
+    """Three short leaning steam wisps (centre one tallest): parchment-warm bases, plaster tips."""
+    for x, y, key in (
+        (4, 5, "W"), (4, 4, "W"), (5, 3, "P"),
+        (7, 4, "W"), (7, 3, "W"), (8, 2, "P"), (8, 1, "P"),
+        (10, 5, "W"), (10, 4, "W"), (11, 3, "P"),
+    ):
+        img.putpixel((x, y), PALETTE[key])
+
 
 PAUSE = pad([
     "....PPp..PPp....",
@@ -447,6 +469,7 @@ OVERLAYS: dict[str, Overlay] = {
     "radar": radar_overlay,
     "sound-on": sound_on_overlay,
     "touch": touch_overlay,
+    "tea": tea_overlay,
 }
 
 

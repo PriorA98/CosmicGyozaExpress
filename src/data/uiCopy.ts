@@ -23,6 +23,12 @@ export const titleCopy = {
   credits: "handmade slice · ofl type",
   itemsLabel: "in the hold",
   deliveredBadge: "delivered · postcard collected",
+  /** Perforated stamp in the mission card header once delivered (desktop: the pill says "delivered"). */
+  collectedStamp: "✓ postcard collected",
+  /** Compact card header has no pill, so its stamp carries both facts. */
+  collectedStampCompact: "✓ delivered",
+  /** Shorter item line for the compact card (the full name lives in missions.ts). */
+  itemsCompact: "tea + moon mochi",
   hints: [
     { key: "enter", label: "start" },
     { key: "M", label: "sound" },
@@ -33,6 +39,12 @@ export const titleCopy = {
     corrupt: "your old save was crumpled, so we kept a copy and started fresh",
     futureVersion: "this save is from a newer version, so today's progress stays in this tab",
     storageUnavailable: "this browser can't save right now, progress lasts until you close the tab",
+  },
+  /** One-line versions for the compact (phone) title. */
+  saveNoticeCompact: {
+    corrupt: "crumpled save tucked away · fresh start",
+    futureVersion: "newer save found · progress stays in this tab",
+    storageUnavailable: "can't save here · progress lasts this tab",
   },
 } as const;
 
@@ -121,7 +133,7 @@ export const uiKitCopy = {
     focused: "focused",
     secondary: "route log",
     ink: "settings",
-    disabled: "resting",
+    disabled: "disabled",
   },
   touchLabels: {
     left: "left",
@@ -141,5 +153,24 @@ export const uiKitCopy = {
   sections2: {
     surfaces: "on parchment",
     toast: "sound toast",
+    notices: "notices",
+    settings: "settings controls",
+  },
+  /** Gallery samples for the notice components (real copy lives in titleCopy). */
+  noticeSamples: {
+    save: "crumpled save tucked away · fresh start",
+    stamp: "✓ postcard collected",
+  },
+  settingsSample: {
+    sound: "sound",
+    motion: "motion",
+    music: "music",
+  },
+  hudGridTitle: "flight · phone grid",
+  hudGridRows: {
+    speed: "speed",
+    moon: "moon",
+    bottom: "bottom",
+    package: "package",
   },
 } as const;

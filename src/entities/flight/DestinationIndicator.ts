@@ -4,12 +4,14 @@ import { colorNumber, colors, depth, typeScale } from "../../game/designTokens";
 import { SURFACE, monoStyle } from "../../ui";
 import type { DockingState, Point } from "../../types/flight";
 import { clamp } from "../../utils/math";
+import type { HudScreenRect } from "./FlightDashboard";
 
 const TAU = Math.PI * 2;
 
 /**
  * Screen-edge beacon pointing to the destination while it is off screen: a pin-shaped marker with
- * a tea-moon glyph, a drawn chevron, and a compact distance readout. Hidden when in view.
+ * a tea-moon glyph, a drawn chevron, and a compact distance readout. Hidden when in view. It stays above
+ * any HUD control in its column (touch pads, hint strip) and flips its label above the pin there.
  */
 export class DestinationIndicator {
   private readonly container: Phaser.GameObjects.Container;
@@ -20,6 +22,8 @@ export class DestinationIndicator {
   private lastReadout = "";
   private lastLayout = "";
   private uiScale = 1;
+  private avoidRects: readonly HudScreenRect[] = [];
+  private pillBlockHeight = 0;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -45,6 +49,21 @@ export class DestinationIndicator {
     this.container.setScale(scale);
   }
 
+  /** HUD rects to stay above (see FlightDashboard.labelAvoidRects). */
+  setAvoidRects(rects: readonly HudScreenRect[]): void {
+    this.avoidRects = rects;
+  }
+
+  /** Top of the highest avoid rect overlapping the column around `x` (Infinity when none). */
+  private avoidTopAt(x: number): number {
+    const half = destinationIndicatorStyle.footprintHalfWidth * this.uiScale;
+    let top = Number.POSITIVE_INFINITY;
+    for (const rect of this.avoidRects) {
+      if (x + half > rect.x && x - half < rect.x + rect.width) top = Math.min(top, rect.y);
+    }
+    return top;
+  }
+
   update(docking: DockingState, timeMs: number): void {
     const style = destinationIndicatorStyle;
     const { width, height } = this.scene.scale;
@@ -59,7 +78,8 @@ export class DestinationIndicator {
     if (onScreen) return;
 
     const x = clamp(screenX, margin, width - margin);
-    const y = clamp(screenY, margin, maxY);
+    const avoidTop = this.avoidTopAt(x);
+    const y = clamp(screenY, margin, Math.min(maxY, avoidTop - style.avoidClearance * this.uiScale));
     const angle = Math.atan2(screenY - y, screenX - x) || Math.atan2(screenY - height / 2, screenX - width / 2);
     const pulse = 0.5 + 0.5 * Math.sin((timeMs / style.pulseMs) * TAU);
     const color = colorNumber(docking.kind === "too-far" ? colors.ember : dockingStateColors[docking.kind]);
@@ -69,7 +89,8 @@ export class DestinationIndicator {
 
     const units = docking.distance / style.pxPerUnit;
     const text = `${units >= 10 ? units.toFixed(0) : units.toFixed(1)} ${style.unitLabel}`;
-    const below = y < height / 2 || Math.abs(Math.sin(angle)) < 0.5;
+    const belowFits = y + (style.labelGap + this.pillBlockHeight) * this.uiScale < avoidTop;
+    const below = (y < height / 2 || Math.abs(Math.sin(angle)) < 0.5) && belowFits;
     if (text !== this.lastReadout) {
       this.lastReadout = text;
       this.readout.setText(text);
@@ -86,6 +107,7 @@ export class DestinationIndicator {
     const style = destinationIndicatorStyle;
     const blockWidth = Math.ceil(Math.max(this.name.width, this.readout.width) + style.pillPaddingX * 2);
     const blockHeight = Math.ceil(this.name.height + style.pillLineGap + this.readout.height + style.pillPaddingY * 2);
+    this.pillBlockHeight = blockHeight;
     const top = below ? style.labelGap : -style.labelGap - blockHeight;
     const left = -Math.round(blockWidth / 2);
     this.name.setPosition(0, top + style.pillPaddingY);

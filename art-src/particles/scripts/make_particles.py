@@ -22,6 +22,8 @@ HEX = {
     "C": "9EB6C4", "L": "9B8FB8", "G": "B2A5AD",
     # in-between shades (Claude): warm taupe smoke and soft dusk shadow
     "K": "C9AE9B", "M": "A79BB0", "S": "C8D3D6",
+    # r3 tail shades (Claude): warm desaturated cream -> lavender grey, all well above cosmos value
+    "N": "E9E0E6", "V": "CFC4D8", "U": "B8ACC8", "O": "DCCFCB",
 }
 COL = {k: tuple(int(v[i:i + 2], 16) for i in (0, 2, 4)) for k, v in HEX.items()}
 
@@ -96,9 +98,11 @@ def thrust() -> Image.Image:
           core=[(6.9, 10.9, 2.0)], core_band="A")
     cloud(s, fw, 3, [(6.9, 10.9, 1.25)], "YYYY", 255)
     cloud(s, fw, 4, [(8.0, 14.2, 4.3), (5.2, 15.2, 2.5), (10.9, 15.0, 2.5)], "ETRR", 255)
-    cloud(s, fw, 5, [(7.8, 16.0, 4.2), (4.9, 17.4, 2.7), (10.8, 17.4, 3.0)], "DKGM", 215)
-    cloud(s, fw, 6, [(7.6, 17.4, 4.3), (11.0, 18.4, 3.2), (4.4, 18.8, 2.6)], "KGMM", 150)
-    cloud(s, fw, 7, [(6.4, 19.0, 2.2), (10.0, 19.6, 2.0)], "GMMM", 80)
+    # r3: tail cools into warm cream then pale lavender steam (no neutral/dark grey), alpha falls
+    # gently so every tail pixel stays lighter than the cosmos sky and the puff fades out, not darker.
+    cloud(s, fw, 5, [(7.8, 16.0, 4.2), (4.9, 17.4, 2.7), (10.8, 17.4, 3.0)], "HDOV", 245)
+    cloud(s, fw, 6, [(7.6, 17.4, 4.0), (11.0, 18.4, 3.0), (4.4, 18.8, 2.4)], "HNVU", 220)
+    cloud(s, fw, 7, [(6.4, 19.0, 2.2), (10.0, 19.6, 2.0)], "NNVV", 230)
     return s
 
 
@@ -113,8 +117,9 @@ def dust() -> Image.Image:
     glyph(s, fw, 3, 1, 5, "..PPP........./.PPPPD......../PPPPPPD..PPP../PPPPPPDDPPPPD./PPPPPDDDPPDDDC/"
                           "PPDDDDDDDDDCCC/DDDDDDDDDDDCCC/.DDDDDDDDCCCC./..DDDDDDCCCC../...DDDCCCCC...", 235)
     # frames 5-6: puff splits into drifting round clumps and fades (Claude v2)
-    cloud(s, fw, 4, [(4.0, 10.0, 2.7), (11.8, 9.2, 2.8), (8.0, 13.2, 1.8)], "PPDC", 175)
-    cloud(s, fw, 5, [(4.0, 7.0, 2.0), (12.0, 6.0, 2.0), (8.0, 12.0, 1.5)], "PPDD", 95)
+    # r3: flour clumps stay cream / lavender-cream with high alpha (no grey ash on navy)
+    cloud(s, fw, 4, [(4.0, 10.0, 2.7), (11.8, 9.2, 2.8), (8.0, 13.2, 1.8)], "HPDV", 240)
+    cloud(s, fw, 5, [(4.0, 7.0, 2.0), (12.0, 6.0, 2.0), (8.0, 12.0, 1.5)], "HNNV", 230)
     return s
 
 
@@ -124,7 +129,7 @@ def sparkle() -> Image.Image:
     glyph(s, fw, 0, 2, 2, ".A./AWA/.A.")
     glyph(s, fw, 1, 1, 1, "..A../.AYA./AYWYA/.AYA./..A..")
     glyph(s, fw, 2, 1, 1, "..AA../..YY../AYWWYA/AYWYYA/..YY../..AA..")
-    glyph(s, fw, 3, 2, 2, ".A./AYA/.A.", 140)
+    glyph(s, fw, 3, 2, 2, ".Y./YWY/.Y.", 235)  # r3: pale butter fade, no brown cross on navy
     return s
 
 
@@ -132,14 +137,14 @@ def steam() -> Image.Image:
     fw = 12
     s = new_strip(fw, 20, 6)
     # frames 1-4: Codex v1 ribbon glyphs
-    glyph(s, fw, 0, 4, 15, ".WW./WWWD/WWDC/.DC.", 220)
-    glyph(s, fw, 1, 4, 11, "..WW./.WWWD/.WWDC/..WDC/..WDC/.WWC./.WDC.", 225)
-    glyph(s, fw, 2, 3, 7, "..WW../.WWWD./.WWDC./..WDC./...WDC/...WDC/..WWC./.WWC../.WDC../..DC..", 220)
+    glyph(s, fw, 0, 4, 15, ".WW./WWWD/WWDC/.DC.", 245)
+    glyph(s, fw, 1, 4, 11, "..WW./.WWWD/.WWDC/..WDC/..WDC/.WWC./.WDC.", 245)
+    glyph(s, fw, 2, 3, 7, "..WW../.WWWD./.WWDC./..WDC./...WDC/...WDC/..WWC./.WWC../.WDC../..DC..", 240)
     glyph(s, fw, 3, 3, 3, "..WW../.WWWD./.WWDC./.WWC../..WDC./...WDC/...WDC/..WWC./.WWC../.WDC../"
-                          ".WDC../..DC..", 200)
+                          ".WDC../..DC..", 235)
     # frames 5-6: wisp thins, top curl detaches and drifts up, then dissolves (Claude v2)
-    glyph(s, fw, 4, 3, 1, "..WW../.WWWD./.WWDC./..DC../....../...WD./...WDC/...WDC/..WDC./..DC..", 150)
-    glyph(s, fw, 5, 4, 1, ".WW./WWWD/.WDC/..../..../.WD./..DC", 85)
+    glyph(s, fw, 4, 3, 1, "..WW../.WWWD./.WWDC./..DC../....../...WD./...WDC/...WDC/..WDC./..DC..", 230)
+    glyph(s, fw, 5, 4, 1, ".WW./WWWN/.WNV/..../..../.WN./..NV", 185)
     return s
 
 

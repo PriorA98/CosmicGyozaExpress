@@ -5,7 +5,7 @@ import { landingTuning } from "../data/landingTuning";
 import { TEA_MOON_MISSION_ID } from "../data/missions";
 import { installDevSceneHotkeys } from "../dev/DevSceneLauncher";
 import { registerDevState } from "../dev/devProbe";
-import { GyozaShip } from "../entities/GyozaShip";
+import { GyozaShip, rotationCellIndex } from "../entities/GyozaShip";
 import { LandingAids } from "../entities/landing/LandingAids";
 import { showLandingCaption } from "../entities/landing/LandingCaption";
 import { createLandingControlsHint, LandingDashboard } from "../entities/landing/LandingDashboard";
@@ -15,7 +15,12 @@ import { LandingTouchPads } from "../entities/landing/LandingTouchPads";
 import { landingTouchTiles } from "../entities/landing/landingTouchLayout";
 import { LunarScenery } from "../entities/landing/LunarScenery";
 import { MoonRabbit } from "../entities/landing/MoonRabbit";
-import { buildLandingReadouts, type LandingReadouts } from "../entities/landing/landingReadouts";
+import {
+  buildIncidentReadouts,
+  buildLandingReadouts,
+  buildSettledReadouts,
+  type LandingReadouts,
+} from "../entities/landing/landingReadouts";
 import { outlineEllipseSpans, drawSpans, snapToGrid } from "../entities/landing/pixelShapes";
 import { resolveShipLayout, type ShipDisplayLayout } from "../entities/landing/shipFootprint";
 import { stepThrustPower, thrustFlameFrame, type ThrustFlameFrame } from "../entities/landing/thrustFlame";
@@ -32,6 +37,7 @@ import { playEnterTransition, transitionToScene } from "../fx/transitions";
 import { compactUiScale, isCompactDisplay } from "../game/displayScale";
 import { colorNumber, colors, depth, motion } from "../game/designTokens";
 import { emitGameEvent } from "../game/events";
+import { Button } from "../ui";
 import {
   classifyLandingIncident,
   classifyLandingTouchdown,
@@ -79,12 +85,16 @@ type HudLayer = {
   readonly dashboard: LandingDashboard;
   readonly hint: Phaser.GameObjects.Container | undefined;
   readonly touchPads: LandingTouchPads | undefined;
+  /** Touch layouts only: the parchment retry chip (keyboard players have R). */
+  readonly retryChip: Button | undefined;
   readonly uiScale: number;
 };
 
 const NO_CONTROLS: LandingControls = { thrust: false, rotateLeft: false, rotateRight: false, stabilizer: false };
 const CELL = LANDING_ART_SCALE;
 const FLY_FRAMES = [ASSET.shipFly1, ASSET.shipFly2, ASSET.shipFly3] as const;
+/** Pre-rotated (RotSprite) sheets of the fly frames: the flame never rotates at runtime either. */
+const FLY_ROT_FRAMES = [ASSET.shipFly1Rot, ASSET.shipFly2Rot, ASSET.shipFly3Rot] as const;
 /** Thrust puffs sit just behind the ship so the baked flame stays in front of them. */
 const TRAIL_DEPTH = depth.ship - 1;
 
@@ -133,6 +143,8 @@ export class LandingScene extends Phaser.Scene {
   private landingIncidents = 0;
   private delivered = false;
   private startOverride: LandingKinematicState | undefined;
+  /** |vy| at the last touchdown (px/s): scales the touchdown dust. */
+  private touchdownSpeed = 0;
 
   constructor() {
     super("LandingScene");
@@ -186,7 +198,9 @@ export class LandingScene extends Phaser.Scene {
 
     this.shipLayout = resolveShipLayout(this, landingScenery.ship.fallbackFootRatio);
     this.ship = new GyozaShip(this, this.toShipState(this.landingState));
-    this.ship.setOrigin(this.shipLayout.originX, this.shipLayout.originY).setBaseScale(this.shipLayout.scale).setDepth(depth.ship);
+    this.ship
+      .applyArtLayout({ contract: true, scale: this.shipLayout.scale, originX: this.shipLayout.originX, originY: this.shipLayout.originY })
+      .setDepth(depth.ship);
     // Puffs are placed at the live flame tip each frame, so the trail itself needs no offset.
     this.thrustTrail = createThrustTrail(this, { depth: TRAIL_DEPTH, offset: 0 });
 
@@ -239,12 +253,12 @@ export class LandingScene extends Phaser.Scene {
     const deltaSeconds = clamp(delta / 1000, 0, landingTuning.maxDeltaSeconds);
     this.controls = this.readControls();
 
-    if (this.keys && Phaser.Input.Keyboard.JustDown(this.keys.R) && (this.phase.kind === "descending" || this.phase.kind === "incident")) {
-      this.restartLandingAttempt();
-    }
+    if (this.keys && Phaser.Input.Keyboard.JustDown(this.keys.R)) this.requestRetry();
 
     const descending = this.phase.kind === "descending";
-    this.emitHeldEdges(descending && this.controls.thrust, descending && this.controls.stabilizer);
+    // The arrival glide burns a visible braking flame, so it drives the thrust loop too.
+    const introBraking = this.phase.kind === "intro" && this.introShip.power >= landingScenery.thrust.litPower;
+    this.emitHeldEdges((descending && this.controls.thrust) || introBraking, descending && this.controls.stabilizer);
 
     switch (this.phase.kind) {
       case "intro":
@@ -386,7 +400,9 @@ export class LandingScene extends Phaser.Scene {
     if (touchdown.kind === "none") return;
 
     // Freeze the readouts at the touchdown speed so the HUD and the caption agree with what happened.
-    this.readouts = buildLandingReadouts(this.reading, this.landingState.velocityX, this.landingState.velocityY);
+    const snapshot = buildLandingReadouts(this.reading, this.landingState.velocityX, this.landingState.velocityY);
+    this.readouts = snapshot;
+    this.touchdownSpeed = Math.abs(this.landingState.velocityY);
     this.cutThrust();
 
     if (touchdown.kind === "incident") {
@@ -394,6 +410,7 @@ export class LandingScene extends Phaser.Scene {
       this.packageCondition = applyPackageConditionEvent(this.packageCondition, "landing-incident");
       this.landingIncidents += 1;
       this.phase = { kind: "incident", startedAtMs: time, incidentKind };
+      this.readouts = buildIncidentReadouts(snapshot, incidentKind, this.driftArrow());
       emitGameEvent(this, { type: "landing:incident", incident: incidentKind, x: this.landingState.x, y: this.pad.surfaceY });
       this.beginIncident(incidentKind);
       return;
@@ -407,6 +424,7 @@ export class LandingScene extends Phaser.Scene {
     this.reading = readLandingZone(this.landingState, this.pad);
     this.alignment = padAlignment(this.landingState, this.pad);
     this.phase = { kind: "settling", startedAtMs: time, result: touchdown.kind };
+    this.readouts = buildSettledReadouts(snapshot);
     emitGameEvent(this, { type: "landing:touchdown", result: touchdown.kind, x: this.landingState.x, y: this.pad.surfaceY });
     this.beginTouchdown(touchdown.kind);
   }
@@ -440,6 +458,11 @@ export class LandingScene extends Phaser.Scene {
     if (elapsed >= landingTuning.incidentRestartMs) {
       this.restartLandingAttempt();
     }
+  }
+
+  /** R key / touch retry chip: a fresh landing-only attempt while descending or after an incident. */
+  private requestRetry(): void {
+    if (this.phase.kind === "descending" || this.phase.kind === "incident") this.restartLandingAttempt();
   }
 
   private restartLandingAttempt(): void {
@@ -486,14 +509,31 @@ export class LandingScene extends Phaser.Scene {
     const dustConfig = landingScenery.touchdownDust;
     const x = this.landingState.x;
 
+    // Dust puffs out sideways from under the feet, behind the hull, so the hero pose stays clear; the
+    // gentler the touchdown, the smaller the puff. Only a bumpy landing kicks a few puffs in front.
+    const dust = dustConfig[result];
+    const speedShare = clamp(this.touchdownSpeed / landingTuning.bumpyVerticalSpeed, 0, 1);
+    const perSide = Math.round(Phaser.Math.Linear(dust.minCountPerSide, dust.maxCountPerSide, speedShare));
     for (const side of [-1, 1] as const) {
-      burstDust(this, x + side * dustConfig.footSpreadPx, this.contactY - CELL, {
-        count: dustConfig[result].count / 2,
-        spread: dustConfig[result].spread,
-        depth: depth.ship + 1,
+      burstDust(this, x + side * dust.footSpreadPx, this.contactY - CELL, {
+        count: perSide,
+        spread: dust.spread,
+        lifespanMs: dust.lifespanMs,
+        depth: depth.ship - 1,
       });
     }
-    if (result === "bumpy") shakeCamera(this, "soft");
+    if (result === "bumpy") {
+      const front = dustConfig.bumpyFront;
+      for (const side of [-1, 1] as const) {
+        burstDust(this, x + side * front.footSpreadPx, this.contactY, {
+          count: front.countPerSide,
+          spread: front.spread,
+          lifespanMs: front.lifespanMs,
+          depth: depth.ship + 1,
+        });
+      }
+      shakeCamera(this, "soft");
+    }
 
     // Touchdown "squash" is a dip in whole art px: integer-scale pixel art never stretches.
     this.tweens.add({
@@ -538,7 +578,7 @@ export class LandingScene extends Phaser.Scene {
     this.ship.setScale(this.shipLayout.scale);
 
     const impactX = clamp(this.landingState.x, this.playMinX, this.playMaxX);
-    burstIncident(this, impactX, this.contactY - 10, { depth: depth.worldFx });
+    this.burstIncidentPoof(impactX);
     shakeCamera(this, kind === "hard-drop" ? "strong" : "medium");
 
     this.caption = showLandingCaption(this, {
@@ -567,6 +607,37 @@ export class LandingScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * The comedic poof, layered so the dumpling stays readable: flour blooms behind the hull at the contact
+   * point, while the confetti (plus a little flour) fans up from a ring around the ship, in front of it.
+   */
+  private burstIncidentPoof(impactX: number): void {
+    const poof = landingScenery.incidentPoof;
+    burstDust(this, impactX, this.contactY - CELL, {
+      count: poof.flourCount,
+      spread: poof.flourSpread,
+      spawnRadius: poof.flourSpawnRadiusPx,
+      depth: depth.ship - 1,
+    });
+    burstIncident(this, impactX, this.restingCenterY(), {
+      count: poof.confettiCount,
+      spread: poof.confettiSpread,
+      spawnRadius: poof.confettiSpawnRadiusPx,
+      depth: depth.shipFx,
+    });
+  }
+
+  /** One incident dust puff from `landingScenery.incidentDust`, at the contact row. */
+  private incidentDust(x: number, id: keyof typeof landingScenery.incidentDust): void {
+    const puff = landingScenery.incidentDust[id];
+    burstDust(this, x, this.contactY - CELL * 2, {
+      count: puff.count,
+      spread: puff.spread,
+      spawnRadius: puff.spawnRadiusPx,
+      depth: puff.front ? depth.foreground + 1 : depth.ship - 1,
+    });
+  }
+
   /** Ship pivot y when its feet rest on the blanket's contact row. */
   private restingCenterY(): number {
     return this.contactY - this.shipLayout.footPx;
@@ -580,7 +651,7 @@ export class LandingScene extends Phaser.Scene {
     const direction = this.incidentTiltDirection();
 
     this.ship.setPosition(impactX, impactY - config.hardDropImpactPx);
-    burstDust(this, impactX, this.contactY - 4, { count: 22, spread: 126, depth: depth.ship + 1 });
+    this.incidentDust(impactX, "hardDropImpact");
     this.createShockRing(impactX, this.contactY, colors.ember);
 
     this.tweens.chain({
@@ -593,7 +664,7 @@ export class LandingScene extends Phaser.Scene {
           duration: 230,
           ease: "Back.easeOut",
           onStart: () => {
-            burstDust(this, impactX, this.contactY - 4, { count: 14, spread: 90, depth: depth.ship + 1 });
+            this.incidentDust(impactX, "hardDropBounce");
             this.createThrusterMisfire();
           },
         },
@@ -610,13 +681,13 @@ export class LandingScene extends Phaser.Scene {
     const endX = clamp(startX + direction * config.skidDistancePx, this.playMinX, this.playMaxX);
 
     this.ship.setPosition(startX, startY);
-    burstDust(this, startX, this.contactY - 4, { count: 14, spread: 82, depth: depth.ship + 1 });
+    this.incidentDust(startX, "skid");
     this.createShockRing(startX, this.contactY, colors.terracotta);
 
     this.time.addEvent({
       delay: 62,
       repeat: 6,
-      callback: () => burstDust(this, this.ship.x - direction * 40, this.contactY - 4, { count: 3, spread: 40, depth: depth.worldFx }),
+      callback: () => this.incidentDust(this.ship.x - direction * landingScenery.incident.skidTrailBehindPx, "skidTrail"),
     });
 
     this.tweens.add({
@@ -637,7 +708,7 @@ export class LandingScene extends Phaser.Scene {
     const startY = this.restingCenterY();
 
     this.ship.setPosition(startX, startY);
-    burstDust(this, startX, this.contactY - 4, { count: 12, spread: 78, depth: depth.ship + 1 });
+    this.incidentDust(startX, "tiltTip");
 
     // Wobble on one leg first, then topple over: reads as "geometry won".
     this.tweens.chain({
@@ -667,7 +738,7 @@ export class LandingScene extends Phaser.Scene {
     const startY = this.restingCenterY();
 
     this.ship.setPosition(startX, startY);
-    burstDust(this, startX, this.contactY - 4, { count: 26, spread: 118, depth: depth.ship + 1 });
+    this.incidentDust(startX, "offPad");
     this.createShockRing(startX, this.contactY, colors.duskBlue);
 
     // Plops into soft moon dust and tips over: wrong blanket.
@@ -679,7 +750,7 @@ export class LandingScene extends Phaser.Scene {
       duration: 520,
       ease: "Quad.easeIn",
       onComplete: () => {
-        burstDust(this, this.ship.x, this.contactY, { count: 12, spread: 76, depth: depth.foreground + 1 });
+        this.incidentDust(this.ship.x, "offPadPlop");
       },
     });
   }
@@ -716,7 +787,17 @@ export class LandingScene extends Phaser.Scene {
   private createThrusterMisfire(): void {
     const bottom = bottomVector(this.ship.visualRotation);
     const nozzle = this.shipLayout.footPx;
-    burstIncident(this, this.ship.x + bottom.x * nozzle, this.ship.y + bottom.y * nozzle, { count: 8, spread: 60, depth: depth.shipFx });
+    // Behind the hull: the sparks cough out from under the dumpling instead of over its face.
+    burstIncident(this, this.ship.x + bottom.x * nozzle, this.ship.y + bottom.y * nozzle, { count: 8, spread: 60, depth: depth.ship - 1 });
+  }
+
+  /** Drift arrow for the frozen incident readout (a skid slides the way the ship was drifting). */
+  private driftArrow(): string {
+    const deadband = landingScenery.readouts.driftArrowDeadbandPxPerSecond;
+    const vx = this.landingState.velocityX;
+    if (vx > deadband) return landingCopy.driftArrows.right;
+    if (vx < -deadband) return landingCopy.driftArrows.left;
+    return "";
   }
 
   private incidentHorizontalDirection(): number {
@@ -750,9 +831,31 @@ export class LandingScene extends Phaser.Scene {
     const dashboard = new LandingDashboard(this, { compact: isCompactDisplay(this), scale: uiScale });
     const touchPads = this.touchLayout ? new LandingTouchPads(this, compactUiScale(this)) : undefined;
     const hint = this.touchLayout ? undefined : createLandingControlsHint(this, uiScale, isCompactDisplay(this) ? "top-right" : "bottom");
-    this.hud = { dashboard, hint, touchPads, uiScale };
+    const retryChip = this.touchLayout ? this.createRetryChip(compactUiScale(this)) : undefined;
+    this.hud = { dashboard, hint, touchPads, retryChip, uiScale };
     this.aids.setUiScale(compactUiScale(this));
     if (this.phase.kind === "intro") this.setHudAlpha(0);
+  }
+
+  /** Small parchment "retry" chip pinned to the top-right corner (touch layouts have no R key). */
+  private createRetryChip(uiScale: number): Button {
+    const config = landingScenery.retryChip;
+    const chip = new Button(this, {
+      x: 0,
+      y: 0,
+      label: landingCopy.touchRetry,
+      variant: "secondary",
+      fixed: true,
+      uiScale,
+      onActivate: () => this.requestRetry(),
+    });
+    chip
+      .setPosition(
+        snapToGrid(this.scale.width - config.marginX - chip.buttonWidth, CELL),
+        snapToGrid(config.marginY, CELL),
+      )
+      .setDepth(depth.hud);
+    return chip;
   }
 
   private rebuildHudIfNeeded(): void {
@@ -761,6 +864,7 @@ export class LandingScene extends Phaser.Scene {
     hud.dashboard.destroy();
     hud.hint?.destroy();
     hud.touchPads?.destroy();
+    hud.retryChip?.destroy();
     this.hud = undefined;
     this.buildHud();
     this.updateDashboard();
@@ -772,6 +876,7 @@ export class LandingScene extends Phaser.Scene {
     hud.dashboard.setAlpha(alpha);
     hud.hint?.setAlpha(alpha);
     hud.touchPads?.setAlpha(alpha);
+    hud.retryChip?.setAlpha(alpha);
   }
 
   private fadeHudIn(durationMs: number): void {
@@ -796,10 +901,12 @@ export class LandingScene extends Phaser.Scene {
         drift: readouts.drift,
         tilt: readouts.tilt,
         altitude: readouts.altitude,
+        pad: readouts.pad,
         packageLabel: this.packageWord(),
         note: this.dashboardNote(),
       },
       this.time.now,
+      this.phase.kind !== "descending",
     );
   }
 
@@ -911,8 +1018,22 @@ export class LandingScene extends Phaser.Scene {
       },
       false,
     );
+    this.showFlameFrame(rotation);
+  }
+
+  /**
+   * Swaps in the baked flame frame for the current thrust power, at the same RotSprite angle cell the
+   * ship entity picked (falls back to the upright frame if the rotated sheet is missing).
+   */
+  private showFlameFrame(rotation: number): void {
     const frame = this.flameFrame;
-    if (frame > 0) this.ship.setTexture(FLY_FRAMES[frame - 1] ?? ASSET.shipFly1);
+    if (frame <= 0) return;
+    const rotatedKey = FLY_ROT_FRAMES[frame - 1] ?? ASSET.shipFly1Rot;
+    if (this.textures.exists(rotatedKey)) {
+      this.ship.setTexture(rotatedKey, rotationCellIndex(rotation)).setOrigin(0.5, 0.5);
+      return;
+    }
+    this.ship.setTexture(FLY_FRAMES[frame - 1] ?? ASSET.shipFly1).setOrigin(this.shipLayout.originX, this.shipLayout.originY);
   }
 
   /** Puffs leave the tip of whichever baked flame is showing, at the sheet's integer art scale. */

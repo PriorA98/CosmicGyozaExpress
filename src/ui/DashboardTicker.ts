@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { colorNumber, colors, motion } from "../game/designTokens";
 import { isReducedMotion } from "../fx/feedback";
-import { monoCharsThatFit, truncateToChars, typewriterVisibleChars } from "./layout";
+import { TICKER_METRICS, monoCharsThatFit, typewriterVisibleChars, wrapMonoLines } from "./layout";
 import { monoStyle } from "./textStyles";
 
 export type DashboardTickerOptions = {
@@ -16,12 +16,30 @@ export type DashboardTickerOptions = {
   readonly fixed?: boolean;
   /** Draw a dark HUD strip behind the line. */
   readonly background?: boolean;
+  /**
+   * 1 (default): one line, longer chatter ends in an ellipsis. 2: long chatter wraps onto a second
+   * line so punchlines survive; the strip is `dashboardTickerHeight(2)` tall either way.
+   */
+  readonly maxLines?: TickerLines;
 };
 
+export type TickerLines = 1 | 2;
+
+/** One-line strip height (use `dashboardTickerHeight` / `tickerHeight` for wrapped tickers). */
 export const TICKER_HEIGHT = 34;
+/** Extra height per additional wrapped line. */
+export const TICKER_LINE_HEIGHT = 18;
+
+/** Strip height for a ticker that may wrap to `lines` lines. */
+export function dashboardTickerHeight(lines: TickerLines = 1): number {
+  return TICKER_HEIGHT + (lines - 1) * TICKER_LINE_HEIGHT;
+}
+
+/** Strip fill: near-opaque so scenery sparkles never read as glyphs inside the chatter. */
+const TICKER_FILL_ALPHA = 0.94;
 const PROMPT = "›";
 const PADDING_X = 12;
-const TEXT_X = PADDING_X + 16;
+const TEXT_X = TICKER_METRICS.textInsetLeft;
 const CARET_GAP = 3;
 const CARET_WIDTH = 8;
 /** Sample used to measure one monospaced character (averaged over several for sub-pixel widths). */
@@ -37,10 +55,14 @@ export class DashboardTicker extends Phaser.GameObjects.Container {
   private readonly caret: Phaser.GameObjects.Rectangle;
   private readonly charsPerSecond: number;
   private readonly holdMs: number;
-  /** Characters that fit beside the prompt and caret; longer lines end in an ellipsis. */
+  /** Characters that fit beside the prompt and caret per line. */
   private readonly maxChars: number;
+  private readonly maxLines: TickerLines;
+  private readonly charWidth: number;
+  readonly tickerHeight: number;
   private lines: readonly string[];
   private lineIndex = 0;
+  /** Current line, wrapped and joined with "\n" (the newline costs one typewriter tick). */
   private current = "";
   private shownChars = -1;
   private elapsedMs = 0;
@@ -51,29 +73,35 @@ export class DashboardTicker extends Phaser.GameObjects.Container {
     this.charsPerSecond = options.charsPerSecond ?? 34;
     this.holdMs = options.holdMs ?? 3600;
     this.lines = options.lines ?? [];
+    this.maxLines = options.maxLines ?? 1;
+    this.tickerHeight = dashboardTickerHeight(this.maxLines);
+    const height = this.tickerHeight;
 
     if (options.background ?? true) {
       const g = scene.add.graphics();
-      g.fillStyle(colorNumber(colors.cosmosPanel), 0.78);
-      g.fillRoundedRect(0, 0, options.width, TICKER_HEIGHT, 6);
+      g.fillStyle(colorNumber(colors.cosmosPanel), TICKER_FILL_ALPHA);
+      g.fillRoundedRect(0, 0, options.width, height, 6);
       g.lineStyle(2, colorNumber(colors.plaster), 0.12);
-      g.strokeRoundedRect(1, 1, options.width - 2, TICKER_HEIGHT - 2, 5);
+      g.strokeRoundedRect(1, 1, options.width - 2, height - 2, 5);
       this.add(g);
     }
 
+    // The prompt sits on the first text line (centred when only one line is reserved).
+    const firstLineY = this.maxLines === 1 ? height / 2 : TICKER_HEIGHT / 2;
     const prompt = scene.add
-      .text(PADDING_X, TICKER_HEIGHT / 2, PROMPT, monoStyle({ size: 15, bold: true, color: colors.ember }))
+      .text(PADDING_X, firstLineY, PROMPT, monoStyle({ size: 15, bold: true, color: colors.ember }))
       .setOrigin(0, 0.5);
     this.lineText = scene.add
-      .text(TEXT_X, TICKER_HEIGHT / 2, MEASURE_SAMPLE, monoStyle({ size: 14, color: colors.plaster }))
+      .text(TEXT_X, firstLineY, MEASURE_SAMPLE, monoStyle({ size: TICKER_METRICS.fontPx, color: colors.plaster }))
       .setOrigin(0, 0.5)
       .setAlpha(0.88);
-    const charWidth = this.lineText.width / MEASURE_SAMPLE.length;
-    this.maxChars = monoCharsThatFit(options.width - TEXT_X - PADDING_X - CARET_GAP - CARET_WIDTH, charWidth);
+    this.lineText.setLineSpacing(TICKER_LINE_HEIGHT - this.lineText.height);
+    this.charWidth = this.lineText.width / MEASURE_SAMPLE.length;
+    this.maxChars = monoCharsThatFit(options.width - TEXT_X - TICKER_METRICS.textInsetRight, this.charWidth);
     this.lineText.setText("");
-    this.caret = scene.add.rectangle(0, TICKER_HEIGHT / 2, CARET_WIDTH, 14, colorNumber(colors.ember)).setOrigin(0, 0.5);
+    this.caret = scene.add.rectangle(0, firstLineY, CARET_WIDTH, 14, colorNumber(colors.ember)).setOrigin(0, 0.5);
     this.add([prompt, this.lineText, this.caret]);
-    this.setSize(options.width, TICKER_HEIGHT);
+    this.setSize(options.width, height);
     if (options.fixed) this.setScrollFactor(0, 0, true);
 
     if (!isReducedMotion()) {
@@ -121,10 +149,10 @@ export class DashboardTicker extends Phaser.GameObjects.Container {
   }
 
   private show(line: string): void {
-    this.current = truncateToChars(line, this.maxChars);
+    this.current = wrapMonoLines(line, this.maxChars, this.maxLines).join("\n");
     this.elapsedMs = 0;
     this.shownChars = -1;
-    this.render(isReducedMotion() ? line.length : 0);
+    this.render(isReducedMotion() ? this.current.length : 0);
   }
 
   private tick(_time: number, delta: number): void {
@@ -146,7 +174,13 @@ export class DashboardTicker extends Phaser.GameObjects.Container {
   private render(visibleChars: number): void {
     if (visibleChars === this.shownChars) return;
     this.shownChars = visibleChars;
-    this.lineText.setText(this.current.slice(0, visibleChars));
-    this.caret.setX(this.lineText.x + this.lineText.width + CARET_GAP);
+    const visible = this.current.slice(0, visibleChars);
+    this.lineText.setText(visible);
+    // Wrapped text grows downward from the first line; the caret follows the last visible line.
+    const lineCount = visible.split("\n").length;
+    const lastLine = visible.slice(visible.lastIndexOf("\n") + 1);
+    const firstLineY = this.maxLines === 1 ? this.tickerHeight / 2 : TICKER_HEIGHT / 2;
+    this.lineText.setOrigin(0, 0).setY(Math.round(firstLineY - TICKER_LINE_HEIGHT / 2));
+    this.caret.setPosition(Math.round(this.lineText.x + lastLine.length * this.charWidth + CARET_GAP), firstLineY + (lineCount - 1) * TICKER_LINE_HEIGHT);
   }
 }

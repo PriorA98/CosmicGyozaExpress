@@ -1,7 +1,7 @@
 /** Shared warm UI kit (Phaser containers). Knows nothing about missions or physics. */
 export { Button, type ButtonOptions, type ButtonVariant, type ButtonVisualState } from "./Button";
-export { DashboardTicker, TICKER_HEIGHT, type DashboardTickerOptions } from "./DashboardTicker";
-export { HudPanel, HUD_LAYOUT, hudPanelHeight, type HudPanelOptions, type HudRow } from "./HudPanel";
+export { DashboardTicker, TICKER_HEIGHT, TICKER_LINE_HEIGHT, dashboardTickerHeight, type DashboardTickerOptions, type TickerLines } from "./DashboardTicker";
+export { HudPanel, HUD_LAYOUT, hudCellFrames, hudLineCount, hudPanelHeight, type HudColumns, type HudPanelOptions, type HudRow } from "./HudPanel";
 export { ICON_DISPLAY_SIZE, ICON_SCALE, addUiIcon, setUiIcon } from "./icons";
 export { KEYCAP_HEIGHT, Keycap, type KeycapOptions } from "./Keycap";
 export * from "./layout";
@@ -14,6 +14,8 @@ export * from "./textStyles";
 export { TouchControls, detectTouchDevice, type TouchControlsOptions, type TouchZoneDefinition } from "./TouchControls";
 export { hasAuthoredTexture } from "./uiTextures";
 export { Modal, type ModalOptions } from "./Modal";
+export { CollectedStamp, SaveNoticeChip, type CollectedStampOptions, type SaveNoticeChipOptions } from "./NoticeChips";
+export { SETTINGS_CONTROL, drawStepperKey, drawToggleSwitch } from "./settingsControls";
 export { RouteLogPanel, type RouteLogPanelCopy, type RouteLogPanelOptions, type RouteLogStat } from "./RouteLogPanel";
 export { SettingsPanel, type SettingsPanelOptions } from "./SettingsPanel";
 export * from "./settingsModel";

@@ -11,7 +11,7 @@ Status: wave 2, updated 2026-10-02. Generations dated 2026-10-01. Folder owner: 
 | asteroid-rice.png | 92x92 | 84 | raw/asteroid-rice-v1.png | 1 |
 | asteroid-tea.png | 100x100 | 92 | raw/asteroid-tea-v1.png | 1 |
 | asteroid-mochi.png | 84x84 | 76 | raw/asteroid-mochi-v5.png | 5 (v1-v3 round 1, v4-v5 wave 2) |
-| asteroid-crumb.png | 66x66 | 58 | raw/asteroid-crumb-v1.png + scripted flat cut | 3 (v1, v2, v3) |
+| asteroid-crumb.png | 66x66 | 58 | raw/asteroid-crumb-v1.png + scripted chunky faceted break (`chunk_cut.py`, wave 3) | 3 (v1, v2, v3) |
 | asteroid-debris.png | 96x24 (4 x 24x24) | ~20 | raw/asteroid-debris-v1.png -> raw/slices/debris-v1-{1..4}.png | 1 |
 
 All are transparent RGBA. Every rock is built with `--pad 4`, so the body's longest axis equals the canvas
@@ -49,7 +49,7 @@ ONE joint palette.
 - `close_outline.py` recolours light silhouette-edge pixels to the darkest edge ink, which gives a
   continuous 1 px outline. The silhouette does not grow.
 - `restore_blush.py` re-paints sleepy's cheek blush (30 px) from the raw, because quantizing drops it.
-- `cut_flat.py` slices a straight chord off a round sprite, re-inks the cut, and paints a flat fracture face.
+- `cut_flat.py` (wave 2, superseded by `chunk_cut.py` in wave 3) slices a straight chord off a round sprite, re-inks the cut, and paints a flat fracture face.
   In wave 2 it gained `order=inner`: ink, then a shade band, then a lit ridge row innermost.
 - `quantize_joint.py` quantizes a whole strip to ONE palette (debris).
 - `slice_strip.py` splits the debris strip into padded subjects. `dedither.py` was a wave-2 experiment
@@ -72,7 +72,7 @@ px $R/keyed/asteroid-mochi-v5.png $T/mochi-q.png --size 84x84 --colors 36 --pad 
 python $SC/close_outline.py $T/mochi-q.png $O/asteroid-mochi.png
 px $R/asteroid-crumb-v1.png $T/crumb-q.png --size 66x66 --colors 36 --pad 4
 python $SC/close_outline.py $T/crumb-q.png $T/crumb-ol.png
-python $SC/cut_flat.py $T/crumb-ol.png $O/asteroid-crumb.png 3 35 25 63 4 "#ECD3B0" "#9486AA" inner
+python $SC/chunk_cut.py $T/crumb-ol.png $O/asteroid-crumb.png "4,33 9,43 15,47 19,55 28,61" "#575172,#726A92,#88799E,#9486AA" "#C0AEA8"
 S=$R/slices/debris-v1
 px $S-1.png $S-2.png $S-3.png $S-4.png --sheet $T/debris-a.png --size 24x24 --colors 48 --pad 2
 python $SC/quantize_joint.py $T/debris-a.png $T/debris-q.png 28
@@ -81,7 +81,7 @@ python $SC/close_outline.py $T/debris-q.png $O/asteroid-debris.png
 
 Every rock is re-normalized from its raw generation at the new size. None of them is a rescale of an
 older PNG. All rocks use the same colour count (36) and the same outline pass, so the outline weight is
-consistent. The only hand-chosen values are the crumb cut chord, (3,35) to (25,63), and its two facet
+consistent. The only hand-chosen values are the crumb break polyline (5 points) and its ramp/crease
 colours, which were picked from crumb's own palette. No pixels were hand-painted.
 
 ## Wave-2 critic fixes
@@ -116,5 +116,32 @@ be regenerated from `raw/` and the scripts. Previews (3x, from `pixelize.py --pr
   of the five.
 - Debris pebbles have a dark-ink outline that is close to the cosmos background colour, so at 2x they read
   by fill colour rather than by outline. They are small transient particles, so this is acceptable.
-- Crumb's fracture face is a scripted flat band, not painted facets. It reads clearly at 2x, but at 8x
+- Crumb's fracture face is a scripted shadow-ramp band, not hand-painted facets. It reads clearly at 2x, but at 8x
   zoom it looks more geometric than the rest of the rock.
+
+## Wave 3 (critic round 3, 2026-10-02)
+
+Critic issue (assets #4, minor): crumb had a straight "sliced" lower-left face with no dark outline and a
+thin cream diagonal highlight strip, so it read as cropped next to the other, fully inked rocks.
+
+Fix (no new generation; same v1 raw body, which critics liked):
+- `scripts/chunk_cut.py` replaces `cut_flat.py`. The removed region is bounded by a 5-point polyline
+  `4,33 9,43 15,47 19,55 28,61`, so the break is a chunky faceted rock edge, not a knife chord. One-pixel
+  spurs and notches along the new edge are cleaned so the stair steps stay chunky.
+- The fracture band (BFS distance 2-5 from the cut) is painted with crumb's own lavender shadow ramp
+  (#575172 -> #726A92 -> #88799E -> #9486AA), darkest next to the outline, plus a muted #C0AEA8 crease where
+  it meets the crust. It never brightens a pixel. The cream ridge (#ECD3B0) is gone, so the lower left falls
+  into shadow, consistent with top-left light.
+- The whole silhouette is re-inked with the sprite's most common dark edge colour. Verified: 0 edge pixels
+  with luminance > 70 and alpha is binary {0, 255}, so the outline is continuous all the way round.
+- Candidates cA-cD are in `work/w3/` (cD shipped; `cmp.png` / `cmp2x.png` compare them).
+- Rejected on 2026-10-02: a follow-up pass that pushed deterministic 2x2 "bites" of the face colour into the
+  crust to wobble the boundary. At 2x it read as speckle noise and also hit the crease colour on the right
+  side, so it was discarded. The script and its outputs were deleted.
+
+Critic issue (flight-environment #3, minor, parallax / overlap): this is layout in `src/data/flightScenery.ts`
+and `src/data/flightPrototypeRoute.ts`, plus planet art from another folder. Asteroid art is unchanged for
+it. See the integration requests in the round-3 report.
+
+Checks: `contact_sheet.py` -> e2e/out/contact-asteroids.png. `e2e/capture.mjs --states=title,flight-cruise
+--label=w3-r3-assets-asteroids`: 0 runtime errors, 0 failed assets, 60 fps.
