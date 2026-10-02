@@ -243,3 +243,9 @@ export type MissionDefinitionV2 = MissionDefinition & {
   /** Optional closing line on the result card (I'm Fine, Home). */
   readonly closingLine: string | null;
 };
+
+/** Init data for MissionSelectScene (delivery board). */
+export type MissionSelectSceneData = {
+  /** Node to pre-select; defaults to the next suggested mission. */
+  readonly focusMissionId?: MissionId;
+};
