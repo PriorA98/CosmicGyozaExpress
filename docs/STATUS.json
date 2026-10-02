@@ -19,7 +19,7 @@
     },
     "integratorAssessment": "programmer-art tier (~5): fallback serif fonts, debug vectors on by default, flat circles for asteroids, touch pads always visible on desktop, flat rectangles for lunar surface and pad, painted 1280px planets mismatched with pixel ship, no audio."
   },
-  "phase": "wave-3-running",
+  "phase": "wave-3-round-3-finishing",
   "modules": {
     "flight-environment": {
       "status": "fail-round-2",
@@ -392,6 +392,20 @@
     {
       "at": "2026-10-02T15:20:00+09:00",
       "event": "wave-3 run wf_2533170a-816 hit the session usage limit ~4.5 min in: only asset:characters (rabbit sprite edge margins) completed. A loop bug let the dead round 3 advance into a dead round 4 with zero critics; NEITHER round 3 nor round 4 actually happened (no critic scored). Fixed: the loop now aborts without counting a round when builders/integrator/critics are incomplete. Partial edits checkpointed as f9205db. Relaunched wave 3 from round 3."
+    },
+    {
+      "at": "2026-10-02T20:20:00+09:00",
+      "event": "wave-3 r3 run wf_50e9c942-826: 9/12 agents completed (audio-fx builder; ship, asteroids, space, celestial, items, ui, lunar, particles assets) before the session limit; landing/ui/flight builders cut off; loop aborted correctly without counting the round. Committed 6a09d54. Lean finish run launched for the 3 builders."
     }
-  ]
+  ],
+  "usageInvestigation": {
+    "at": "2026-10-02T20:20:00+09:00",
+    "finding": "wave-3 round-3 run (12 agents): 150M cache-read input tokens vs 0.14M output. Agents ran 32-192 turns with contexts growing to 200-260k tokens; every turn re-sends the full context. Context growth was driven by 205 full-size screenshot reads (each ~1.2k tokens that persist for the agent's lifetime), large source-file reads, and long tool output. 12-13 parallel agents exhausted a 5-hour usage window in 5-20 minutes.",
+    "mitigations": [
+      "tools/review_sheet.py: one composite thumbnail sheet per capture run instead of 10-20 full PNG reads; zoomed crops only for details",
+      "per-agent budget ~40 tool calls, <=2 capture cycles, targeted grep/sed reads, effort medium",
+      "lead runs integration validation itself via scripts (no long-lived integrator agent)",
+      "smaller runs (only unfinished agents), critics in a separate lean run"
+    ]
+  }
 }
