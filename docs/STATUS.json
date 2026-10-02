@@ -592,5 +592,39 @@
       ]
     },
     "notes": "All six module critics passed (>=8.5, zero runtime errors, perf budget met) by round 3; round 4 unused. Usage-limit outages interrupted runs repeatedly; every interrupted run is logged in history and no round was counted without real critic scores."
+  },
+  "phase3": {
+    "updatedAt": "2026-10-02",
+    "plan": "docs/implementation/phase-3-campaign-plan.md",
+    "planAuthor": "Codex gpt-6-astra (read-only planning pass, high effort)",
+    "missions": [
+      "tea-moon",
+      "bento-belt",
+      "matcha-nebula",
+      "black-hole-bakery",
+      "im-fine",
+      "home-delivery"
+    ],
+    "artStage": "A (placeholders at final paths)",
+    "waves": [
+      {
+        "id": "A0",
+        "owner": "integrator",
+        "status": "done",
+        "commit": "ebd686e",
+        "notes": "contracts, pure mechanics + 25 tests, campaign data for 6 missions, 16 placeholder assets, events, fixtures, 26 showcase states, MissionSelectScene stub"
+      },
+      {
+        "id": "AB",
+        "status": "running",
+        "packages": [
+          "flight",
+          "landing",
+          "results-save",
+          "board-ui"
+        ]
+      }
+    ],
+    "open": []
   }
 }
