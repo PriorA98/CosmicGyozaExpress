@@ -21,7 +21,8 @@ export const ICON_GLYPH_PALETTE: Readonly<Record<string, string>> = {
 
 export const ICON_GLYPHS: Readonly<Record<UiIconName, readonly string[]>> = {
   thrust: ["...ee...", "...ee...", "..eaae..", "..eaae..", ".eappae.", ".eappae.", "..eaae..", "...ee..."],
-  package: ["........", ".kkkkkk.", ".kraark.", ".kkaakk.", ".kraark.", ".kraark.", ".kkkkkk.", "........"],
+  // Crescent dumpling with pleats, matching the authored golden gyoza frame.
+  package: ["........", "...kkk..", "..kaaak.", ".kakakak", "kaaaaaak", "kaaaaaak", ".kkkkkk.", "........"],
   radar: ["..dddd..", ".d....d.", "d..dd..d", "d.d..d.d", "d.d.pd.d", "d..dd..d", ".d....d.", "..dddd.."],
   speed: ["........", "e...e...", ".e...e..", "..e...e.", "..e...e.", ".e...e..", "e...e...", "........"],
   drift: ["........", ".tt..tt.", "t..tt..t", "........", ".tt..tt.", "t..tt..t", "........", "........"],
@@ -57,7 +58,8 @@ export const ICON_OVERRIDE_PALETTE: Readonly<Record<string, string>> = {
 export const ICON_OVERRIDE_SIZE = 16;
 
 export const ICON_OVERRIDES: Readonly<Partial<Record<UiIconName, readonly string[]>>> = {
-  // Furoshiki bundle like items/package.png: two upright ears tied in a terracotta top knot.
+  // Legacy fallback only (not drawn at runtime: SoundToast paints soundOn/soundOff). The authored
+  // ui-icons frame 1 is now a golden pleated gyoza; see ICON_GLYPHS.package for the 8x8 fallback.
   package: [
     "................",
     "....kk....kk....",

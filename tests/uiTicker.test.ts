@@ -56,7 +56,9 @@ describe("ticker capacity", () => {
 
   it("flags the one-line overflow that clipped landing punchlines", () => {
     // The round-2 bug: a 300px one-line ticker cut "...soup-facing thrust" to "...thr…".
-    expect(fitsTicker(landingCopy.notes.descendingIdle, landingScenery.hud.width, 1)).toBe(false);
+    // Pinned to the old 300px panel so this stays a regression marker even as the HUD widens.
+    const roundTwoTickerWidth = 300;
+    expect(fitsTicker(landingCopy.notes.descendingIdle, roundTwoTickerWidth, 1)).toBe(false);
   });
 
   it("fits every landing chatter line in the two-line landing ticker", () => {
@@ -80,7 +82,8 @@ describe("compact secondary text", () => {
   });
 
   it("keeps compact title copy short enough for one line", () => {
-    for (const line of Object.values(titleCopy.saveNoticeCompact)) expect(line.length).toBeLessThanOrEqual(46);
+    // 38 mono chars at compact scale end inside the CTA column, clear of the delivery card.
+    for (const line of Object.values(titleCopy.saveNoticeCompact)) expect(line.length).toBeLessThanOrEqual(38);
     expect(titleCopy.itemsCompact.length).toBeLessThanOrEqual(18);
     expect(uiKitCopy.buttonLabels.disabled).toBe("disabled");
   });

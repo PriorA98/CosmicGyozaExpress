@@ -519,6 +519,7 @@ export class LandingScene extends Phaser.Scene {
         count: perSide,
         spread: dust.spread,
         lifespanMs: dust.lifespanMs,
+        fan: side < 0 ? "left" : "right",
         depth: depth.ship - 1,
       });
     }
@@ -529,6 +530,7 @@ export class LandingScene extends Phaser.Scene {
           count: front.countPerSide,
           spread: front.spread,
           lifespanMs: front.lifespanMs,
+          fan: side < 0 ? "left" : "right",
           depth: depth.ship + 1,
         });
       }
@@ -623,7 +625,9 @@ export class LandingScene extends Phaser.Scene {
       count: poof.confettiCount,
       spread: poof.confettiSpread,
       spawnRadius: poof.confettiSpawnRadiusPx,
-      depth: depth.shipFx,
+      depth: depth.worldFx,
+      confettiOrigin: { x: this.ship.x, y: this.ship.y },
+      confettiDepth: depth.shipFx,
     });
   }
 

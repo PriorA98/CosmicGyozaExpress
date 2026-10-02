@@ -30,6 +30,9 @@ export const landingScenery = {
     count: 12,
     maxY: 360,
     marginX: 40,
+    /** Top-left corner kept free of twinkles: the HUD panel (desktop and the scaled-up compact one) sits there. */
+    hudClearRight: 500,
+    hudClearBottom: 260,
     minAlpha: 0.12,
     maxAlpha: 0.42,
     sizePx: 2,
@@ -82,8 +85,8 @@ export const landingScenery = {
     /** Moved inward on touch layouts so the right touch tiles keep a clear gap from it. */
     touchX: 992,
     baseSinkPx: 4,
-    steamOffsetX: 42,
-    steamOffsetY: 150,
+    steamOffsetX: 68,
+    steamOffsetY: 134,
   },
   rabbit: {
     key: ASSET.rabbitSprite,
@@ -348,16 +351,14 @@ export const landingScenery = {
   hud: {
     x: 20,
     y: 20,
-    /** Wide enough for the longest chatter line (see `tickerChromePx` / `tickerCharWidthPx`, unit-tested). */
-    width: 332,
+    /** Panel + ticker width; chatter wraps onto a second ticker line instead of growing the panel (unit-tested). */
+    width: 300,
+    /** The chatter ticker wraps long punchlines onto a second line rather than ending in an ellipsis. */
+    tickerLines: 2 as const,
     /** Narrower panel on phone-class displays (it is scaled up there). */
     compactWidth: 264,
     /** Opaque backing under the translucent HudPanel / ticker surfaces, inset past their rounded corners. */
     backingInsetPx: 6,
-    /** DashboardTicker space that is not text: prompt + left pad (28), right pad (12), caret gap + caret (11). */
-    tickerChromePx: 51,
-    /** JetBrains Mono 14 px advance (8.4 px) rounded up, so copy checks stay conservative. */
-    tickerCharWidthPx: 8.5,
     /** Extra boost on top of `compactUiScale` so phone labels clear ~12 CSS px. */
     compactBoost: 1.12,
     tickerGap: 8,

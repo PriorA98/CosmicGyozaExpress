@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { landingCopy } from "../../data/landingCopy";
 import { LANDING_ART_SCALE, landingScenery, landingZoneTextColors } from "../../data/landingScenery";
 import { colorNumber, colors, depth, typeScale } from "../../game/designTokens";
-import { DashboardTicker, HudPanel, KEYCAP_HEIGHT, Keycap, TICKER_HEIGHT, monoStyle, type HudRow } from "../../ui";
+import { DashboardTicker, HudPanel, KEYCAP_HEIGHT, Keycap, dashboardTickerHeight, monoStyle, type HudRow } from "../../ui";
 import type { LandingReadout } from "./landingReadouts";
 import { fillNotchedRect } from "./pixelShapes";
 
@@ -61,8 +61,8 @@ export class LandingDashboard {
     const children: Phaser.GameObjects.GameObject[] = [backing, this.panel];
     if (!options.compact) {
       const tickerY = this.panel.panelHeight + config.tickerGap;
-      backing.fillRect(inset, tickerY + inset, width - inset * 2, TICKER_HEIGHT - inset * 2);
-      this.ticker = new DashboardTicker(scene, { x: 0, y: tickerY, width });
+      backing.fillRect(inset, tickerY + inset, width - inset * 2, dashboardTickerHeight(config.tickerLines) - inset * 2);
+      this.ticker = new DashboardTicker(scene, { x: 0, y: tickerY, width, maxLines: config.tickerLines });
       children.push(this.ticker);
     }
     this.root = scene.add
@@ -74,7 +74,7 @@ export class LandingDashboard {
   /** Height on screen, including the ticker (for laying out other overlays below it). */
   get displayHeight(): number {
     const config = landingScenery.hud;
-    const height = this.panel.panelHeight + (this.ticker ? config.tickerGap + TICKER_HEIGHT : 0);
+    const height = this.panel.panelHeight + (this.ticker ? config.tickerGap + dashboardTickerHeight(config.tickerLines) : 0);
     return height;
   }
 

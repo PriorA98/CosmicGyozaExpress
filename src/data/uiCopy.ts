@@ -42,9 +42,9 @@ export const titleCopy = {
   },
   /** One-line versions for the compact (phone) title. */
   saveNoticeCompact: {
-    corrupt: "crumpled save tucked away · fresh start",
-    futureVersion: "newer save found · progress stays in this tab",
-    storageUnavailable: "can't save here · progress lasts this tab",
+    corrupt: "crumpled save set aside · fresh start",
+    futureVersion: "newer save found · tab-only progress",
+    storageUnavailable: "can't save here · tab-only progress",
   },
 } as const;
 

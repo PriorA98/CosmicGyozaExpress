@@ -134,10 +134,16 @@ export class LunarScenery {
     const tint = colorNumber(colors.plaster);
 
     for (let i = 0; i < config.count; i += 1) {
+      // Twinkles under the HUD read as stray glyphs in the readout rows: slide those out to the right.
+      let x = Phaser.Math.Between(config.marginX, width - config.marginX) & ~1;
+      const y = Phaser.Math.Between(config.marginX, config.maxY) & ~1;
+      if (y < config.hudClearBottom && x < config.hudClearRight) {
+        x = Phaser.Math.Between(config.hudClearRight, Math.max(config.hudClearRight, width - config.marginX)) & ~1;
+      }
       const star = scene.add
         .rectangle(
-          Phaser.Math.Between(config.marginX, width - config.marginX) & ~1,
-          Phaser.Math.Between(config.marginX, config.maxY) & ~1,
+          x,
+          y,
           config.sizePx,
           config.sizePx,
           tint,

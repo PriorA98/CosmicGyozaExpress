@@ -133,7 +133,9 @@ const PORTRAIT_FRAME = 136;
 /** Item tray: 64 px art (32 art px at 2x) inset `ITEM_INSET` inside a slightly taller recessed chip. */
 const ITEM_TRAY_HEIGHT = 72;
 const ITEM_ART = 64;
-const ITEM_INSET = 4;
+const ITEM_INSET = 8;
+/** Breathing room between the two item sprites (their art runs to the cell edges). */
+const ITEM_ART_GAP = 6;
 const ITEM_LABEL_GAP = 8;
 
 const RESIZE_DEBOUNCE_MS = 160;
@@ -683,18 +685,18 @@ export class TitleScene extends Phaser.Scene {
     drawRecessedSurface(tray, x, y, width, ITEM_TRAY_HEIGHT);
     objects.push(tray);
 
-    // Art sits ITEM_INSET inside the tray on every side, side by side with a 2 px breath.
+    // Art sits ITEM_INSET inside the tray, side by side with an ITEM_ART_GAP breath.
     const cy = y + ITEM_TRAY_HEIGHT / 2;
     const itemArt: readonly { key: string; icon: "tea" | "package" }[] = [
       { key: ASSET.itemTea, icon: "tea" },
       { key: ASSET.itemMochi, icon: "package" },
     ];
     itemArt.forEach((item, index) => {
-      const cx = x + ITEM_INSET + ITEM_ART / 2 + index * (ITEM_ART + 2);
+      const cx = x + ITEM_INSET + ITEM_ART / 2 + index * (ITEM_ART + ITEM_ART_GAP);
       objects.push(hasAuthoredTexture(this, item.key) ? this.add.image(cx, cy, item.key).setScale(UI_ART_SCALE) : addUiIcon(this, cx, cy, item.icon));
     });
 
-    const labelX = x + ITEM_INSET + ITEM_ART * 2 + 2 + ITEM_LABEL_GAP;
+    const labelX = x + ITEM_INSET + ITEM_ART * 2 + ITEM_ART_GAP + ITEM_LABEL_GAP;
     const label = this.compact ? titleCopy.itemsCompact : teaMoonMission.deliveryItemName;
     objects.push(
       this.add

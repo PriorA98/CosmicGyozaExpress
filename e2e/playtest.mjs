@@ -259,9 +259,11 @@ async function crashAndRetry() {
   const started = Date.now();
   let sawIncident = false;
   let incidentShot = false;
+  let incidentAt = 0;
   while (Date.now() - started < 15000) {
     const s = await state("landing");
     if (s?.phase?.kind === "incident") {
+      if (!sawIncident) incidentAt = Date.now();
       sawIncident = true;
       if (!incidentShot) {
         incidentShot = true;
@@ -271,9 +273,12 @@ async function crashAndRetry() {
     }
     if (sawIncident && s?.phase?.kind === "descending") {
       const scenes = await activeScenes();
+      // Quick retry = incident -> control again, landing-only. (retrySeconds also counts the free-fall.)
+      const incidentToRetrySeconds = (Date.now() - incidentAt) / 1000;
       return {
-        ok: scenes.includes("LandingScene") && !scenes.includes("FlightScene"),
+        ok: scenes.includes("LandingScene") && !scenes.includes("FlightScene") && incidentToRetrySeconds <= 2.5,
         retrySeconds: (Date.now() - started) / 1000,
+        incidentToRetrySeconds,
         incidents: s.landingIncidents,
       };
     }

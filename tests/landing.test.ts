@@ -1,3 +1,4 @@
+import { fitsTicker } from "../src/ui/layout";
 import { describe, expect, it } from "vitest";
 import { landingTuning } from "../src/data/landingTuning";
 import {
@@ -378,11 +379,10 @@ describe("landing presentation helpers", () => {
     expect(rabbit.x + rabbit.width).toBeLessThanOrEqual(landingScenery.teahouse.touchX - 48 * art + 4 * art + 8);
   });
 
-  it("fits every dashboard chatter line in the ticker without an ellipsis", () => {
+  it("fits every dashboard chatter line in the wrapped ticker without an ellipsis", () => {
     const hud = landingScenery.hud;
-    const maxChars = Math.floor((hud.width - hud.tickerChromePx) / hud.tickerCharWidthPx);
-    const lines = [...Object.values(landingCopy.notes), ...Object.values(landingCopy.incidentNotes)];
-    for (const line of lines) expect(line.length, line).toBeLessThanOrEqual(maxChars);
+    const lines = [...Object.values(landingCopy.notes), ...Object.values(landingCopy.incidentNotes), landingCopy.retrying];
+    for (const line of lines) expect(fitsTicker(line, hud.width, hud.tickerLines), line).toBe(true);
   });
 
   it("freezes incident and settle readouts to what the resting ship shows", () => {
