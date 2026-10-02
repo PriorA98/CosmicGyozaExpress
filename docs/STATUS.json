@@ -1,6 +1,6 @@
 {
   "project": "Cosmic Gyoza Express — Tea Moon vertical slice polish",
-  "updatedAt": "2026-10-02T12:30:00+09:00",
+  "updatedAt": "2026-10-02T21:40:00+09:00",
   "passBar": {
     "score": 8.5,
     "runtimeErrors": 0,
@@ -19,10 +19,10 @@
     },
     "integratorAssessment": "programmer-art tier (~5): fallback serif fonts, debug vectors on by default, flat circles for asteroids, touch pads always visible on desktop, flat rectangles for lunar surface and pad, painted 1280px planets mismatched with pixel ship, no audio."
   },
-  "phase": "wave-3-round-3-finishing",
+  "phase": "final-gate-running",
   "modules": {
     "flight-environment": {
-      "status": "fail-round-2",
+      "status": "pass",
       "rounds": [
         {
           "round": 1,
@@ -55,23 +55,36 @@
             "Asteroids are characterful, consistently 2x pixel art with good silhouettes and cozy faces. Planets are now opaque, so the round-1 ghosting is fixed.",
             "Tea Moon destination is a strong focal point: cottage, smoke, teacup crater, stepped halo. The gate language (dashed orange ring, then a cream progress arc over sage dashes, a chevron, a status chip) reads clearly."
           ]
+        },
+        {
+          "round": 3,
+          "workflow": "wf_ce8e4d2e-d25",
+          "score": 8.5,
+          "pass": true,
+          "runtimeErrors": 0,
+          "minAvgFps": 60,
+          "worstP95FrameMs": 16.8,
+          "evidence": "e2e/out/r3-critic-flight-environment/ (local)",
+          "strengths": [
+            "Both round-2 majors are fixed. The compact phone HUD keeps the bottom heading and package rows, and on touch the gate pill now sits above the gate, clear of the brake/thrust pads (r3-critic-flight-touch/flight-arrival-ready@phoneLandscapeTouch.png).",
+            "Parallax depth now reads. Far planets are hazed and desaturated, with nebula clouds in front of them, and foreground asteroids keep crisp ink outlines and full saturation.",
+            "The RotSprite pre-rotated ship removed the jagged nearest-neighbour rotation. The crust and dome outlines are clean at 90, 107 and 270 degrees.",
+            "The nebula is now authored stepped pixel cloud banks instead of upscaled mush. Its density matches the stars and asteroids."
+          ]
         }
       ],
       "builderSelfScore": 7.5,
       "openIssues": [
-        "[major] (flight-environment (FlightScene HUD layout) / ui) The phone-landscape compact HUD drops two pieces of essential live data: the bottom-side heading and the package condition. ui-reference 'Flight HUD' lists both as required overlays, and the bottom heading is the core docking mechanic. On keyboard phoneLandscape the control-hint footer also vanishes, so a player has no on-screen key reference.",
-        "[major] (flight-environment) On the touch layout the gate status pill ('hold steady...') is anchored at moon-relative world space and slides under the brake touch pad. The text is clipped and overlaps an interactive control right at the most important moment (the arrival window).",
-        "[minor] (flight-environment / assets) Parallax depth is flat. Background planets and foreground asteroids use the same pixel density, saturation and contrast and overlap freely: the cheese asteroid is stacked on Planet I'm Fine, and a rock edge peeks out behind it. The ringed planet drifts under the translucent route-note pill in every state, which competes with the note text. It reads as stickers on one plane rather than distant worlds behind a playfield.",
-        "[minor] (assets) The nebula texture is still mostly double-upscaled. In nebula.png (640x360, artScale 2) 80% of 2x2 blocks are uniform, so cloud edges step in about 4 screen-px clusters next to 2 px asteroids and stars. This is visible as chunky staircase cloud edges at the top-right and bottom.",
-        "[minor] (flight-environment / assets) The ship at arbitrary rotation (e.g. 107 degrees during approach) is nearest-neighbour rotated, producing stair-stepped jaggies along the gyoza crust and dome. In side view the gyoza silhouette reads as a croissant/baguette with a tiny dome, weakening the 'readable at small HUD size' goal from the design system.",
-        "[minor] (audio-fx) A smooth anti-aliased radial glow sits at the nozzle beside the pixel flame and trail, mixing vector softness into the pixel FX. The thrust trail is also very long (about 350 px) and ruler-straight, reading as a rocket jet rather than cozy puffs.",
-        "[nit] (flight-environment) The ghost target silhouette in the gate is a dithered blob with knobby protrusions that reads as a puzzle piece or cat rather than the ship. The chevron disc sits on the moon limb and covers the moon art.",
-        "[nit] (assets) Debris rocks are flat, low-contrast grey-green lumps with no highlight or character. They read as filler or near-placeholder next to the expressive asteroids, and the green-grey sits outside the warm/plum palette.",
-        "[nit] (flight-environment / audio-fx) The bump hit-flash floods both the ship and the asteroid with flat white or cream, erasing all interior detail (face, dome, pleats) for the flash duration. It looks like a missing texture in a still frame."
+        "[minor] (flight) The arrival gate ring overlaps the moon's face. Its dashes and the cream progress arc cut across the lit hemisphere and through the teacup crater, the scene's signature detail, so the hero landmark is partly drawn over at the key payoff moment.",
+        "[minor] (flight) The moon's glow halo reads as a muddy grey disc rather than warm light. The stepped bands darken the nebula behind the moon into a grey annulus, which flattens the focal point. This is the same 'grey halo' problem the ui critic flagged on the title.",
+        "[minor] (ui) The HUD panel is translucent enough that world objects (a pebble asteroid, the nebula, the edge of the ringed planet) show through behind the readout rows. A dark pebble sits right between 'bottom' and '269°' on phone, which muddies the core readout.",
+        "[minor] (flight) The ship's side-view silhouette still reads as a croissant or bagel more than a gyoza, and it is small (about 60 px long on desktop) next to the 80-200 px asteroids and planets. The hatched ghost target is a wide saucer that does not match the narrow crescent the player flies, so the 'match this pose' cue is less direct.",
+        "[nit] (audio-fx) The cruise thrust trail breaks into evenly spaced orange beads followed by cream puffs, so it reads like a string of sausages rather than a dissipating exhaust.",
+        "[nit] (flight) A small pink pebble asteroid lands exactly on top of Planet I'm Fine's bandage, the planet's joke detail. The 'bottom to moon' pill in playtest step 03 renders very faint, probably mid-fade, so the label is barely legible in that frame."
       ]
     },
     "landing": {
-      "status": "fail-round-2",
+      "status": "pass",
       "rounds": [
         {
           "round": 1,
@@ -104,25 +117,37 @@
             "HUD follows the design system: dark 0.78 panel, pixel-font gold header, mono rows, ember/amber state colouring, gentle flavour copy ('emotionally rotated', 'slightly shaken')",
             "Live speed gauge with soft/bumpy/too-fast bands and a state pill gives clear, cozy landing feedback"
           ]
+        },
+        {
+          "round": 3,
+          "workflow": "wf_ce8e4d2e-d25",
+          "score": 8.6,
+          "pass": true,
+          "runtimeErrors": 0,
+          "minAvgFps": 59.5,
+          "worstP95FrameMs": 16.8,
+          "evidence": "e2e/out/r3-critic-landing/ (local)",
+          "strengths": [
+            "The RotSprite pre-rotated ship removes the jagged rotation. The tilted, tipped and off-pad poses keep a clean ink outline and dome ring.",
+            "The HUD now agrees with the world state after an incident and off the pad (tipped over, bounced/stopped, off blanket).",
+            "Soft-landing dust fans out sideways and leaves the saucer, legs and dome readable at the payoff moment. The sparkle accents above the ship are a nice touch.",
+            "The guide beam was reworked into subtle stepped light bands with a dotted descent line. It no longer reads as placeholder rectangles."
+          ]
         }
       ],
       "builderSelfScore": 7.5,
       "openIssues": [
-        "[major] (assets + landing (ShipSprite / LandingScene)) Tilted, incident and off-pad ship poses are rotated off the pixel grid with nearest sampling, so the outline and dome ring turn ragged with 1 px stair-steps. Tilting is the core landing verb, so this shows on screen most of the time and is now the one place the 2 px pixel contract breaks.",
-        "[minor] (landing (HUD) / ui) The dashboard chatter line is truncated with an ellipsis, so the joke's punchline is lost: 'please apply soup-facing thr…' (full: '…thrust') and 'gyro humming, dumpling level…'.",
-        "[minor] (landing (HUD)) After an incident the HUD contradicts what the player sees. It shows 'tilt level 5°' and 'level 10°' while the dumpling lies tipped or on its side, and 'drift steady 1.7 m/s ←' after the crash. On phone, the off-pad cue 'find the pad' lives only in the altitude row, which the compact HUD hides.",
-        "[minor] (landing (scenery / aids)) The landing guide beam is a stack of flat translucent rectangles with a hard horizontal top edge floating in the sky. It reads as placeholder geometry rather than a painted light, and it washes the hills behind the pad.",
-        "[minor] (landing (scenery / camera)) Incident camera shake exposes a 2 px wrapped column of the right-edge planet (orange and pink) at the far left edge of the screen.",
-        "[minor] (audio-fx / landing) In the success hero moment, touchdown dust puffs draw in front of the ship and cover its legs and lower hull. The dumpling reads as sunk into cotton right when the featherlight card appears.",
-        "[minor] (landing (aids)) The stabilizer level guides are free-floating thin green dashes beside the ship. On desktop the right dash is hidden behind the speed gauge, so a lone green line hangs in the sky and looks like a debug marker.",
-        "[nit] (landing (scenery stars) / ui) The sky sparkle '+' star shows through the 0.78 HUD panel right in the 'drift' row, where it reads like a stray glyph or icon in the data table.",
-        "[nit] (audio-fx) The thrust plume is a long, bent, dark-streaked orange column (~120 px) that reads more like a churro or rope trail than a cozy nozzle flame.",
-        "[nit] (landing (touch HUD) / ui) The touch layout has no retry control, while keyboard players get 'R retry'. The thrust and steady tile stack also abuts the cottage edge.",
-        "[nit] (e2e harness) The playtest retry metric (retrySeconds 3.37) is measured from key release, so it includes the free-fall before the crash. That overstates the retry time against the < 2.5 s target, even though the actual incident-to-retry beat is 1.22 s."
+        "[minor] (audio-fx) The lantern halos that light up on a successful landing are smooth, anti-aliased radial gradients: soft pink discs with continuous alpha falloff. They sit beside crisp pixel lanterns. This is the same defect class as the round-2 engine glow major, now moved to the success moment.",
+        "[minor] (landing) The compact phone landing HUD drops tilt, drift and altitude, and it drops the dashboard chatter line entirely. ui-reference 'Flight HUD' lists the dashboard line as essential live data. Tilt is the core landing verb, but on phone the only tilt feedback is the sprite itself.",
+        "[minor] (landing) On touch, the control pads sit inside the 16:9 game area while both pillarbox bars stay empty. The 'steady' pad covers the teahouse's right wall and the planet ring. The velocity gauge's 'soft' chip touches the rabbit. The scene's focal props compete with the controls.",
+        "[minor] (audio-fx) The incident flour still forms a vertical cream column rising from the pad through the tumbling ship. Some confetti crosses sit flat on the blanket at pad level, so the comedic poof stays somewhat muddled under the ship.",
+        "[nit] (landing) The HUD tilt row reads 'level 6°' while the ship is visibly tilted in the thrust capture (and 'level 0°' during descent). Calling a visible lean 'level' undercuts the feedback.",
+        "[nit] (audio-fx) In the thrust state, one cream trail puff hangs detached in mid-air about 40 px above the pad, between the flame and the ground dust. It reads as a stray cloud instead of part of the exhaust.",
+        "[nit] (landing) The incident view offers only 'R retry' (or the touch RETRY button). ui-reference 'Crash And Respawn' also asks for an option to return to the map."
       ]
     },
     "ui": {
-      "status": "fail-round-2",
+      "status": "pass",
       "rounds": [
         {
           "round": 1,
@@ -155,23 +180,36 @@
             "Saved completion is clearly visible on title-completed: CTA copy changes to 'deliver tea again', a Route Log button appears, a 'delivered · postcard collected' tab and 'delivered' pill show, and the rabbit portrait becomes happy. The Route Log modal shows the collected postcard and stats.",
             "Corrupt-save handling is friendly and on-tone ('your old save was crumpled...'), and the probe confirms the backup was kept."
           ]
+        },
+        {
+          "round": 3,
+          "workflow": "wf_ce8e4d2e-d25",
+          "score": 8.6,
+          "pass": true,
+          "runtimeErrors": 0,
+          "minAvgFps": 60,
+          "worstP95FrameMs": 16.8,
+          "evidence": "e2e/out/r3-critic-ui/ (local)",
+          "strengths": [
+            "The hero ship is now about 150 px wide at desktop, inside the 140-180 px design target. It has crisp pixel edges and the grey halo is gone. It reads as the star of the screen.",
+            "The secondary buttons on the title are now consistent: SETTINGS and ROUTE LOG share the same navy treatment and lip, with clear hierarchy under the ember primary.",
+            "Saved completion is visible at a glance: the 'DELIVER TEA AGAIN' CTA, the ROUTE LOG button, an integrated '✓ postcard collected' tab and a 'delivered' state pill.",
+            "Typography has a clear three-voice system: Bricolage 800 display, Bricolage 600 heading, a mono body and Silkscreen pixel labels. Letter-spacing is consistent and contrast is strong on both navy and parchment."
+          ]
         }
       ],
       "builderSelfScore": 8,
       "openIssues": [
-        "[major] (ui builder (TitleScene composition)) The hero ship on the title is still undersized and sits on a muddy grey halo. On desktop it is about 100 px wide (about 50 px on phoneLandscape) against the design-system target of 140-180 px for the title ship. The moon (about 280 px) and the delivery card visually outrank it, so the 'large gyoza ship and title' brief from ui-reference is not met. Behind it is a stepped radial disc that lifts the background to desaturated grey (sampled (48,45,58) inside vs (21,22,41) cosmos). Its bands step in chunky ~6-8 px rings, a coarser pixel density than the 2x ship art, so it reads as a grey smudge or spotlight rather than a warm glow.",
-        "[minor] (ui builder (Button variants / TitleScene)) The secondary buttons are inconsistent. On title-completed, SETTINGS (dark navy with a heavy near-black bottom lip) and ROUTE LOG (cream parchment) sit side by side at the same hierarchy level but use different styles. The dark variant's black lip makes it read as sunken or pressed next to the raised cream button, which muddies the affordance. In the ui-kit, 'settings' at rest and 'pressed' differ only by fill darkness.",
-        "[minor] (ui builder (src/ui/Meter.ts, src/ui/layout.ts)) The settings music meter shows a phantom partial segment. At 70% it renders 7 full dusk segments plus a dim 8th one, while effects at 80% renders exactly 8. Cause: in Meter.setValue, Math.round(0.7/0.005)*0.005 = 0.7000000000000001, and segmentFills then gives the 8th segment a ~1e-15 fill, which draws at alpha 0.35+.",
-        "[minor] (ui builder (TitleScene delivery card)) The completion tab looks bolted on. 'delivered · postcard collected' is a separate sage strip with a drop shadow, floating above and overlapping the card's top border at the right edge, with a ✦ sparkle colliding at its corner. On phoneLandscape it crowds the ship trail and the moon's lower edge. The card already says 'delivered' in its pill, so the information is duplicated in two styles.",
-        "[minor] (ui builder (compact layout tokens)) Small text and wrapping at phone size. On phoneLandscape the footer 'handmade slice · ofl type', the settings 'saved on this device' and hint row, and the route-log stat labels render at about 7 px. The item chip wraps 'hot tea and moon / mochi' with an orphan word, and the teapot sprite overhangs the chip's left border. The corrupt-save notice wraps to two lines and nearly touches the footer.",
-        "[nit] (integrator (scale config) / ui builder) Canvas pillarboxing on phone landscape. The 16:9 canvas leaves about 70 px dark bars on each side of an 844x390 screen, about 18% of the width, even though the compact title layout would comfortably use the full width.",
-        "[nit] (asset producer (icons)) Icon readability. The teacup icon's steam is drawn as navy/white checker pixels, so on the ember CTA it reads as dark grit rather than steam. In the ui-kit, the gyoza icon (2nd in row 1) reads as a spotted cookie or acorn rather than a pleated dumpling.",
-        "[nit] (ui builder (UiKitScene)) The ui-kit gallery leaves out components that ship on the title. The settings toggle switch, -/+ stepper keys, modal shell with dotted header, route-log postcard row, completion tab, notice pill (corrupt save) and rotate-prompt card are not shown. The disabled button is labeled 'RESTING', which reads as a rest state rather than disabled. Bottom padding in the middle and left columns is tight, with the parchment footer about 5 px from the panel edge.",
-        "[nit] (ui builder (TitleScene scenery)) The moon's surrounding halo is a faint dark ring that dims the nebula clouds next to it. It reads as a shadow cutout rather than a glow, which runs against the warm, cozy direction."
+        "[minor] (ui) The completed-state card still says the delivery is pending. It keeps the 'TODAY'S DELIVERY' header and the present-tense request ('Someone needs tea before the stars get too loud.'), while also showing two overlapping completion badges ('✓ postcard collected' plus a 'delivered' pill). The earned postcard art never appears on the title, so the payoff is told, not shown.",
+        "[minor] (ui) The ui-kit button matrix still includes a cream 'ROUTE LOG' secondary variant that the title no longer uses (it now uses navy). Two different 'PRESSED' looks also sit side by side without variant labels. As a component reference it documents a style the product has dropped, which invites the round-2 inconsistency back.",
+        "[minor] (ui) Small text at phone size. On ui-kit@phoneLandscape the section subtitles, the '↑ held' legend, the meter labels and percentages, and the HUD stat labels render at about 6-7 px. On title@phoneLandscape the keycap legends 'start' and 'sound' are about 9 px, below a comfortable minimum for a handheld screen.",
+        "[nit] (ui) phoneLandscape title is vertically unbalanced. The delivery card's bottom border sits about 10 px from the canvas bottom while the title block has about 25 px top margin, so the card looks like it is sliding off-screen. The footer is also dropped.",
+        "[nit] (ui) Meter fractional segments use one fixed dim tint whatever the fraction. 18% (1.8 segments) and 72% (7.2 segments) both show an identical dim trailing block, so 18% reads like about 15% and 72% like 75%.",
+        "[nit] (ui) The footer 'handmade slice · ofl type' is low-contrast and uses dev-speak on the player-facing title. Separately, the dotted flight path to the moon starts in empty space about 30 px from the ship instead of trailing from it."
       ]
     },
     "audio-fx": {
-      "status": "fail-round-2",
+      "status": "pass",
       "rounds": [
         {
           "round": 1,
@@ -204,21 +242,33 @@
             "Dust no longer shows charcoal tail frames. Cream, gold and ember palette is warm and cohesive with the Tea Moon art",
             "Flight bump feedback reads well: hard tint flash on ship and rock, then a cream puff bloom between them"
           ]
+        },
+        {
+          "round": 3,
+          "workflow": "wf_ce8e4d2e-d25",
+          "score": 8.5,
+          "pass": true,
+          "runtimeErrors": 0,
+          "minAvgFps": 59.5,
+          "worstP95FrameMs": 16.8,
+          "evidence": "e2e/out/r3-critic-audio-fx/ (local)",
+          "strengths": [
+            "The round-2 major is fixed: the flight engine glow is now a stepped pixel texture at FLIGHT_ART_SCALE, and the nozzle flame matches the ship's pixel density and warm palette.",
+            "The soft-touchdown dust fans out to the sides, so the 'featherlight landing!' payoff shows the whole ship, with sparkles above.",
+            "The incident ship pose is clean thanks to the RotSprite pre-rotation, and confetti now emits above the ship.",
+            "The audio architecture is robust. The AudioContext is gesture-gated with retry on later gestures and silent degradation. Glue compressor, limiter and clip drive keep the worst-case stack at -3.7 dBFS. Mute plays a short cue before the gain closes, and the context suspends while the tab is hidden."
+          ]
         }
       ],
       "builderSelfScore": 7.5,
       "openIssues": [
-        "[major] (flight-environment (ShipEngine), with audio-fx supplying the stepped glow helper) The flight engine glow is a smooth anti-aliased radial gradient (canvas createRadialGradient, ADD blend, non-integer scale) sitting under the pixel flame. It is the same class of defect as the round-1 nozzle-disc major, now on the most-seen FX in the game, and it contradicts ARCHITECTURE 5.6 pixel rules. The fx package already ships a hard-edged stepped glow (pixelGlowTextureKey).",
-        "[minor] (landing (LandingScene), with audio-fx tuning in fxPresets) On a soft landing, the dust bursts are drawn in front of the ship (depth.ship+1, 12-26 puffs), so cream clouds cover the saucer rim, legs and dome base at the 'featherlight landing' payoff. The gentlest landing gets the biggest cloud.",
-        "[minor] (landing (LandingScene) + audio-fx (burstIncident options)) The landing incident burst is muddled. Flour and confetti fire at depth.worldFx behind and under the tumbling ship, so the comedic poof reads as a vertical cream smear with the confetti crosses buried inside. The gallery version, a readable poof plus an upward confetti fan, does not come through in game.",
-        "[minor] (audio-fx (thrust trail tuning in fxPresets)) The landing thrust plume reads as a solid rope or tree trunk. Puffs barely spread or break up and step through orange, rust and tan in lockstep, forming a continuous column 70-100 px long from nozzle to pad. It lacks the flicker, gaps and taper that sell a cozy little burner.",
-        "[minor] (landing (LandingAids)) The stabilizer feedback is plain white and grey Graphics squares with partial alpha orbiting the ship. They read as snow or dead pixels, not a gyro effect, and are the only partial-alpha particle-like FX left, contrary to the pop-out rule.",
-        "[minor] (landing (LandingScene intro)) The landing intro braking flame is silent. The cinematic shows a burning thrust flame, but no landing:thrust event fires during the intro, so the thrust loop never plays, which breaks audio-visual coherence on the first landing beat.",
-        "[minor] (ui (installSoundToast)) In flight, the mute toast overlaps the HUD: the 'sound off [M]' toast sits on top of the top-centre chatter bar and hides half of the route note.",
-        "[minor] (audio-fx (src/data/audioCues.ts SFX_TUNING)) The bump and incident cues barely differ in loudness. bump-soft peaks at -9.4 dB and bump-dramatic at -9.5 dB (momentary -22.4 vs -20.8), and the incident is only 0.8 dB above the dramatic bump (-20.0). Severity is carried by pitch alone, so a dramatic bump does not land harder than a scrape. ui-hover sits at -48 dB momentary, about 25 dB under the music bed, and will be inaudible on laptop speakers.",
-        "[nit] (audio-fx (thrust trail tuning)) The flight thrust trail ends in tan split-puff frames that read as broken debris chunks, and at about 3 ship lengths the trail dominates the cruise composition.",
-        "[nit] (ui / landing) Background stars show through the translucent landing HUD panel: a faint '+' twinkle sits between the 'drift' label and its value.",
-        "[nit] (audio-fx (FxGalleryScene)) One gallery frame captured right after toggling reduced motion showed the hover ship sliced vertically (dome and left half missing, white sliver). It was not reproduced in 10 follow-up frames and may be a capture tear, but it is worth a glance."
+        "[minor] (audio-fx) The landing thrust plume still reads as a continuous rope or trunk. One orange-to-rust-to-tan column runs from the nozzle and ends in a cream puff 'foot' floating about 40 px above the pad, instead of a flickering jet that breaks up into separate puffs. Landing thrust is the most-seen FX in the landing phase.",
+        "[minor] (audio-fx) The incident burst still lacks a clear comic 'poof'. Confetti is sparse (4-5 tiny crosses) and some of it is still buried in the flour at pad level. The flour puffs are partly see-through (a landing leg shows through them) and stack into a vertical column under the ship rather than a ring burst.",
+        "[minor] (audio-fx) Flight trail tail puffs are large, flat cream blocks with no shaded rim or outline. Next to the shaded ship they read as bread chunks or toast rather than exhaust smoke, and the biggest puff is roughly as tall as the nozzle housing.",
+        "[minor] (audio-fx) Mix balance: ui-hover's momentary loudness is about -40.7 dB, roughly 17 dB under the title music bed (-23 dB). It will be inaudible over music. touchdown-soft (-16.4) is also louder than touchdown-bumpy (-20.9), which inverts the expected impact hierarchy, unless that is an intentional celebration.",
+        "[nit] (audio-fx) The stabilizer gyro-star FX could not be visually verified this round. The landing-thrust showcase with S held left the ship out of frame, and no showcase holds the stabilizer.",
+        "[nit] (audio-fx) The gallery's R toggle flips relative to the OS preference. With prefers-reduced-motion: reduce emulated, one press of R reported reducedMotion=false, so it is unclear whether the gallery reflects the saved setting or the OS preference.",
+        "[nit] (landing) Lantern glows beside the pad are smooth anti-aliased pink radial halos (ADD blend), the same class of non-pixel light the engine glow was just fixed for."
       ]
     },
     "save-results": {
@@ -269,7 +319,7 @@
       ]
     },
     "assets": {
-      "status": "fail-round-2",
+      "status": "pass",
       "rounds": [
         {
           "round": 1,
@@ -302,18 +352,32 @@
             "Unused legacy painted planets removed. planet-far-plum, planet-im-fine and tea-moon are crisp, outlined, on-palette and opaque.",
             "All 45 manifest entries match exact size and frames. Anchors hold: ground surface at row 8, pad surface at row 6, all sprites reach the bottom row. Provenance is recorded for every folder. Total 545 KB."
           ]
+        },
+        {
+          "round": 3,
+          "workflow": "wf_ce8e4d2e-d25",
+          "score": 8.6,
+          "pass": true,
+          "runtimeErrors": 0,
+          "minAvgFps": 60,
+          "worstP95FrameMs": 16.8,
+          "evidence": "e2e/out/r3-critic-assets/ (local)",
+          "strengths": [
+            "All 54 manifest entries exist and match their exact sizes and frame grids, including the RotSprite sheets; there are no fallbacks and no load failures",
+            "The lunar-hills-far rework is now readable authored ridges with clean stepped crests; the round-2 smear is gone",
+            "The lunar-sky ringed planet is now clean pixel art with a continuous outline and a tidy ring",
+            "The nebula is now distinct authored cloud masses with stepped alpha and a warm rim on the plum clouds, instead of blurry mush"
+          ]
         }
       ],
       "openIssues": [
-        "[major] (lunar) lunar-hills-far reads as a posterized smear, not authored pixel art. It has no readable ridge silhouettes, a ragged stepped crest, blotchy dark diagonal streaks and no rim light. It fills the middle band of every landing frame, directly behind the crisp outlined teahouse, pad, lanterns and rabbit, so the clash in density and authorship is obvious.",
-        "[major] (lunar) The big ringed planet baked into lunar-sky (behind the teahouse) is a quantized painting. Its bands are noisy horizontal streaks with speckle, the rim staircase is irregular with no clean outline on the left, and the ring is broken. It sits directly behind the hero teahouse, so it draws the eye and is visibly lower craft than planet-far-plum, which is drawn in the same style family.",
-        "[minor] (space) The nebula is now true resolution, but it is still a soft, low-contrast mush with no authored cloud forms. Every pixel is partial alpha (0 opaque px), and there are fuzzy partial-alpha fringes and median-blur blobs. On the title and in flight it reads as haze rather than the 'puffy rounded clouds' brief, and it is the softest thing on screen next to the crisp asteroids.",
-        "[minor] (asteroids) asteroid-crumb has a straight 'sliced' lower-left face with no dark outline, plus a thin cream diagonal highlight strip along the cut. Every other asteroid has a continuous ink outline, so in flight this one looks cropped or broken.",
-        "[minor] (lunar) The teahouse bakes a static cream steam squiggle above its chimney. At runtime a second animated steam column is spawned about 9 art px left of the chimney, rising from the roof tiles. The result is two white wisps, one frozen and one rising from the wrong place.",
-        "[minor] (items) The memory postcard shows a different ship and moon from the hero art. The moon has no teacup crater and different greens. The ship is a flatter saucer whose trail ends in a heart-like white puff. It is the reward image, so it should picture the same ship and Tea Moon the player just flew.",
-        "[minor] (particles) Particle tails go charcoal. Frames 6-8 of thrust and frames 5-6 of dust are mid or dark grey. On the cosmos background they read as soot or ash rather than cozy steam or flour, and the dark-grey last thrust frame blends into the navy.",
-        "[nit] (ship) The ship is now the simplest sprite in the set. Its crimp creases are faint 1 px lines and the pilot face is about 6 px, so at 2x (about 104 px wide) it has less surface detail than the 150-200 px asteroids. It is also shown below the design system's 140-180 px title-hero size.",
-        "[nit] (characters) rabbit-sprite frames 0, 2 and 3 touch row 0 (ear tips), and frames 2 and 3 touch column 0 (wave sparkles). That leaves no safety margin, so the edge pixels may get clipped or bleed under filtering or trimming."
+        "[minor] (lunar) The baked lunar-sky ringed planet competes with the teahouse, which should be the focal point. It is a huge, saturated orange planet sitting directly behind the orange tiled roof. Its bottom rim is tangent to the roof ridge and chimney, so the two silhouettes merge. It also uses the same full-strength ink outline and saturation as the foreground props, which flattens depth: the sky planet reads as close as the house.",
+        "[minor] (asteroids) asteroid-crumb still breaks the asteroid outline language. On its lit upper-left and left edges the silhouette ends in cream or lavender pixels with no dark ink outline, while the right side has one. The lower-left face is still a fairly straight cut. Every other asteroid (rice, sleepy, tea, mochi) has a continuous ink outline.",
+        "[minor] (lunar) lunar-hills-far is clean now but tonally flat. The three ridge bands use nearly identical mid-lavenders with little value separation. The foreground band blends into the blue-grey underside of lunar-ground, and the floating crater ellipses add noise without shape. Behind the pad and the teahouse, the hills read as a pale wash rather than layered depth.",
+        "[minor] (particles) The flight thrust trail behind the ship reads as separate cream and orange popcorn chunks with hard gaps between them, not a continuous warm puff trail. The large cream lumps are as bright as the gyoza crust and compete with the ship silhouette.",
+        "[nit] (space) The teal and slate nebula masses have no rim light and sit very close to the background value, so in flight they read as dark smudges. Only the plum clouds get the warm gold edge.",
+        "[nit] (space) stars-far.png has a faint checker dither in its background fill (12 unique colors). It is visible as a fine grid texture at 2x and does not match the flat fill of stars-near and the other dark backgrounds.",
+        "[nit] (_probe) The stray art-src/_probe folder (asteroid-72.png, asteroid-probe.png) has no PROVENANCE.md, which breaks the per-folder provenance rule."
       ]
     }
   },
@@ -396,6 +460,18 @@
     {
       "at": "2026-10-02T20:20:00+09:00",
       "event": "wave-3 r3 run wf_50e9c942-826: 9/12 agents completed (audio-fx builder; ship, asteroids, space, celestial, items, ui, lunar, particles assets) before the session limit; landing/ui/flight builders cut off; loop aborted correctly without counting the round. Committed 6a09d54. Lean finish run launched for the 3 builders."
+    },
+    {
+      "at": "2026-10-02T21:00:00+09:00",
+      "event": "lean round-3 finish (wf_bddd56c1-219): landing/ui/flight builders done with 270k subagent tokens (vs ~1.9M per earlier run). Integrator (lead, scripted): typecheck, 226 tests, build, build:pages; 48/48 captures 0 errors 0 fallbacks; soft/bumpy/touch playtests PASS; incident->retry 1.1 s (playtest now measures incident->control; earlier 3.4 s figure included free-fall). Committed 14cf482."
+    },
+    {
+      "at": "2026-10-02T21:30:00+09:00",
+      "event": "round-3 critics (wf_ce8e4d2e-d25, lean, 393k tokens): assets 8.6, ui 8.6, landing 8.6, audio-fx 8.5, flight 8.5 — ALL PASS (save-results passed 8.6 in round 2). Remaining issues are minors/nits only. Round 4 held in reserve."
+    },
+    {
+      "at": "2026-10-02T21:40:00+09:00",
+      "event": "final gate launched (wf_e7abd5d6-dea): whole-game critic + 3 blind judges over 28 shuffled baseline/final pairs (key kept in the lead's scratchpad)."
     }
   ],
   "usageInvestigation": {
