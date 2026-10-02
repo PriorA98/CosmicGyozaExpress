@@ -1,5 +1,6 @@
 import type Phaser from "phaser";
 import type { CollisionSeverity } from "../types/flight";
+import type { GustPhase } from "../types/campaign";
 import type { LandingIncidentKind, LandingResultKind } from "../types/landing";
 
 export type FlightHudState = {
@@ -13,6 +14,7 @@ export type SceneKey =
   | "BootScene"
   | "PreloadScene"
   | "TitleScene"
+  | "MissionSelectScene"
   | "FlightScene"
   | "LandingScene"
   | "DeliveryResultScene"
@@ -35,6 +37,12 @@ export type GameEvent =
   | { readonly type: "flight:respawn" }
   | { readonly type: "flight:arrival-progress"; readonly progress: number }
   | { readonly type: "flight:arrival-complete" }
+  | { readonly type: "flight:checkpoint"; readonly checkpointId: string }
+  | { readonly type: "flight:collectible"; readonly collectibleId: string; readonly memoryId: string; readonly x: number; readonly y: number }
+  | { readonly type: "flight:beacon"; readonly beaconId: string }
+  /** Emitted when a gust zone's phase changes (independent of ship position). */
+  | { readonly type: "flight:gust-phase"; readonly zoneId: string; readonly phase: GustPhase }
+  | { readonly type: "landing:gust-phase"; readonly phase: GustPhase }
   | { readonly type: "landing:thrust"; readonly active: boolean }
   | { readonly type: "landing:stabilizer"; readonly active: boolean }
   | { readonly type: "landing:touchdown"; readonly result: LandingResultKind; readonly x: number; readonly y: number }

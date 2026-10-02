@@ -133,6 +133,24 @@ export const ASSET = {
   fxStar: "fx-star",
   // UI
   uiIcons: "ui-icons",
+
+  // Phase 3 campaign (public/assets/campaign/; placeholder art until Wave D swaps final bytes in place).
+  campaignDestinationBento: "campaign-destination-bento",
+  campaignDestinationMatcha: "campaign-destination-matcha",
+  campaignDestinationBakery: "campaign-destination-bakery",
+  campaignDestinationImFine: "campaign-destination-im-fine",
+  campaignDestinationHome: "campaign-destination-home",
+  campaignPortraitMallow: "campaign-portrait-mallow",
+  campaignPortraitNori: "campaign-portrait-nori",
+  campaignPortraitPip: "campaign-portrait-pip",
+  campaignPortraitIona: "campaign-portrait-iona",
+  campaignCargo: "campaign-cargo",
+  campaignPostcards: "campaign-postcards",
+  campaignFlowArrow: "campaign-flow-arrow",
+  campaignWindsock: "campaign-windsock",
+  campaignBerthTiles: "campaign-berth-tiles",
+  campaignFog: "campaign-fog",
+  campaignPickups: "campaign-pickups",
   uiPanelParchment: "ui-panel-parchment",
   uiPanelDark: "ui-panel-dark",
   uiButton: "ui-button",
@@ -165,6 +183,14 @@ export type UiIconName = keyof typeof UI_ICON_FRAME;
 
 /** Frame indices inside the `rabbit-portrait` strip. */
 export const RABBIT_PORTRAIT_FRAME = { idle: 0, blink: 1, happy: 2 } as const;
+
+/** Campaign strip frames (horizontal strips; see docs/implementation/phase-3-campaign-plan.md §6). */
+export const CAMPAIGN_PORTRAIT_FRAME = { idle: 0, welcome: 1 } as const;
+export const CAMPAIGN_CARGO_FRAME = { bento: 0, flask: 1, jar: 2, soup: 3, parcel: 4 } as const;
+export const CAMPAIGN_POSTCARD_FRAME = { bento: 0, matcha: 1, bakery: 2, imFine: 3, home: 4 } as const;
+export const CAMPAIGN_WINDSOCK_FRAME = { calm: 0, warning: 1, medium: 2, strong: 3 } as const;
+export const CAMPAIGN_BERTH_FRAME = { leftCap: 0, center: 1, rightCap: 2 } as const;
+export const CAMPAIGN_PICKUP_FRAME = { postcard: 0, crumb: 1 } as const;
 
 /** Ship frames: 64x80 art canvas, saucer centre at art (32, 34), flame room below; displayed at 2x. */
 export const SHIP_ART = { width: 64, height: 80, artScale: 2, saucerCenterX: 32, saucerCenterY: 34 } as const;
@@ -262,6 +288,23 @@ export const ASSET_MANIFEST: readonly AssetEntry[] = [
   image(ASSET.uiPanelDark, "assets/ui/panel-dark.png", 48, 48, 2, "#14162B"),
   sheet(ASSET.uiButton, "assets/ui/button.png", 48, 24, 3, 2, "#C97B5A"),
   sheet(ASSET.uiKeycap, "assets/ui/keycap.png", 16, 16, 2, 2, "#FBF7EC"),
+
+  image(ASSET.campaignDestinationBento, "assets/campaign/destination-bento.png", 160, 160, 2, "#D69A57", "circle"),
+  image(ASSET.campaignDestinationMatcha, "assets/campaign/destination-matcha.png", 160, 160, 2, "#80966B", "circle"),
+  image(ASSET.campaignDestinationBakery, "assets/campaign/destination-bakery.png", 160, 160, 2, "#C98557", "circle"),
+  image(ASSET.campaignDestinationImFine, "assets/campaign/destination-im-fine.png", 160, 160, 2, "#657A91", "circle"),
+  image(ASSET.campaignDestinationHome, "assets/campaign/destination-home.png", 160, 160, 2, "#BA8798", "circle"),
+  sheet(ASSET.campaignPortraitMallow, "assets/campaign/portrait-mallow.png", 48, 48, 2, 2, "#D69A57"),
+  sheet(ASSET.campaignPortraitNori, "assets/campaign/portrait-nori.png", 48, 48, 2, 2, "#B7C69A"),
+  sheet(ASSET.campaignPortraitPip, "assets/campaign/portrait-pip.png", 48, 48, 2, 2, "#E5BD76"),
+  sheet(ASSET.campaignPortraitIona, "assets/campaign/portrait-iona.png", 48, 48, 2, 2, "#A4B9B3"),
+  sheet(ASSET.campaignCargo, "assets/campaign/cargo.png", 32, 32, 5, 2, "#C97B5A"),
+  sheet(ASSET.campaignPostcards, "assets/campaign/postcards.png", 48, 32, 5, 2, "#F4E6C8"),
+  image(ASSET.campaignFlowArrow, "assets/campaign/flow-arrow.png", 24, 16, 2, "#B7C69A"),
+  sheet(ASSET.campaignWindsock, "assets/campaign/windsock.png", 24, 32, 4, 2, "#E6A57A"),
+  sheet(ASSET.campaignBerthTiles, "assets/campaign/berth-tiles.png", 32, 24, 3, 2, "#6F8E83"),
+  image(ASSET.campaignFog, "assets/campaign/fog.png", 128, 64, 2, "#80966B"),
+  sheet(ASSET.campaignPickups, "assets/campaign/pickups.png", 16, 16, 2, 2, "#F4E6C8"),
 ];
 
 /** Nine-slice insets (art pixels) for panel and button textures. */

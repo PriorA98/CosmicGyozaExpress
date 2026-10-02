@@ -3,6 +3,7 @@ import { DeliveryResultScene } from "./scenes/DeliveryResultScene";
 import { BootScene } from "./scenes/BootScene";
 import { FlightScene } from "./scenes/FlightScene";
 import { LandingScene } from "./scenes/LandingScene";
+import { MissionSelectScene } from "./scenes/MissionSelectScene";
 import { PreloadScene } from "./scenes/PreloadScene";
 import { TitleScene } from "./scenes/TitleScene";
 
@@ -28,6 +29,7 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     BootScene,
     PreloadScene,
     TitleScene,
+    MissionSelectScene,
     FlightScene,
     LandingScene,
     DeliveryResultScene,

@@ -76,6 +76,8 @@ export function integrateLandingMovement(
   controls: LandingControls,
   deltaSeconds: number,
   tuning: LandingTuning = landingTuning,
+  /** Wind acceleration (px/s²); gravity stays in `tuning`. Omitted = the original Tea Moon arithmetic. */
+  wind?: { readonly x: number; readonly y: number },
 ): LandingKinematicState {
   const dt = clamp(deltaSeconds, 0, tuning.maxDeltaSeconds);
   const rotateDirection = Number(controls.rotateRight) - Number(controls.rotateLeft);
@@ -96,6 +98,10 @@ export function integrateLandingMovement(
 
   let velocityX = state.velocityX;
   let velocityY = state.velocityY + tuning.gravityAcceleration * dt;
+  if (wind !== undefined) {
+    velocityX += wind.x * dt;
+    velocityY += wind.y * dt;
+  }
 
   if (controls.thrust) {
     const thrust = thrustVector(rotation);

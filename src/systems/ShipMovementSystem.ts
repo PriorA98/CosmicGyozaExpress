@@ -40,6 +40,8 @@ export function integrateShipMovement(
   controls: ShipControls,
   deltaSeconds: number,
   tuning = shipTuning,
+  /** Environmental acceleration (currents, gusts, gravity wells), px/s². Omitted = the original slice arithmetic. */
+  environment?: { readonly x: number; readonly y: number },
 ): ShipKinematicState {
   const dt = clamp(deltaSeconds, 0, tuning.maxDeltaSeconds);
   const rotateDirection = Number(controls.rotateRight) - Number(controls.rotateLeft);
@@ -52,6 +54,11 @@ export function integrateShipMovement(
   if (controls.thrust) {
     velocityX += thrust.x * tuning.thrustAcceleration * dt;
     velocityY += thrust.y * tuning.thrustAcceleration * dt;
+  }
+
+  if (environment !== undefined) {
+    velocityX += environment.x * dt;
+    velocityY += environment.y * dt;
   }
 
   if (controls.brake) {

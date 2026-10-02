@@ -83,6 +83,7 @@ export const AUDIO_MAPPING = {
 
 export const SCENE_MUSIC: Readonly<Partial<Record<SceneKey, MusicMood>>> = {
   TitleScene: "title",
+  MissionSelectScene: "title",
   UiKitScene: "title",
   FlightScene: "flight",
   LandingScene: "landing",
@@ -175,6 +176,15 @@ export function mapGameEventToAudio(event: GameEvent, state: AudioMapperState, n
       ]);
     case "settings:changed":
       return same([{ kind: "reload-settings" }]);
+    case "flight:collectible":
+      return same([{ kind: "sfx", cue: "arrival-chime" }]);
+    case "flight:checkpoint":
+    case "flight:beacon":
+      return same([{ kind: "sfx", cue: "ui-confirm" }]);
+    case "flight:gust-phase":
+    case "landing:gust-phase":
+      // A soft hover-tick marks the start of each gust warning (the visual telegraph carries the meaning).
+      return same(event.phase === "warning" ? [{ kind: "sfx", cue: "ui-hover" }] : []);
     case "mission:start":
     case "mission:completed":
       return same([]);

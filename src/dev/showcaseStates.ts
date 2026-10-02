@@ -1,5 +1,7 @@
 import { TEA_MOON_MISSION_ID } from "../data/missions";
+import { landingForMission } from "../data/campaign";
 import type { SceneKey } from "../game/events";
+import type { MissionId } from "../types/campaign";
 import type { TitleSceneData } from "../scenes/TitleScene";
 import type { FlightSceneData } from "../types/flight";
 import type { DeliveryResultSceneData, LandingSceneInit } from "../types/landing";
@@ -14,7 +16,16 @@ import type { DeliveryResultSceneData, LandingSceneInit } from "../types/landing
  * `freezeDuringPerf` keeps the captured frame paused while the harness samples frame times, for
  * states whose post-screenshot motion would leave the scene (e.g. the landing window completing).
  */
-export type ShowcaseSaveFixture = "fresh" | "completed" | "corrupt" | "future" | "keep";
+export type ShowcaseSaveFixture =
+  | "fresh"
+  | "completed"
+  | "corrupt"
+  | "future"
+  | "keep"
+  | "campaign-after-tea"
+  | "campaign-midway"
+  | "campaign-all-unlocked"
+  | "campaign-all-complete";
 
 export type ShowcaseStateDefinition = {
   readonly id: string;
@@ -35,6 +46,18 @@ const landing = (data: Omit<LandingSceneInit, "missionId" | "routeCrashes" | "ro
   routeDurationMs: 0,
   ...data,
 });
+const missionLanding =
+  (missionId: MissionId, data: Omit<LandingSceneInit, "missionId" | "routeCrashes" | "routeDurationMs">): (() => LandingSceneInit) =>
+  () => ({ missionId, routeCrashes: 0, routeDurationMs: 0, ...data });
+const missionResult =
+  (missionId: MissionId, data: Omit<DeliveryResultSceneData, "missionId">): (() => DeliveryResultSceneData) =>
+  () => ({ missionId, ...data });
+const rest = (x: number, y: number, rotation = Math.PI / 2) => ({ x, y, rotation, velocityX: 0, velocityY: 0 });
+const descent = (missionId: MissionId) => {
+  const tuning = landingForMission(missionId).tuning;
+  return { x: tuning.startX, y: tuning.startY, rotation: 0, velocityX: 0, velocityY: tuning.startVelocityY, angularVelocity: 0 };
+};
+const softResult = { packageCondition: 100, routeCrashes: 0, routeDurationMs: 140000, landingResult: "soft", landingIncidents: 0 } as const;
 const result = (data: Omit<DeliveryResultSceneData, "missionId">): (() => DeliveryResultSceneData) => () => ({
   missionId: TEA_MOON_MISSION_ID,
   ...data,
@@ -282,6 +305,197 @@ export const SHOWCASE_STATES: readonly ShowcaseStateDefinition[] = [
       landingResult: "bumpy",
       landingIncidents: 1,
     }),
+  },
+
+  // ---- Phase 3 campaign (docs/implementation/phase-3-campaign-plan.md §2) -------------------------
+  { id: "board-fresh", sceneKey: "MissionSelectScene", description: "Delivery board, fresh save (only Tea Moon open)", settleMs: 1200, save: "fresh" },
+  {
+    id: "board-progress",
+    sceneKey: "MissionSelectScene",
+    description: "Delivery board midway (3 delivered, Bakery next)",
+    settleMs: 1200,
+    save: "campaign-midway",
+  },
+  {
+    id: "board-complete",
+    sceneKey: "MissionSelectScene",
+    description: "Delivery board with every delivery stamped",
+    settleMs: 1200,
+    save: "campaign-all-complete",
+  },
+  { id: "title-campaign", sceneKey: "TitleScene", description: "Title midway through the campaign", settleMs: 1400, save: "campaign-midway" },
+
+  {
+    id: "bento-flight-start",
+    sceneKey: "FlightScene",
+    description: "Bento Belt start: moving rocks with tracks ahead",
+    settleMs: 1500,
+    save: "campaign-all-unlocked",
+    data: flight({ missionId: "bento-belt" }),
+  },
+  {
+    id: "bento-moving",
+    sceneKey: "FlightScene",
+    description: "Bento Belt: approaching the first moving crossing, its track visible",
+    settleMs: 1200,
+    save: "campaign-all-unlocked",
+    data: flight({ missionId: "bento-belt", start: rest(1040, 1250) }),
+  },
+  {
+    id: "bento-postcard",
+    sceneKey: "FlightScene",
+    description: "Bento Belt: optional postcard floating above the rest pocket",
+    settleMs: 1000,
+    save: "campaign-all-unlocked",
+    data: flight({ missionId: "bento-belt", start: rest(1600, 560) }),
+  },
+  {
+    id: "bento-landing",
+    sceneKey: "LandingScene",
+    description: "Bento landing: the lunch pad sliding on its rail",
+    settleMs: 1800,
+    save: "campaign-all-unlocked",
+    data: missionLanding("bento-belt", { packageCondition: 92, start: descent("bento-belt") }),
+  },
+  {
+    id: "bento-landing-intro",
+    sceneKey: "LandingScene",
+    description: "Bento landing arrival intro",
+    settleMs: 900,
+    save: "campaign-all-unlocked",
+    data: missionLanding("bento-belt", { packageCondition: 92 }),
+  },
+  {
+    id: "bento-result",
+    sceneKey: "DeliveryResultScene",
+    description: "Bento result card",
+    settleMs: 1600,
+    save: "campaign-all-unlocked",
+    data: missionResult("bento-belt", softResult),
+  },
+
+  {
+    id: "matcha-flight-start",
+    sceneKey: "FlightScene",
+    description: "Matcha Nebula start: fog bank ahead",
+    settleMs: 1500,
+    save: "campaign-all-unlocked",
+    data: flight({ missionId: "matcha-nebula" }),
+  },
+  {
+    id: "matcha-current",
+    sceneKey: "FlightScene",
+    description: "Matcha Nebula: inside the fog with the downward current and its wisps",
+    settleMs: 1200,
+    save: "campaign-all-unlocked",
+    data: flight({ missionId: "matcha-nebula", start: rest(1350, 900) }),
+  },
+  {
+    id: "matcha-landing",
+    sceneKey: "LandingScene",
+    description: "Matcha landing: crosswind and windsock",
+    settleMs: 1500,
+    save: "campaign-all-unlocked",
+    data: missionLanding("matcha-nebula", { packageCondition: 90, start: descent("matcha-nebula") }),
+  },
+  {
+    id: "matcha-result",
+    sceneKey: "DeliveryResultScene",
+    description: "Matcha result card",
+    settleMs: 1600,
+    save: "campaign-all-unlocked",
+    data: missionResult("matcha-nebula", softResult),
+  },
+
+  {
+    id: "bakery-gravity",
+    sceneKey: "FlightScene",
+    description: "Black Hole Bakery: skirting the gravity well, rings visible",
+    settleMs: 1200,
+    save: "campaign-all-unlocked",
+    data: flight({ missionId: "black-hole-bakery", start: rest(1350, 700) }),
+  },
+  {
+    id: "bakery-center-safe",
+    sceneKey: "FlightScene",
+    description: "Black Hole Bakery: near the well centre (finite pull, no capture)",
+    settleMs: 1000,
+    save: "campaign-all-unlocked",
+    data: flight({ missionId: "black-hole-bakery", start: rest(2100, 900) }),
+  },
+  {
+    id: "bakery-landing",
+    sceneKey: "LandingScene",
+    description: "Bakery landing: light gravity, floating flour",
+    settleMs: 1500,
+    save: "campaign-all-unlocked",
+    data: missionLanding("black-hole-bakery", { packageCondition: 90, start: descent("black-hole-bakery") }),
+  },
+  {
+    id: "bakery-result",
+    sceneKey: "DeliveryResultScene",
+    description: "Bakery result card",
+    settleMs: 1600,
+    save: "campaign-all-unlocked",
+    data: missionResult("black-hole-bakery", softResult),
+  },
+
+  {
+    id: "im-fine-warning",
+    sceneKey: "FlightScene",
+    description: "Planet I'm Fine: gust warning telegraph (windsock lifting)",
+    settleMs: 900,
+    save: "campaign-all-unlocked",
+    data: flight({ missionId: "im-fine", start: rest(1300, 1100) }),
+  },
+  {
+    id: "im-fine-gust",
+    sceneKey: "FlightScene",
+    description: "Planet I'm Fine: gust active inside the storm band",
+    settleMs: 3600,
+    save: "campaign-all-unlocked",
+    data: flight({ missionId: "im-fine", start: rest(1300, 1100) }),
+  },
+  {
+    id: "im-fine-landing",
+    sceneKey: "LandingScene",
+    description: "I'm Fine landing: gusts up high, porch shelter below",
+    settleMs: 3400,
+    save: "campaign-all-unlocked",
+    data: missionLanding("im-fine", { packageCondition: 90, start: descent("im-fine") }),
+  },
+  {
+    id: "im-fine-result",
+    sceneKey: "DeliveryResultScene",
+    description: "I'm Fine result card with closing line",
+    settleMs: 1600,
+    save: "campaign-all-unlocked",
+    data: missionResult("im-fine", softResult),
+  },
+
+  {
+    id: "home-notes",
+    sceneKey: "FlightScene",
+    description: "Home route: first thank-you beacon note",
+    settleMs: 1400,
+    save: "campaign-all-unlocked",
+    data: flight({ missionId: "home-delivery", start: { x: 600, y: 900, rotation: Math.PI / 2, velocityX: 90, velocityY: 0 } }),
+  },
+  {
+    id: "home-landing",
+    sceneKey: "LandingScene",
+    description: "Home landing: raised wide berth",
+    settleMs: 1500,
+    save: "campaign-all-unlocked",
+    data: missionLanding("home-delivery", { packageCondition: 100, start: descent("home-delivery") }),
+  },
+  {
+    id: "home-ending",
+    sceneKey: "DeliveryResultScene",
+    description: "Final delivery result / ending card",
+    settleMs: 1800,
+    save: "campaign-all-unlocked",
+    data: missionResult("home-delivery", softResult),
   },
 ];
 
