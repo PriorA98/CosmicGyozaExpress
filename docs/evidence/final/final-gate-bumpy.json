@@ -1,0 +1,189 @@
+{
+  "label": "final-gate-bumpy",
+  "landingProfile": "bumpy",
+  "incidentFirst": false,
+  "attempt": 1,
+  "startedAt": "2026-10-02T11:36:39.847Z",
+  "checks": [
+    {
+      "name": "title -> flight via Enter",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "flight reached arrival gate and entered LandingScene",
+      "pass": true,
+      "detail": {
+        "reachedLanding": true,
+        "seconds": 15.26,
+        "finalPhase": "dock"
+      }
+    },
+    {
+      "name": "landing completes as bumpy",
+      "pass": true,
+      "detail": {
+        "ok": true,
+        "seconds": 5.262
+      }
+    },
+    {
+      "name": "save records tea-moon completion",
+      "pass": true,
+      "detail": {
+        "completedMissions": [
+          "tea-moon"
+        ],
+        "totalDeliveries": 1
+      }
+    },
+    {
+      "name": "completion persists across reload",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "title reflects saved completion",
+      "pass": true,
+      "detail": {
+        "teaMoonDelivered": true,
+        "layout": "desktop",
+        "uiScale": 1,
+        "touch": false,
+        "focus": "start",
+        "keyboardNav": false,
+        "buttonFocused": false,
+        "ctaLabel": "deliver tea again",
+        "settingsOpen": false,
+        "settingsRow": null,
+        "routeLogOpen": false,
+        "saveNotice": null,
+        "shipScale": 3,
+        "shipRotation": 0
+      }
+    },
+    {
+      "name": "zero runtime errors during playtest",
+      "pass": true,
+      "detail": {
+        "runtimeErrorCount": 0,
+        "failedAssetCount": 0,
+        "fontFailureCount": 0
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "01-title",
+      "file": "01-title.png",
+      "at": "2026-10-02T11:36:42.052Z"
+    },
+    {
+      "name": "02-flight-start",
+      "file": "02-flight-start.png",
+      "at": "2026-10-02T11:36:43.349Z"
+    },
+    {
+      "name": "03-flight-approach",
+      "file": "03-flight-approach.png",
+      "at": "2026-10-02T11:36:54.464Z"
+    },
+    {
+      "name": "04-landing-start",
+      "file": "04-landing-start.png",
+      "at": "2026-10-02T11:37:00.530Z"
+    },
+    {
+      "name": "06-landing-settling",
+      "file": "06-landing-settling.png",
+      "at": "2026-10-02T11:37:05.248Z"
+    },
+    {
+      "name": "07-result",
+      "file": "07-result.png",
+      "at": "2026-10-02T11:37:08.942Z"
+    },
+    {
+      "name": "08-title-after-reload",
+      "file": "08-title-after-reload.png",
+      "at": "2026-10-02T11:37:10.765Z"
+    }
+  ],
+  "perf": {
+    "flight": {
+      "frames": 90,
+      "durationMs": 1499.9,
+      "avgFps": 60.00400026668444,
+      "p95FrameMs": 16.700000000000273,
+      "maxFrameMs": 16.799999999999727
+    },
+    "landing": {
+      "frames": 90,
+      "durationMs": 1499.9000000000015,
+      "avgFps": 60.004000266684386,
+      "p95FrameMs": 16.799999999999272,
+      "maxFrameMs": 16.80000000000291
+    }
+  },
+  "titleStateAfterReload": {
+    "teaMoonDelivered": true,
+    "layout": "desktop",
+    "uiScale": 1,
+    "touch": false,
+    "focus": "start",
+    "keyboardNav": false,
+    "buttonFocused": false,
+    "ctaLabel": "deliver tea again",
+    "settingsOpen": false,
+    "settingsRow": null,
+    "routeLogOpen": false,
+    "saveNotice": null,
+    "shipScale": 3,
+    "shipRotation": 0
+  },
+  "probe": {
+    "activeShowcase": null,
+    "activeScenes": [
+      "TitleScene"
+    ],
+    "assetFailures": [],
+    "fontFailures": [],
+    "actualFps": 59.5,
+    "eventCount": 1,
+    "recentEvents": [
+      {
+        "type": "scene:enter",
+        "scene": "TitleScene"
+      }
+    ],
+    "save": {
+      "firstLoadOutcome": {
+        "kind": "loaded"
+      },
+      "lastLoadOutcome": {
+        "kind": "loaded"
+      },
+      "storageLocked": false,
+      "persistence": {
+        "kind": "persistent"
+      },
+      "hasCorruptBackup": false,
+      "hasLatestCorruptBackup": false
+    },
+    "result": null
+  },
+  "log": {
+    "consoleErrors": [],
+    "consoleWarnings": [],
+    "pageErrors": [],
+    "failedRequests": [],
+    "badResponses": []
+  },
+  "errors": {
+    "runtimeErrorCount": 0,
+    "failedAssetCount": 0,
+    "fontFailureCount": 0
+  },
+  "finishedAt": "2026-10-02T11:37:10.771Z",
+  "passed": true
+}

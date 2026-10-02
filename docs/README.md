@@ -1,6 +1,6 @@
 # Cosmic Gyoza Express Documentation Index
 
-Last updated: 2026-05-30 JST
+Last updated: 2026-10-02 JST
 
 This folder contains the official project documentation derived from the original concept document, the implementation plan, and the imported Gyoza UI prototype handoff.
 
@@ -38,6 +38,12 @@ This folder contains the official project documentation derived from the origina
   - How to translate the HTML/CSS/JS prototype language into the actual Phaser implementation.
 - `deployment.md`
   - Official deployment plan: GitHub Pages for demos, itch.io HTML5 for final release.
+- `engineering/ARCHITECTURE.md`
+  - Layer boundaries, shared contracts (events, asset manifest, pixel and ship-rotation contracts, save, audio), coordinates/units, reproducible showcase states, e2e harness, performance budget, and work ownership.
+- `STATUS.json`
+  - Tea Moon polish program status: per-module critic scores by round, open issues, final gate (whole-game critic + blind A/B), outage history, and usage notes.
+- `evidence/`
+  - `baseline/` and `final/` screenshot evidence, playtest reports, and the blind A/B pairs with their key.
 - `engineering/development-standards.md`
   - Clean code, architecture, TypeScript, Phaser, browser platform, asset, and testing standards.
 - `engineering/implementation-checklist.md`

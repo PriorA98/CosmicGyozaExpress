@@ -1,0 +1,204 @@
+{
+  "label": "final-gate-touch",
+  "landingProfile": "soft",
+  "incidentFirst": true,
+  "attempt": 1,
+  "startedAt": "2026-10-02T11:37:35.905Z",
+  "checks": [
+    {
+      "name": "title -> flight via Enter",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "flight reached arrival gate and entered LandingScene",
+      "pass": true,
+      "detail": {
+        "reachedLanding": true,
+        "seconds": 15.158,
+        "finalPhase": "dock"
+      }
+    },
+    {
+      "name": "landing incident triggers quick landing-only retry (no route replay)",
+      "pass": true,
+      "detail": {
+        "ok": true,
+        "retrySeconds": 3.22,
+        "incidentToRetrySeconds": 1.113,
+        "incidents": 1
+      }
+    },
+    {
+      "name": "landing completes as soft",
+      "pass": true,
+      "detail": {
+        "ok": true,
+        "seconds": 7.979
+      }
+    },
+    {
+      "name": "save records tea-moon completion",
+      "pass": true,
+      "detail": {
+        "completedMissions": [
+          "tea-moon"
+        ],
+        "totalDeliveries": 1
+      }
+    },
+    {
+      "name": "completion persists across reload",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "title reflects saved completion",
+      "pass": true,
+      "detail": {
+        "teaMoonDelivered": true,
+        "layout": "compact",
+        "uiScale": 1.48,
+        "touch": true,
+        "focus": "start",
+        "keyboardNav": false,
+        "buttonFocused": false,
+        "ctaLabel": "deliver tea again",
+        "settingsOpen": false,
+        "settingsRow": null,
+        "routeLogOpen": false,
+        "saveNotice": null,
+        "shipScale": 3,
+        "shipRotation": 0
+      }
+    },
+    {
+      "name": "zero runtime errors during playtest",
+      "pass": true,
+      "detail": {
+        "runtimeErrorCount": 0,
+        "failedAssetCount": 0,
+        "fontFailureCount": 0
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "01-title",
+      "file": "01-title.png",
+      "at": "2026-10-02T11:37:38.126Z"
+    },
+    {
+      "name": "02-flight-start",
+      "file": "02-flight-start.png",
+      "at": "2026-10-02T11:37:39.432Z"
+    },
+    {
+      "name": "03-flight-approach",
+      "file": "03-flight-approach.png",
+      "at": "2026-10-02T11:37:50.528Z"
+    },
+    {
+      "name": "04-landing-start",
+      "file": "04-landing-start.png",
+      "at": "2026-10-02T11:37:56.526Z"
+    },
+    {
+      "name": "05-landing-incident",
+      "file": "05-landing-incident.png",
+      "at": "2026-10-02T11:38:00.465Z"
+    },
+    {
+      "name": "06-landing-settling",
+      "file": "06-landing-settling.png",
+      "at": "2026-10-02T11:38:07.112Z"
+    },
+    {
+      "name": "07-result",
+      "file": "07-result.png",
+      "at": "2026-10-02T11:38:10.806Z"
+    },
+    {
+      "name": "08-title-after-reload",
+      "file": "08-title-after-reload.png",
+      "at": "2026-10-02T11:38:12.608Z"
+    }
+  ],
+  "perf": {
+    "flight": {
+      "frames": 90,
+      "durationMs": 1500,
+      "avgFps": 60,
+      "p95FrameMs": 16.700000000000273,
+      "maxFrameMs": 16.800000000000182
+    },
+    "landing": {
+      "frames": 90,
+      "durationMs": 1500,
+      "avgFps": 60,
+      "p95FrameMs": 16.700000000000728,
+      "maxFrameMs": 16.799999999999272
+    }
+  },
+  "titleStateAfterReload": {
+    "teaMoonDelivered": true,
+    "layout": "compact",
+    "uiScale": 1.48,
+    "touch": true,
+    "focus": "start",
+    "keyboardNav": false,
+    "buttonFocused": false,
+    "ctaLabel": "deliver tea again",
+    "settingsOpen": false,
+    "settingsRow": null,
+    "routeLogOpen": false,
+    "saveNotice": null,
+    "shipScale": 3,
+    "shipRotation": 0
+  },
+  "probe": {
+    "activeShowcase": null,
+    "activeScenes": [
+      "TitleScene"
+    ],
+    "assetFailures": [],
+    "fontFailures": [],
+    "actualFps": 59.25,
+    "eventCount": 1,
+    "recentEvents": [
+      {
+        "type": "scene:enter",
+        "scene": "TitleScene"
+      }
+    ],
+    "save": {
+      "firstLoadOutcome": {
+        "kind": "loaded"
+      },
+      "lastLoadOutcome": {
+        "kind": "loaded"
+      },
+      "storageLocked": false,
+      "persistence": {
+        "kind": "persistent"
+      },
+      "hasCorruptBackup": false,
+      "hasLatestCorruptBackup": false
+    },
+    "result": null
+  },
+  "log": {
+    "consoleErrors": [],
+    "consoleWarnings": [],
+    "pageErrors": [],
+    "failedRequests": [],
+    "badResponses": []
+  },
+  "errors": {
+    "runtimeErrorCount": 0,
+    "failedAssetCount": 0,
+    "fontFailureCount": 0
+  },
+  "finishedAt": "2026-10-02T11:38:12.614Z",
+  "passed": true
+}

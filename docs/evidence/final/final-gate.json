@@ -1,0 +1,123 @@
+{
+ "game": {
+  "score": 8.6,
+  "pass": true,
+  "runtimeErrors": 0,
+  "checks": [
+   {
+    "name": "1. Soft playtest (final-gate-soft): title -> flight -> arrival -> crash -> landing-only retry -> soft -> result -> reload",
+    "pass": true,
+    "detail": "All 8 checks PASS. Flight reached LandingScene in 15.1s. Retry: incidentToRetrySeconds=1.103 (<=2.5), retrySeconds=3.249, incidents=1. The playtest asserts that the scene list includes LandingScene and never FlightScene during the retry (e2e/playtest.mjs:279), so the route was not replayed. Soft landing in 7.9s, save completedMissions=[tea-moon], persists across reload, title CTA reads 'deliver tea again'. runtimeErrorCount=0, failedAssetCount=0, fontFailureCount=0. perf flight/landing avg 60fps, p95 16.8ms. Output: e2e/out/final-gate-soft"
+   },
+   {
+    "name": "2. Bumpy playtest (final-gate-bumpy, incident-first=false)",
+    "pass": true,
+    "detail": "All 7 checks PASS. Arrival in 15.26s, bumpy landing in 5.26s, save and reload are correct, 0 runtime/asset/font errors. Output: e2e/out/final-gate-bumpy"
+   },
+   {
+    "name": "3. Touch playtest (phoneLandscapeTouch)",
+    "pass": true,
+    "detail": "All 8 checks PASS. Compact layout, uiScale 1.48, touch=true. Retry incidentToRetrySeconds=1.113 with no FlightScene replay. Soft landing, save persisted, 0 errors. The on-screen touch controls (left/right/brake/thrust, tilt/steady/thrust, RETRY) render correctly. Caveat: the title->flight step still uses Enter, so the touch start CTA is never actually tapped. Output: e2e/out/final-gate-touch"
+   },
+   {
+    "name": "4. typecheck / test / build / build:pages",
+    "pass": true,
+    "detail": "tsc --noEmit clean; vitest 18 files, 226 tests passed; vite build and build:pages both finished ('built in 5.05s'). The only output was the >500kB chunk-size warning (index JS 1.64MB / 456kB gzip). The PowerShell NativeCommandError lines came from stderr warnings and do not mean a failure."
+   },
+   {
+    "name": "5. Forgiving gameplay copy",
+    "pass": true,
+    "detail": "No lives, fuel gauge, countdown timer or score appear on the title, flight HUD, landing HUD or result screens. The crash is framed as 'gyoza incident / moon blanket says: softer, please'. The result shows 'landed on try 2 · the moon waited' and '19s of scenic flying' (a duration framed kindly, not a timer). The bumpy result reads 'a spirited delivery … 2 friendly bumps along the way'. The only 'lives' string in the bundle is save-conflict copy ('a newer scrapbook lives here')."
+   }
+  ],
+  "whatISaw": "I read the three playtest runs and the e2e/out/final @desktop set as one sequence. The title has a chunky cream/orange wordmark, a pixel-art tea-cup moon with a cottage, a gyoza UFO with a dotted trail and a Sleepy Moon Rabbit delivery card. Flight takes place in a deep indigo cloudscape with hand-pixelled asteroids. A compact 'TEA MOON ROUTE' HUD panel, a typewriter beacon line, a 'cruising/approaching/ready' pill, a ghost-silhouette dock target with a dashed orbit ring, and a keycap hint bar all share one dark-panel / cream-text language. A cream 'tea moon · landing' card bridges into the landing. In the landing scene, a dusk-gradient sky with a ringed planet sits over a pastel dune horizon, with a striped landing blanket, lanterns, the waving rabbit and a mushroom-roof house. The crash shows puff clouds, a tipped dumpling and a gentle 'gyoza incident' toast, and the scene resets about 1.1s later in place. Settling shows a pad glow, 'featherlight landing!' and a thrust meter labeled soft/too fast. The result is a warm scrapbook card: rabbit portrait, tea and mochi, a tier headline, a quote, pill tags, three kind stat lines, a 'new memory' postcard and back/fly-again keycap buttons. The title after reload shows 'deliver tea again', a 'route log' button and a 'delivered' stamp. The touch layout scales well, with large thumb buttons that do not cover the play area. The dev scene launcher appears only on the dev server; it is gated and absent from the final captures.",
+  "strengths": [
+   "One art direction holds across all four scenes: the same indigo/cream/terracotta palette, crisp nearest-neighbor pixel art, and matching panel and keycap components in flight and landing HUDs.",
+   "The crash-and-retry loop is genuinely forgiving and quick: about 1.1s from incident to retry, landing-only, with no route replay and soft 'softer, please' copy.",
+   "The result screen is a real payoff: a character portrait, tiered headlines ('whisper-soft' / 'spirited'), warm quotes, a collectible postcard memory, and stats phrased kindly.",
+   "Readable navigation affordances: the ghost-ship dock target with chevron, the 'bottom to moon' / 'hold steady' pills, and the landing thrust meter with soft/too-fast bands.",
+   "The touch layout adapts well (uiScale 1.48, large labeled buttons, RETRY top-right), and the title state after a save ('deliver tea again', delivered stamp, route log) closes the loop.",
+   "Technically clean: zero runtime, asset and font errors across three runs, a steady 60fps, and 226 unit tests passing."
+  ],
+  "issues": [
+   {
+    "rank": 1,
+    "severity": "medium",
+    "issue": "The opening frame of the landing is mostly empty: about 75% of the screen is flat dark sky with only the ship and the intro card. The pad, rabbit, house and dunes, which make the scene charming, are off-screen, so the handoff from the busy flight scene feels like a blank loading frame.",
+    "evidence": "e2e/out/final-gate-soft/04-landing-start.png, e2e/out/final-gate-touch/04-landing-start.png",
+    "fix": "Open the landing camera framed on the horizon so the dune line, pad blanket and rabbit are visible from frame one, or do a short pan-down reveal while the card is up. At minimum, add a moon-surface silhouette and the ringed planet higher in frame.",
+    "owner": "landing-builder"
+   },
+   {
+    "rank": 2,
+    "severity": "low",
+    "issue": "The result copy contradicts itself after a crash-then-retry run. It says 'a whisper-soft delivery' and 'not a single bump' but also 'landed on try 2' and 'package · slightly shaken'. 'Not a single bump' refers to the flight route, yet it reads as if it describes the landing.",
+    "evidence": "e2e/out/final-gate-soft/07-result.png, e2e/out/final-gate-touch/07-result.png",
+    "fix": "Scope the stat ('no bumps on the route' / 'the asteroids kept their distance'), and when attempts > 1, change the quote or subline to acknowledge the wobbly first try (e.g. 'second try, softest yet').",
+    "owner": "ui-builder"
+   },
+   {
+    "rank": 3,
+    "severity": "low",
+    "issue": "Some HUD wording is sim jargon that breaks the cozy voice. In flight, 'bottom 259°' is cryptic. The landing panel shows 'descent hit at 13.8 m/s', 'altitude 0 m' and 'tilt 6°'.",
+    "evidence": "e2e/out/final-gate-soft/03-flight-approach.png, e2e/out/final-gate-soft/05-landing-incident.png",
+    "fix": "Replace 'bottom NNN°' with a small belly-to-moon arrow or a word state ('belly facing moon / turn a bit more'). In the landing panel, lead with the friendly state (gentle / a bit quick / too fast) and keep the numbers as a secondary detail.",
+    "owner": "ui-builder"
+   },
+   {
+    "rank": 4,
+    "severity": "low",
+    "issue": "During the approach, the ship sprite sits on the purple planet's rim with no depth cue or collision feedback, so it reads as clipping into the planet.",
+    "evidence": "e2e/out/final-gate-soft/03-flight-approach.png",
+    "fix": "Give background planets a clear parallax/depth treatment (lower saturation or darkening, or a slight blur tint), or keep the scripted approach path clear of large bodies.",
+    "owner": "flight-builder"
+   },
+   {
+    "rank": 5,
+    "severity": "low",
+    "issue": "The touch run never taps the title start CTA: title->flight uses Enter even in phoneLandscapeTouch, so touch-only start is not verified.",
+    "evidence": "final-gate-touch check 'title -> flight via Enter' (e2e/out/final-gate-touch/playtest-soft.json)",
+    "fix": "In touch viewports, have e2e/playtest.mjs tap the 'deliver tea to the moon' button bounds instead of pressing Enter.",
+    "owner": "qa/e2e"
+   },
+   {
+    "rank": 6,
+    "severity": "nit",
+    "issue": "The production build emits an 11.7MB sourcemap next to a 1.64MB single chunk, and Vite warns that the chunk is over 500kB. The map may ship with the Pages deploy.",
+    "evidence": "npm run build / build:pages output: dist/assets/index-C4Gt7s5O.js.map 11,760 kB",
+    "fix": "Disable sourcemaps for build:pages (or use 'hidden'), and split Phaser into its own chunk with manualChunks to get cacheable vendor code.",
+    "owner": "integrator"
+   }
+  ]
+ },
+ "blind": {
+  "pairs": 28,
+  "seed": 20261002,
+  "judges": [
+   {
+    "judge": 1,
+    "finalPreferred": 28,
+    "of": 28,
+    "highConfidenceFinal": 28,
+    "baselinePreferred": [],
+    "overall": "I preferred the fully art-directed build in all 28 pairs, and I'm sure of every pick. The sides were swapped across pairs, so position played no part. The preferred build looks like a shipped indie game, with pixel-art moonscapes and asteroid fields, nebula clouds, a ringed planet, and a rabbit house with a lantern-lit landing blanket. It also has a branded logotype, a styled HUD with keycap prompts, speed gauges, docking rings, and incident or success toasts. Its results card shows the character's portrait, tags, stats and a postcard. The other build is clearly a prototype. It uses flat grey circle placeholders, a camo-textured planet and a raw monospace debug overlay. Its touch buttons are basic circles, its title and results screens are in a default serif font, and the dev scene-launch panel is visible. The preferred build is warmer and more legible, and its visual language holds together across every screen."
+   },
+   {
+    "judge": 2,
+    "finalPreferred": 28,
+    "of": 28,
+    "highConfidenceFinal": 28,
+    "baselinePreferred": [],
+    "overall": "Every pair was an easy call, all at high confidence. Each pair had one illustrated build: pixel art in a dusky purple and cream palette, cloud banks and textured asteroids, a tea-cup moon with a cottage, the Sleepy Moon Rabbit, cream toast cards, keycap control legends and illustrated delivery cards. The other build was a greybox prototype: a dark void, debug text overlays, translucent grey placeholder circles, a camo-textured planet and system-serif text. I preferred the illustrated build in all 28 pairs. It has much more cozy warmth and charm, and its UI, palette and characters look like one consistent style. The greybox build has no art direction to judge."
+   },
+   {
+    "judge": 3,
+    "finalPreferred": 28,
+    "of": 28,
+    "highConfidenceFinal": 28,
+    "baselinePreferred": [],
+    "overall": "I preferred the same build style in all 28 pairs, with high confidence. That build has titled HUD panels that show values in plain language and units players know (m/s, km). It flags game state with colored chips (cruising, approaching, ready, gyoza incident) and pops up outcome messages that say what happened and why. It shows the controls as keycaps in a bottom bar and adds guidance next to the ship: a speed gauge with labels like 'soft' and 'too fast', a docking ring with a 'hold steady' prompt, and an objective marker with the distance. Its title and results screens have a clear order of headline, status, stats and big buttons with key hints. The other build shows raw debug text in px/s, grey placeholder circles and small round touch buttons that sometimes cover the ship or the planets, and its title and results screens are plain centered text. Two small weaknesses in the preferred build: the typewriter note line can be caught mid-word in a screenshot, and it has no visible on-screen touch buttons."
+   }
+  ]
+ }
+}

@@ -1,0 +1,170 @@
+[
+ {
+  "pair": "pair-01.png",
+  "state": "landing-thrust",
+  "viewport": "phoneLandscape",
+  "final": "B"
+ },
+ {
+  "pair": "pair-02.png",
+  "state": "flight-incident",
+  "viewport": "phoneLandscape",
+  "final": "B"
+ },
+ {
+  "pair": "pair-03.png",
+  "state": "result-bumpy",
+  "viewport": "desktop",
+  "final": "A"
+ },
+ {
+  "pair": "pair-04.png",
+  "state": "flight-start",
+  "viewport": "phoneLandscape",
+  "final": "B"
+ },
+ {
+  "pair": "pair-05.png",
+  "state": "title",
+  "viewport": "phoneLandscape",
+  "final": "A"
+ },
+ {
+  "pair": "pair-06.png",
+  "state": "result-bumpy",
+  "viewport": "phoneLandscape",
+  "final": "B"
+ },
+ {
+  "pair": "pair-07.png",
+  "state": "landing-settle-soft",
+  "viewport": "desktop",
+  "final": "B"
+ },
+ {
+  "pair": "pair-08.png",
+  "state": "title-completed",
+  "viewport": "desktop",
+  "final": "A"
+ },
+ {
+  "pair": "pair-09.png",
+  "state": "flight-incident",
+  "viewport": "desktop",
+  "final": "B"
+ },
+ {
+  "pair": "pair-10.png",
+  "state": "landing-offpad",
+  "viewport": "phoneLandscape",
+  "final": "A"
+ },
+ {
+  "pair": "pair-11.png",
+  "state": "flight-cruise",
+  "viewport": "desktop",
+  "final": "B"
+ },
+ {
+  "pair": "pair-12.png",
+  "state": "result-soft",
+  "viewport": "phoneLandscape",
+  "final": "A"
+ },
+ {
+  "pair": "pair-13.png",
+  "state": "landing-descent",
+  "viewport": "desktop",
+  "final": "B"
+ },
+ {
+  "pair": "pair-14.png",
+  "state": "flight-approach",
+  "viewport": "phoneLandscape",
+  "final": "A"
+ },
+ {
+  "pair": "pair-15.png",
+  "state": "title",
+  "viewport": "desktop",
+  "final": "A"
+ },
+ {
+  "pair": "pair-16.png",
+  "state": "landing-incident",
+  "viewport": "phoneLandscape",
+  "final": "B"
+ },
+ {
+  "pair": "pair-17.png",
+  "state": "flight-arrival-ready",
+  "viewport": "phoneLandscape",
+  "final": "A"
+ },
+ {
+  "pair": "pair-18.png",
+  "state": "landing-thrust",
+  "viewport": "desktop",
+  "final": "B"
+ },
+ {
+  "pair": "pair-19.png",
+  "state": "landing-incident",
+  "viewport": "desktop",
+  "final": "B"
+ },
+ {
+  "pair": "pair-20.png",
+  "state": "title-completed",
+  "viewport": "phoneLandscape",
+  "final": "A"
+ },
+ {
+  "pair": "pair-21.png",
+  "state": "flight-start",
+  "viewport": "desktop",
+  "final": "B"
+ },
+ {
+  "pair": "pair-22.png",
+  "state": "landing-settle-soft",
+  "viewport": "phoneLandscape",
+  "final": "B"
+ },
+ {
+  "pair": "pair-23.png",
+  "state": "result-soft",
+  "viewport": "desktop",
+  "final": "B"
+ },
+ {
+  "pair": "pair-24.png",
+  "state": "landing-offpad",
+  "viewport": "desktop",
+  "final": "A"
+ },
+ {
+  "pair": "pair-25.png",
+  "state": "flight-cruise",
+  "viewport": "phoneLandscape",
+  "final": "A"
+ },
+ {
+  "pair": "pair-26.png",
+  "state": "flight-approach",
+  "viewport": "desktop",
+  "final": "A"
+ },
+ {
+  "pair": "pair-27.png",
+  "state": "landing-descent",
+  "viewport": "phoneLandscape",
+  "final": "B"
+ },
+ {
+  "pair": "pair-28.png",
+  "state": "flight-arrival-ready",
+  "viewport": "desktop",
+  "final": "A"
+ }
+]

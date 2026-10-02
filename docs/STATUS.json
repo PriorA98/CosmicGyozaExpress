@@ -1,6 +1,6 @@
 {
   "project": "Cosmic Gyoza Express — Tea Moon vertical slice polish",
-  "updatedAt": "2026-10-02T21:40:00+09:00",
+  "updatedAt": "2026-10-02T22:10:00+09:00",
   "passBar": {
     "score": 8.5,
     "runtimeErrors": 0,
@@ -19,7 +19,7 @@
     },
     "integratorAssessment": "programmer-art tier (~5): fallback serif fonts, debug vectors on by default, flat circles for asteroids, touch pads always visible on desktop, flat rectangles for lunar surface and pad, painted 1280px planets mismatched with pixel ship, no audio."
   },
-  "phase": "final-gate-running",
+  "phase": "complete",
   "modules": {
     "flight-environment": {
       "status": "pass",
@@ -472,6 +472,10 @@
     {
       "at": "2026-10-02T21:40:00+09:00",
       "event": "final gate launched (wf_e7abd5d6-dea): whole-game critic + 3 blind judges over 28 shuffled baseline/final pairs (key kept in the lead's scratchpad)."
+    },
+    {
+      "at": "2026-10-02T22:10:00+09:00",
+      "event": "final gate PASSED: whole-game critic 8.6 (soft/bumpy/touch playtests, typecheck, 226 tests, build, build:pages, forgiving-gameplay copy all PASS; incident->retry 1.1 s); blind A/B judges preferred the final build in 84/84 judgements (28 pairs x 3 lenses). Open issues are 1 medium (empty first frame of the landing intro) + low/nit items, recorded under finalGate."
     }
   ],
   "usageInvestigation": {
@@ -483,5 +487,110 @@
       "lead runs integration validation itself via scripts (no long-lived integrator agent)",
       "smaller runs (only unfinished agents), critics in a separate lean run"
     ]
+  },
+  "finalGate": {
+    "workflow": "wf_e7abd5d6-dea",
+    "wholeGameCritic": {
+      "score": 8.6,
+      "pass": true,
+      "runtimeErrors": 0,
+      "checks": [
+        {
+          "name": "1. Soft playtest (final-gate-soft): title -> flight -> arrival -> crash -> landing-only retry -> soft -> result -> reload",
+          "pass": true
+        },
+        {
+          "name": "2. Bumpy playtest (final-gate-bumpy, incident-first=false)",
+          "pass": true
+        },
+        {
+          "name": "3. Touch playtest (phoneLandscapeTouch)",
+          "pass": true
+        },
+        {
+          "name": "4. typecheck / test / build / build:pages",
+          "pass": true
+        },
+        {
+          "name": "5. Forgiving gameplay copy",
+          "pass": true
+        }
+      ],
+      "openIssues": [
+        "[medium] (landing-builder) The opening frame of the landing is mostly empty: about 75% of the screen is flat dark sky with only the ship and the intro card. The pad, rabbit, house and dunes, which make the scene charming, are off-screen, so the handoff from the busy flight scene feels like a blank loading frame.",
+        "[low] (ui-builder) The result copy contradicts itself after a crash-then-retry run. It says 'a whisper-soft delivery' and 'not a single bump' but also 'landed on try 2' and 'package · slightly shaken'. 'Not a single bump' refers to the flight route, yet it reads as if it describes the landing.",
+        "[low] (ui-builder) Some HUD wording is sim jargon that breaks the cozy voice. In flight, 'bottom 259°' is cryptic. The landing panel shows 'descent hit at 13.8 m/s', 'altitude 0 m' and 'tilt 6°'.",
+        "[low] (flight-builder) During the approach, the ship sprite sits on the purple planet's rim with no depth cue or collision feedback, so it reads as clipping into the planet.",
+        "[low] (qa/e2e) The touch run never taps the title start CTA: title->flight uses Enter even in phoneLandscapeTouch, so touch-only start is not verified.",
+        "[nit] (integrator) The production build emits an 11.7MB sourcemap next to a 1.64MB single chunk, and Vite warns that the chunk is over 500kB. The map may ship with the Pages deploy."
+      ]
+    },
+    "blindAB": {
+      "pairs": 28,
+      "states": 14,
+      "viewports": [
+        "desktop",
+        "phoneLandscape"
+      ],
+      "assignment": "seeded random left/right per pair (seed 20261002); key in docs/evidence/final/blind-ab-key.json",
+      "judges": [
+        {
+          "judge": 1,
+          "lens": "visual polish and craft",
+          "finalPreferred": "28/28",
+          "highConfidence": 28
+        },
+        {
+          "judge": 2,
+          "lens": "cozy warmth and cohesion",
+          "finalPreferred": "28/28",
+          "highConfidence": 28
+        },
+        {
+          "judge": 3,
+          "lens": "readability of game information",
+          "finalPreferred": "28/28",
+          "highConfidence": 28
+        }
+      ],
+      "result": "final build preferred in 84/84 judgements, all high confidence"
+    },
+    "evidence": "docs/evidence/final/ (final captures, playtest JSON, blind pairs + key, final-gate.json)"
+  },
+  "summary": {
+    "roundsUsed": 3,
+    "maxRounds": 4,
+    "scores": {
+      "flight-environment": [
+        7.4,
+        8.1,
+        8.5
+      ],
+      "landing": [
+        7.2,
+        8.3,
+        8.6
+      ],
+      "ui": [
+        7.6,
+        8.3,
+        8.6
+      ],
+      "audio-fx": [
+        8,
+        8.3,
+        8.5
+      ],
+      "save-results": [
+        8.1,
+        8.6
+      ],
+      "assets": [
+        7.6,
+        8.3,
+        8.6
+      ]
+    },
+    "notes": "All six module critics passed (>=8.5, zero runtime errors, perf budget met) by round 3; round 4 unused. Usage-limit outages interrupted runs repeatedly; every interrupted run is logged in history and no round was counted without real critic scores."
   }
 }
