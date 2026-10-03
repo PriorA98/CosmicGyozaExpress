@@ -627,28 +627,33 @@
         "notes": "campaign autopilot: all 5 new missions PASS soft+bumpy, 0 crashes, retry ~1.1 s; board layout + Tea next-delivery fix"
       }
     ],
-    "open": [],
+    "open": [
+      "Atmosphere gap vs Tea Moon is largely art: Wave D adds painted per-theme landing backdrop layers + flight space layers alongside the 16 campaign keys"
+    ],
     "modules": {
       "campaign-flight": {
         "rounds": [
-          6.8
-        ],
-        "runtimeErrors": 0,
-        "status": "fixing (Codex r1)"
-      },
-      "campaign-landing": {
-        "rounds": [
-          6.4
-        ],
-        "runtimeErrors": 0,
-        "status": "fixing (Codex r1)"
-      },
-      "campaign-shell": {
-        "rounds": [
+          6.8,
           7.4
         ],
         "runtimeErrors": 0,
-        "status": "fixing (Codex r1)"
+        "status": "fixing (Codex r2)"
+      },
+      "campaign-landing": {
+        "rounds": [
+          6.4,
+          7.3
+        ],
+        "runtimeErrors": 0,
+        "status": "fixing (Codex r2)"
+      },
+      "campaign-shell": {
+        "rounds": [
+          7.4,
+          8.1
+        ],
+        "runtimeErrors": 0,
+        "status": "fixing (Codex r2)"
       }
     },
     "criticNotes": "Round 1 critics: Claude Opus read-only, ~29-36 tool calls / ~87k tokens each; placeholder campaign art excluded from scores."
