@@ -349,6 +349,10 @@ export const destinationIndicatorStyle = {
   pillLineGap: 1,
   pillRadius: 6,
   pillAlpha: 0.82,
+  /** Campaign only: opaque pill + backing plate so world art never shows through the indicator. */
+  campaignPillAlpha: 0.95,
+  plateAlpha: 0.92,
+  plateExtraRadius: 12,
   pulseMs: 1200,
   /** Half width (px before uiScale) of the pin + label column, for HUD avoidance. */
   footprintHalfWidth: 48,
@@ -506,8 +510,19 @@ export const campaignFlightStyle = {
   },
   rockBob: { bobArtPx: 2, basePeriodMs: 3400, periodStepMs: 380 },
   track: { alpha: 0.75, orbitAlpha: 0.55, dashPx: 16, gapPx: 8, dotPx: 6, bulbRadiusPx: 10, bulbAlpha: 0.9 },
-  flow: { spacingPx: 300, alpha: 0.72, speedPxPerSecond: 34, edgeInsetPx: 54 },
-  gust: { calmAlpha: 0.14, warningAlpha: 0.78, activeAlpha: 0.5, speedPxPerSecond: 90, windsockInsetPx: 70 },
+  flow: { spacingPx: 300, currentSpacingPx: 210, currentLanes: 4, alpha: 0.72, speedPxPerSecond: 52, edgeInsetPx: 54 },
+  gust: {
+    spacingPx: 190,
+    lanes: 5,
+    speedPxPerSecond: 110,
+    windsockInsetPx: 90,
+    /** Windsock sits this far below the entry line, out of the indicator label band and off the flight line. */
+    windsockDropPx: 150,
+    streakSpacingPx: 120,
+    streakSpeedScale: 1.6,
+    bandFillAlpha: 0.07,
+    bandEdgeAlpha: 0.55,
+  },
   gravity: {
     ringFractions: [0.92, 0.64, 0.38] as const,
     ringAlphas: [0.16, 0.22, 0.3] as const,
@@ -518,16 +533,77 @@ export const campaignFlightStyle = {
     breathAlpha: 0.25,
     breathMs: 2600,
   },
-  fog: { bands: 3, bandInsetPx: 90, driftScale: 1 },
+  /** Fog = soft stepped puffs (art-px radii), jittered and thinned at the fringe; colour is a pale tea mist. */
+  fog: { puffSpacingPx: 260, puffRadiiArt: [14, 22, 30] as const, puffSteps: [0, 4, 8, 12, 16, 20, 24, 28, 32] as const, companionOffset: [0.8, 0.3] as const, color: "#DCE7CB", driftScale: 1, edgeFadePx: 140, seed: 23 },
   pickup: { bobArtPx: 2, bobPeriodMs: 2600, haloRadiusArt: 10, haloSteps: [2, 5] as const, haloAlpha: 0.12 },
-  lantern: { bodyColor: "#3A2E2A", glowRadiusArt: 10, glowSteps: [3, 7, 12] as const, glowAlpha: 0.08, idleAlpha: 0.7 },
+  lantern: { bodyColor: "#3A2E2A", noteColor: "#F4E6C8", glowRadiusArt: 14, glowSteps: [3, 8, 14, 20] as const, glowAlpha: 0.1, idleAlpha: 0.85 },
   gauge: { width: 164, height: 68, gap: 6, arrowPx: 9 },
 } as const;
 
 export type CampaignBackdropProp = "lunch-crate" | "tea-leaf" | "flour-comet" | "rain" | "ribbon-lantern";
-export const campaignBackdropProps: Readonly<Record<ThemeId, CampaignBackdropProp | null>> = {
-  teaMoon: null, bentoBelt: "lunch-crate", matchaNebula: "tea-leaf", blackHoleBakery: "flour-comet", imFine: "rain", home: "ribbon-lantern",
+
+/**
+ * Per-route colour mood for the campaign space backdrop. Parallax layers are multiply-tinted with
+ * mid-tones (never the dark sky colour) so every route keeps Tea Moon-like depth with its own hue.
+ * `layerTextureKeys` lets the final-art wave swap in painted layers per theme (code layer = fallback).
+ */
+export type CampaignBackdropMood = {
+  readonly cosmos: string;
+  readonly layerTints: Readonly<Record<string, string>>;
+  readonly layerTextureKeys?: Readonly<Partial<Record<string, AssetKey>>>;
+  /** Celestial bodies reused from `flightCelestialBodies` by id, re-tinted and re-placed (screen px). */
+  readonly bodies: readonly { readonly id: string; readonly x: number; readonly y: number; readonly tint: string }[];
+  readonly debrisTints: readonly [string, string, string];
+  readonly debrisAlpha: number;
+  readonly prop: CampaignBackdropProp | null;
 };
+
+export const campaignBackdropMoods: Readonly<Record<ThemeId, CampaignBackdropMood | null>> = {
+  teaMoon: null,
+  bentoBelt: {
+    cosmos: "#211C2A",
+    layerTints: { "stars-far": "#F4E2CC", nebula: "#F0A878", "stars-near": "#FBEBD8" },
+    bodies: [{ id: "far-plum", x: 960, y: 150, tint: "#E2B49A" }, { id: "im-fine", x: 300, y: 600, tint: "#C9A48F" }],
+    debrisTints: ["#E3BFA2", "#CDA58C", "#EBD0B8"],
+    debrisAlpha: 0.85,
+    prop: "lunch-crate",
+  },
+  matchaNebula: {
+    cosmos: "#16211E",
+    layerTints: { "stars-far": "#E2EFD4", nebula: "#9FC690", "stars-near": "#EEF6E2" },
+    bodies: [{ id: "far-plum", x: 1010, y: 160, tint: "#AFCB9F" }, { id: "im-fine", x: 560, y: 600, tint: "#98B48C" }],
+    debrisTints: ["#B9D0A6", "#A3BD92", "#CBDDB8"],
+    debrisAlpha: 0.8,
+    prop: "tea-leaf",
+  },
+  blackHoleBakery: {
+    cosmos: "#1B1428",
+    layerTints: { "stars-far": "#EADCF2", nebula: "#A684D6", "stars-near": "#F3E8F8" },
+    bodies: [{ id: "far-plum", x: 980, y: 140, tint: "#C3A6DE" }, { id: "im-fine", x: 260, y: 610, tint: "#A790C4" }],
+    debrisTints: ["#D2BDE4", "#BCA4D2", "#E6D2C6"],
+    debrisAlpha: 0.85,
+    prop: "flour-comet",
+  },
+  imFine: {
+    cosmos: "#162030",
+    layerTints: { "stars-far": "#D9E4F0", nebula: "#7FA2D0", "stars-near": "#E7EEF6" },
+    bodies: [{ id: "far-plum", x: 980, y: 150, tint: "#A6B8D2" }],
+    debrisTints: ["#AFC1D6", "#9BB0C8", "#C6D3E2"],
+    debrisAlpha: 0.8,
+    prop: "rain",
+  },
+  home: {
+    cosmos: "#221A2C",
+    layerTints: { "stars-far": "#F4E0E6", nebula: "#E893B2", "stars-near": "#F8EAEE" },
+    bodies: [{ id: "far-plum", x: 960, y: 150, tint: "#DDB0C2" }, { id: "im-fine", x: 620, y: 610, tint: "#BFA0B4" }],
+    debrisTints: ["#E2C0CC", "#CFA9B8", "#EED6C8"],
+    debrisAlpha: 0.85,
+    prop: "ribbon-lantern",
+  },
+};
+
+/** Far parallax props: deep scroll factor, low alpha, placed per route clear of gameplay. */
+export const campaignPropStyle = { scrollFactor: 0.45, alpha: 0.4, count: 4, radiusPx: 60, keepOutPadPx: 50, gridStepPx: 120 } as const;
 export const campaignCuePalette = { matcha: "#B7C69A", cream: "#F4E6C8", fog: "#80966B" } as const;
 
 /** Static rock look for a campaign route obstacle: deterministic texture by size, gentle bob. */

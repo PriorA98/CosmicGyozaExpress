@@ -61,5 +61,5 @@ it("provides distinct foreground sets and layered terrain for every campaign des
     return [...new Set(decor.props.map((prop) => prop.kind))].sort().join(",");
   });
   expect(new Set(sets).size).toBe(5);
-  expect(campaignLandingDecor.imFine.windsocks[0]?.x).toBe(1120);
+  expect(campaignLandingDecor.imFine.windsocks[0]?.mount).toBe("ridge");
 });

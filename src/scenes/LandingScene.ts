@@ -923,7 +923,11 @@ export class LandingScene extends Phaser.Scene {
     const touchPads = this.touchLayout ? new LandingTouchPads(this, compactUiScale(this)) : undefined;
     const hint = this.touchLayout ? undefined : createLandingControlsHint(this, uiScale, !this.theme.legacy || isCompactDisplay(this) ? "top-right" : "bottom");
     const retryChip = this.touchLayout ? this.createRetryChip(compactUiScale(this)) : undefined;
-    const wind = this.theme.legacy || this.definition.wind.kind === "none" ? undefined : new LandingWindIndicator(this, this.definition.wind, uiScale, isCompactDisplay(this));
+    // Touch: the wind chip sits beside the retry chip in the top bar, clear of the destination landmark.
+    const windAnchor = retryChip ? { right: retryChip.x - landingScenery.retryChip.marginX / 2, top: retryChip.y } : undefined;
+    const wind = this.theme.legacy || this.definition.wind.kind === "none"
+      ? undefined
+      : new LandingWindIndicator(this, this.definition.wind, uiScale, isCompactDisplay(this), windAnchor);
     this.hud = { dashboard, hint, touchPads, retryChip, uiScale, wind };
     this.aids.setUiScale(compactUiScale(this));
     if (this.phase.kind === "intro") this.setHudAlpha(0);

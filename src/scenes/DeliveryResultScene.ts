@@ -164,7 +164,15 @@ const DASH = { length: 8, gap: 6, width: 2, alpha: 0.8 } as const;
 /** Campaign (non-legacy) card art: recipient portraits are 48 art px, cargo 32, postcards 48x32 (half the slice postcard). */
 const CAMPAIGN_ART = { portraitExtraScale: 1, postcardScaleFactor: 2, minNoteWidth: 120 } as const;
 /** Thank-you notes on the final card. */
-const NOTES = { titleGap: 8, lineGap: 6, bullet: "✦ " } as const;
+const NOTES = { titleGap: 8, lineGap: 6, closingGap: 12, bullet: "✦ " } as const;
+/** Room under the ending postcard for its "new memory" label and title. */
+const ENDING_POSTCARD_CAPTION_ROOM = 48;
+/** Porch-light rings behind the ending postcard: [extra radius px, alpha], outermost first. */
+const PORCH_GLOW_RINGS: readonly (readonly [number, number])[] = [
+  [36, 0.08],
+  [16, 0.12],
+  [0, 0.16],
+];
 
 type StageProps = {
   alpha: number;
@@ -505,11 +513,19 @@ export class DeliveryResultScene extends Phaser.Scene {
     this.stage(resultRevealTiming.card, motion.slow, "Cubic.easeOut", [this.part(card, { alpha: 0, dy: ENTRY.cardDy })]);
 
     this.createLeftColumn(card, frame, view);
-    const postcard = this.createPostcard(card, frame, view);
+    // Keep Tea's draw order; the ending places its postcard alongside the measured copy.
+    const postcard = view.isEnding ? null : this.createPostcard(card, frame, view);
     const copyBottom = this.createHeadline(card, frame, view);
     if (view.isEnding) {
-      this.createThankYouNotes(card, frame, view, copyBottom, postcard);
-    } else {
+      // Notes block is centred in the space under the headline; the postcard sits beside the
+      // closing line inside a warm porch-light glow, so the ending reads as a scene, not a text card.
+      const postcardH = ART.postcard.height * layout.postcardScale;
+      const postcardLeft = frame.innerRight - SPACING.postcardSlotPad - ART.postcard.width * layout.postcardScale;
+      const anchorY = this.createThankYouNotes(card, frame, view, copyBottom, postcardLeft);
+      const postcardTop = Math.round(Math.min(Math.max(anchorY - postcardH / 2, copyBottom), frame.contentBottom - postcardH - ENDING_POSTCARD_CAPTION_ROOM));
+      this.createPorchGlow(card, frame, postcardTop + postcardH / 2, postcardH);
+      this.createPostcard(card, frame, view, postcardTop);
+    } else if (postcard) {
       const stampsBottom = this.createStamps(card, frame, view, copyBottom, postcard);
       if (layout.showStats) this.createStats(card, frame, view, stampsBottom, postcard);
     }
@@ -822,7 +838,7 @@ export class DeliveryResultScene extends Phaser.Scene {
 
     let kicker: Phaser.GameObjects.Text | undefined;
     if (layout.showKicker) {
-      const kickerSize = view.legacy ? typeScale[layout.type.kicker] : this.tier === "full" ? 16 : 24;
+      const kickerSize = this.tier === "full" ? 16 : 24;
       const onGrid = kickerSize % PIXEL_FONT_GRID === 0;
       kicker = this.add
         .text(x, cursor, `${view.kicker}  ·  ${view.kickerPlace}`, {
@@ -1019,22 +1035,23 @@ export class DeliveryResultScene extends Phaser.Scene {
    * Final card: one thank-you line per completed delivery (never collectible counts or quality), beside
    * the postcard. Lines that would run into the footer are left out rather than shrunk.
    */
+  /** Lays out the ending's thank-you notes and closing line; returns the y the postcard should centre on. */
   private createThankYouNotes(
     card: Phaser.GameObjects.Container,
     frame: CardFrame,
     view: DeliveryResultPresentation,
     top: number,
-    postcard: Rect,
-  ): void {
+    postcardLeft: number,
+  ): number {
     const x = frame.rightX;
-    const width = Math.max(CAMPAIGN_ART.minNoteWidth, postcard.left - SPACING.postcardClearance - x);
-    const title = this.add.text(x, Math.round(top), campaignResultCopy.notesTitle, {
+    const width = Math.max(CAMPAIGN_ART.minNoteWidth, postcardLeft - SPACING.postcardClearance - x);
+    const title = this.add.text(x, 0, campaignResultCopy.notesTitle, {
       color: colors.terracottaDeep,
       fontFamily: fontStacks.mono,
       fontSize: "16px",
       fontStyle: "700",
     });
-    let cursor = Math.round(top + title.height + NOTES.titleGap);
+    let cursor = Math.round(title.height + NOTES.titleGap);
     const notes = view.thankYouNotes.length > 0 ? view.thankYouNotes : [campaignResultCopy.noNotes];
     const lines: Phaser.GameObjects.Text[] = [];
     for (const note of notes) {
@@ -1047,6 +1064,21 @@ export class DeliveryResultScene extends Phaser.Scene {
       cursor += Math.round(line.height) + NOTES.lineGap;
       lines.push(line);
     }
+    let closing: Phaser.GameObjects.Text | undefined;
+    if (view.closingLine) {
+      closing = this.add.text(x, cursor + NOTES.closingGap, view.closingLine, {
+        color: colors.terracottaDeep,
+        fontFamily: fontStacks.display,
+        fontSize: `${this.tier === "full" ? 24 : 26}px`,
+        fontStyle: "600",
+        wordWrap: { width },
+      });
+      cursor += NOTES.closingGap + Math.round(closing.height);
+    }
+
+    // Centre the measured block in the room between the headline and the footer divider.
+    const offset = Math.round(top + Math.max(0, (frame.contentBottom - top - cursor) / 2));
+    for (const text of [title, ...lines, ...(closing ? [closing] : [])]) text.setY(text.y + offset);
 
     card.add([title, ...lines]);
     this.stage(endingRevealTiming.notesTitle, motion.slow, "Cubic.easeOut", [this.part(title, { alpha: 0, dy: 6 })]);
@@ -1054,20 +1086,35 @@ export class DeliveryResultScene extends Phaser.Scene {
       const at = endingRevealTiming.firstNote + index * endingRevealTiming.noteGap;
       this.stage(at, motion.slow, "Cubic.easeOut", [this.part(line, { alpha: 0, dx: -8 })]);
     });
-    if (view.closingLine) {
-      const closing = this.add.text(x, cursor + 12, view.closingLine, {
-        color: colors.terracottaDeep,
-        fontFamily: fontStacks.display,
-        fontSize: `${this.tier === "full" ? 24 : 26}px`,
-        fontStyle: "600",
-        wordWrap: { width },
-      });
+    if (closing) {
       card.add(closing);
       this.stage(endingRevealTiming.closing, motion.slow, "Cubic.easeOut", [this.part(closing, { alpha: 0, dy: 8 })]);
+      return Math.round(closing.y + closing.height / 2);
     }
+    return Math.round(offset + cursor / 2);
   }
 
-  private createPostcard(card: Phaser.GameObjects.Container, frame: CardFrame, view: DeliveryResultPresentation): Rect {
+  /** Static stepped amber glow (porch light) behind the ending postcard; built once, faded in with the closing line. */
+  private createPorchGlow(card: Phaser.GameObjects.Container, frame: CardFrame, centreY: number, postcardH: number): void {
+    const w = ART.postcard.width * frame.layout.postcardScale;
+    const cx = Math.round(frame.innerRight - SPACING.postcardSlotPad - w / 2);
+    const glow = this.add.graphics();
+    const band = 2 * ART_SCALE;
+    const base = Math.round(Math.max(w, postcardH) * 0.62);
+    for (const [grow, alpha] of PORCH_GLOW_RINGS) {
+      glow.fillStyle(colorNumber(colors.amber), alpha);
+      const r = Math.round((base + grow) / band) * band;
+      for (let dy = -r; dy < r; dy += band) {
+        const mid = dy + band / 2;
+        const half = Math.round(Math.sqrt(Math.max(0, r * r - mid * mid)) / band) * band;
+        if (half > 0) glow.fillRect(cx - half, Math.round(centreY + dy), half * 2, band);
+      }
+    }
+    card.add(glow);
+    this.stage(endingRevealTiming.closing, motion.slow, "Cubic.easeOut", [this.part(glow, { alpha: 0 })]);
+  }
+
+  private createPostcard(card: Phaser.GameObjects.Container, frame: CardFrame, view: DeliveryResultPresentation, top?: number): Rect {
     const layout = frame.layout;
     const scale = layout.postcardScale;
     const w = ART.postcard.width * scale;
@@ -1090,7 +1137,7 @@ export class DeliveryResultScene extends Phaser.Scene {
       .setOrigin(0.5, 1);
 
     const x = Math.round(frame.innerRight - SPACING.postcardSlotPad - w / 2);
-    const titleBottom = Math.round(frame.contentBottom);
+    const titleBottom = top === undefined ? Math.round(frame.contentBottom) : Math.round(top + h + SPACING.postcardLabelGap + label.height + SPACING.postcardTitleGap + title.height);
     const labelBottom = Math.round(titleBottom - title.height - SPACING.postcardTitleGap);
     const bottom = Math.round(labelBottom - label.height - SPACING.postcardLabelGap);
     const y = Math.round(bottom - h / 2);
@@ -1187,8 +1234,8 @@ export class DeliveryResultScene extends Phaser.Scene {
 
     // Note column: the delivery note plus, when progress can't be kept, a kind footnote.
     const noteX = frame.innerLeft + SPACING.notePadX;
-    const noteWidth = view.isEnding ? frame.rightX - noteX + frame.rightWidth - 240 : leftmost - layout.buttonGap - noteX;
-    const roomForNotes = view.isEnding || noteWidth >= CAMPAIGN_ART.minNoteWidth;
+    const noteWidth = leftmost - layout.buttonGap - noteX;
+    const roomForNotes = noteWidth >= CAMPAIGN_ART.minNoteWidth;
     const lines: Phaser.GameObjects.Text[] = [];
     if (layout.showDeliveryNote && roomForNotes) {
       lines.push(
@@ -1216,7 +1263,7 @@ export class DeliveryResultScene extends Phaser.Scene {
     }
     const faceCenter = frame.buttonTop + ((layout.buttonHeight / ART_SCALE - BUTTON_ART.lip) / 2) * ART_SCALE;
     const blockHeight = lines.reduce((sum, line) => sum + line.height, 0) + Math.max(0, lines.length - 1) * SPACING.noteGap;
-    let y = view.isEnding ? Math.round(frame.footerY - blockHeight - 8) : Math.round(faceCenter - blockHeight / 2);
+    let y = Math.round(faceCenter - blockHeight / 2);
     for (const line of lines) {
       line.setY(y);
       y += Math.round(line.height) + SPACING.noteGap;
@@ -1240,19 +1287,17 @@ export class DeliveryResultScene extends Phaser.Scene {
   ): ResultButton {
     const palette = BUTTON_PALETTE[variant];
     const height = layout.buttonHeight;
-    const legacy = this.view?.legacy ?? true;
-    const pixel = !legacy || layout.buttonFont === "pixel";
-    const labelSize = legacy ? typeScale[layout.type.button] : this.view?.isEnding || this.tier === "full" ? 16 : 24;
+    const labelSize = this.view?.isEnding || this.tier === "full" ? 16 : 24;
     const label = this.add
       .text(0, 0, copy.label, {
         color: palette.label,
-        fontFamily: pixel ? fontStacks.pixel : fontStacks.ui,
+        fontFamily: fontStacks.pixel,
         fontSize: `${labelSize}px`,
-        fontStyle: pixel ? "400" : "600",
+        fontStyle: "400",
       })
       .setOrigin(0, 0.5);
     label.setShadow(0, ART_SCALE, palette.labelShadow, 0, false, true);
-    const keycap = !legacy || layout.showKeycaps ? new Keycap(this, { x: 0, y: 0, label: copy.key }) : undefined;
+    const keycap = new Keycap(this, { x: 0, y: 0, label: copy.key });
     const border = BUTTON_ART.border * ART_SCALE;
     const keycapSpace = keycap ? keycap.keyWidth + SPACING.keycapPadRight + SPACING.buttonLabelPad : 0;
     const width = evenCeil(Math.max(minWidth, label.width + keycapSpace + (border + SPACING.buttonLabelPad) * 2));

@@ -108,17 +108,25 @@ export class RouteLanterns {
       const x = Math.round(beacon.position.x / P) * P;
       const y = Math.round(beacon.position.y / P) * P;
       const glow = scene.add.image(x, y, glowKey).setScale(P).setDepth(LANTERN_DEPTH).setAlpha(style.idleAlpha);
-      // Paper lantern in art pixels: cap, warm body with a lit core, little tassel.
+      // Paper lantern in art pixels (14x18 body): cap, ribbed warm body with a lit core, and a little
+      // folded note hanging from its tassel, so the glow reads as "a note is waiting here".
       const body = scene.add.graphics().setDepth(LANTERN_DEPTH + 0.01).setAlpha(style.idleAlpha);
-      body.fillStyle(colorNumber(style.bodyColor), 1);
-      body.fillRect(x - 3 * P, y - 6 * P, 6 * P, P);
-      body.fillRect(x - 3 * P, y + 5 * P, 6 * P, P);
-      body.fillStyle(colorNumber(theme.palette.accent), 1);
-      body.fillRect(x - 4 * P, y - 5 * P, 8 * P, 10 * P);
-      body.fillStyle(colorNumber(theme.palette.light), 1);
-      body.fillRect(x - 2 * P, y - 3 * P, 4 * P, 6 * P);
-      body.fillStyle(colorNumber(style.bodyColor), 1);
-      body.fillRect(x - P, y + 6 * P, 2 * P, 3 * P);
+      const dark = colorNumber(style.bodyColor);
+      const accent = colorNumber(theme.palette.accent);
+      const light = colorNumber(theme.palette.light);
+      body.fillStyle(dark, 1).fillRect(x - P, y - 13 * P, 2 * P, 2 * P);
+      body.fillRect(x - 5 * P, y - 11 * P, 10 * P, 2 * P);
+      body.fillRect(x - 5 * P, y + 7 * P, 10 * P, 2 * P);
+      body.fillStyle(accent, 1).fillRect(x - 6 * P, y - 9 * P, 12 * P, 16 * P).fillRect(x - 7 * P, y - 7 * P, 14 * P, 12 * P);
+      body.fillStyle(light, 1).fillRect(x - 4 * P, y - 7 * P, 8 * P, 12 * P);
+      body.fillStyle(accent, 1).fillRect(x - 4 * P, y - 3 * P, 8 * P, P).fillRect(x - 4 * P, y + P, 8 * P, P);
+      body.fillStyle(dark, 1).fillRect(x - P, y + 9 * P, 2 * P, 3 * P);
+      // Note tag: cream card with two ink lines and a folded corner.
+      const note = colorNumber(style.noteColor);
+      body.fillStyle(dark, 1).fillRect(x - 5 * P, y + 12 * P, 10 * P, 7 * P);
+      body.fillStyle(note, 1).fillRect(x - 4 * P, y + 13 * P, 8 * P, 5 * P);
+      body.fillStyle(dark, 1).fillRect(x - 3 * P, y + 14 * P, 5 * P, P).fillRect(x - 3 * P, y + 16 * P, 4 * P, P);
+      body.fillStyle(accent, 1).fillRect(x + 2 * P, y + 13 * P, 2 * P, 2 * P);
       this.lanterns.set(beacon.id, { glow, body });
     }
   }

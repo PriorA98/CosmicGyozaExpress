@@ -36,7 +36,8 @@ export class LandingWindIndicator {
   private readonly peak: number;
   private key = "";
 
-  constructor(scene: Phaser.Scene, wind: LandingWindDefinition, uiScale: number, compact = false) {
+  /** `anchor` (screen px): pin the chip by its top-right corner, e.g. beside the touch retry chip. */
+  constructor(scene: Phaser.Scene, wind: LandingWindDefinition, uiScale: number, compact = false, anchor?: { readonly right: number; readonly top: number }) {
     this.wind = wind;
     const direction = wind.kind === "steady" ? wind.acceleration.x : wind.kind === "gust" ? wind.peakAcceleration.x : 1;
     this.peak = wind.kind === "steady" ? Math.abs(wind.acceleration.x) : wind.kind === "gust" ? Math.abs(wind.peakAcceleration.x) : 1;
@@ -62,8 +63,8 @@ export class LandingWindIndicator {
       .setOrigin(1, 0.5);
     this.root = scene.add
       .container(
-        Math.round(scene.scale.width - 22 - config.width * uiScale / 2),
-        Math.round((compact ? config.compactTopPx : config.topPx) * uiScale),
+        Math.round((anchor ? anchor.right : scene.scale.width - 22) - config.width * uiScale / 2),
+        Math.round(anchor ? anchor.top : (compact ? config.compactTopPx : config.topPx) * uiScale),
         [panel, this.highlight, label, this.arrow, this.word],
       )
       .setScrollFactor(0, 0, true)

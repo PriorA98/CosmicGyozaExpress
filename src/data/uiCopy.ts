@@ -82,7 +82,7 @@ export const routeLogCopy = {
   entryTitle: "tea moon",
   entryMeta: "postcard collected",
   postcardCaption: "a postcard from the sleepy moon rabbit, mid-sip",
-  bestLabel: "best delivery",
+  bestLabel: "landing note",
   crashesLabel: "bumps on the way",
   deliveriesLabel: "deliveries",
   empty: "no postcards yet. the moon is waiting.",

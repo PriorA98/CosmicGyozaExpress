@@ -16,6 +16,7 @@ const TAU = Math.PI * 2;
 export class DestinationIndicator {
   private readonly container: Phaser.GameObjects.Container;
   private readonly graphics: Phaser.GameObjects.Graphics;
+  private readonly plate: Phaser.GameObjects.Graphics;
   private readonly pill: Phaser.GameObjects.Graphics;
   private readonly readout: Phaser.GameObjects.Text;
   private readonly name: Phaser.GameObjects.Text;
@@ -35,13 +36,18 @@ export class DestinationIndicator {
   ) {
     const style = destinationIndicatorStyle;
     this.graphics = scene.add.graphics();
+    // Campaign routes (readout throttled): an opaque backing disc drawn once, keeping the pin legible over
+    // rocks, pickups and props. Tea Moon keeps its original look (plate hidden).
+    this.plate = scene.add.graphics().setVisible(readoutIntervalMs > 0);
+    this.plate.fillStyle(colorNumber(SURFACE.darkHud.fill), style.plateAlpha).fillCircle(0, 0, style.discRadius + style.plateExtraRadius);
+    this.plate.lineStyle(SURFACE.darkHud.borderWidth, colorNumber(SURFACE.darkHud.border), SURFACE.darkHud.borderAlpha).strokeCircle(0, 0, style.discRadius + style.plateExtraRadius);
     this.pill = scene.add.graphics();
     this.name = scene.add
       .text(0, 0, label, monoStyle({ size: typeScale.sm, color: colors.parchmentDeep }))
       .setOrigin(0.5, 0);
     this.readout = scene.add.text(0, 0, "", monoStyle({ size: typeScale.base, bold: true, color: colors.plaster })).setOrigin(0.5, 0);
     this.container = scene.add
-      .container(0, 0, [this.graphics, this.pill, this.name, this.readout])
+      .container(0, 0, [this.plate, this.graphics, this.pill, this.name, this.readout])
       .setScrollFactor(0)
       .setDepth(depth.hudFx);
     this.container.setSize(style.discRadius * 2, style.discRadius * 2);
@@ -125,7 +131,7 @@ export class DestinationIndicator {
 
     const g = this.pill;
     g.clear();
-    g.fillStyle(colorNumber(SURFACE.darkHud.fill), style.pillAlpha);
+    g.fillStyle(colorNumber(SURFACE.darkHud.fill), this.readoutIntervalMs > 0 ? style.campaignPillAlpha : style.pillAlpha);
     g.fillRoundedRect(left, top, blockWidth, blockHeight, style.pillRadius);
     g.lineStyle(SURFACE.darkHud.borderWidth, colorNumber(SURFACE.darkHud.border), SURFACE.darkHud.borderAlpha);
     g.strokeRoundedRect(left + 1, top + 1, blockWidth - 2, blockHeight - 2, style.pillRadius - 1);

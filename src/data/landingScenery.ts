@@ -421,6 +421,7 @@ export const campaignLandingScenery = {
   groundTopY: 648,
   skyBands: 32,
   starCount: 26,
+  /** Default landmark anchor; each theme places its destination via `CampaignLandingDecor.landmark`. */
   landmark: { x: 1040, y: 250, scrollFactor: 0.45 },
   silhouette: { scrollFactor: 0.7, baseOffsetPx: 10, stepPx: 8 },
   berth: {
@@ -441,7 +442,12 @@ export const campaignLandingScenery = {
   rail: { heightPx: 6, tieSpacingPx: 24, bulbRadiusPx: 6, overhangPx: 20 },
   recipient: { x: 1080, touchX: 1010, frameIdle: 0, frameWelcome: 1, waveSwaps: 5, waveStepMs: 180 },
   homeBanner: { width: 132, height: 36, postHeight: 54 },
-  windsock: { key: ASSET.campaignWindsock, poleWidthPx: 4 },
+  /** Sock art is drawn at 2x the landing art scale (integer) so it reads at a glance; warm wooden mast. */
+  windsock: {
+    key: ASSET.campaignWindsock, sockScale: LANDING_ART_SCALE * 2,
+    /** Frame anchor (art px in a 24x32 frame): the sock's own pole is centred on this column, its top at this row. */
+    poleArtX: 6, poleTopArtY: 3, frameArtWidth: 24, frameArtHeight: 32,
+  },
   awning: { overhangPastPadPx: 20, depthPx: 18, stripePx: 16, postSpacingPx: 36 },
   flour: { count: 12, riseSpeedPx: 14, swayPx: 28, sizePx: 16, alpha: 0.7, topY: 504 },
   /** Light-gravity landings (gravity below this, px/s²) show floating flour specks. */
@@ -454,17 +460,60 @@ export const campaignLandingScenery = {
   calmNoteAltitude: 150,
 } as const;
 
+/**
+ * Optional painted backdrop layers per theme. The final-art wave adds manifest keys and fills these in;
+ * while a key is null (or its texture is missing) the code-drawn fallback renders that layer.
+ */
+export type CampaignLandingBackdrop = {
+  readonly skyTexture: string | null;
+  readonly farHillsTexture: string | null;
+  readonly groundTexture: string | null;
+};
+
+/** Atmosphere tones layered on top of the theme palette (sky horizon glow, far/near hill bodies, rim light). */
+export type CampaignLandingTones = {
+  readonly horizon: string;
+  readonly farHill: string;
+  readonly nearHill: string;
+  readonly rim: string;
+};
+
+/** Per-theme berth finish: tile tint plus a painted trim band (use trim "none" once final berth art lands). */
+export type CampaignBerthFinish = {
+  readonly tint: string;
+  readonly rim: string;
+  readonly skirt: string;
+  readonly trim: "chevrons" | "slats" | "scallops" | "planks" | "stripes" | "none";
+  readonly trimColor: string;
+  readonly trimAlt: string;
+};
+
+export type CampaignPorchStyle = "shed" | "listening-post" | "dome-bakery" | "cottage" | "dock";
+export type CampaignRockShape = "shard" | "mossy" | "crumb" | "boulder" | "pebbles";
+export type CampaignGroundPattern = "plates" | "moss" | "tiles" | "wet" | "deck";
+/** Ambient motes: dust drifting sideways, blinking fireflies / lantern motes, or rain slanting with the sampled wind. */
+export type CampaignAmbient = { readonly kind: "drift" | "firefly" | "rain"; readonly count: number; readonly color: "light" | "accent" | "plaster" } | null;
+
 /** Per-theme decoration (no collision). Windsock altitudes are px above the pad surface. */
 export type CampaignLandingDecor = {
+  readonly backdrop: CampaignLandingBackdrop;
+  readonly tones: CampaignLandingTones;
+  readonly landmark: { readonly x: number; readonly y: number };
   /** Far silhouette hump heights (px), repeated across the width. */
   readonly silhouette: readonly number[];
   readonly ridgeShape: "rounded" | "crag" | "terraced";
   readonly nearHills: readonly number[];
-  readonly porch: { readonly width: number; readonly height: number; readonly roof: "flat" | "pitched"; readonly window: "round" | "square" };
+  readonly ground: CampaignGroundPattern;
+  readonly berth: CampaignBerthFinish;
+  /** The recipient's building, centred on the recipient x (touch layouts shift it with the recipient). */
+  readonly porch: { readonly style: CampaignPorchStyle; readonly width: number; readonly height: number };
   readonly props: readonly LandingDecorProp[];
+  readonly rockShape: CampaignRockShape;
   readonly rocks: readonly { readonly x: number; readonly y: number; readonly size: number }[];
   readonly flour: boolean;
-  readonly windsocks: readonly { readonly x: number; readonly altitude: number }[];
+  readonly ambient: CampaignAmbient;
+  /** "mast": own pole from the ground at x; "ridge": short mast on the porch roof ridge (x ignored). */
+  readonly windsocks: readonly { readonly x: number; readonly altitude: number; readonly mount: "mast" | "ridge" }[];
   /** Porch awning + windbreak on the windward side (shelter landings). */
   readonly shelter: { readonly windbreakX: number; readonly windbreakWidth: number } | null;
   readonly canopy: { readonly x0: number; readonly x1: number; readonly y: number } | null;
@@ -474,48 +523,105 @@ export type LandingDecorProp = {
   readonly kind: "crate" | "bolts" | "lamp" | "chair" | "lantern" | "bush" | "mist" | "chimney" | "bread-rack" | "oven" | "puddle" | "bunting" | "mailbox";
   readonly x: number;
   readonly y: number;
+  /**
+   * Touch layouts: authored position clear of the tilt / thrust pads (null hides the prop). When omitted,
+   * props right of the pad follow the recipient's touch shift and the rest stay put.
+   */
+  readonly touchX?: number | null;
+  readonly touchY?: number;
 };
+
+const NO_BACKDROP: CampaignLandingBackdrop = { skyTexture: null, farHillsTexture: null, groundTexture: null };
 
 export const campaignLandingDecor: Readonly<Record<Exclude<ThemeId, "teaMoon">, CampaignLandingDecor>> = {
   bentoBelt: {
+    backdrop: NO_BACKDROP,
+    tones: { horizon: "#7A4E48", farHill: "#2A2537", nearHill: "#46393C", rim: "#E0A866" },
+    landmark: { x: 1040, y: 250 },
     silhouette: [116, 174, 110, 196, 134, 100, 166, 114], ridgeShape: "crag", nearHills: [94, 66, 38, 48, 72, 100, 58],
-    porch: { width: 168, height: 138, roof: "flat", window: "square" },
-    props: [{ kind: "crate", x: 146, y: 648 }, { kind: "crate", x: 214, y: 648 }, { kind: "bolts", x: 258, y: 662 }, { kind: "lamp", x: 270, y: 648 }, { kind: "chair", x: 916, y: 648 }],
-    rocks: [{ x: 70, y: 678, size: 36 }, { x: 316, y: 692, size: 24 }, { x: 1198, y: 686, size: 40 }], flour: false,
+    ground: "plates",
+    berth: { tint: "#EFD2A8", rim: "#F6DDA8", skirt: "#2A2230", trim: "chevrons", trimColor: "#D69A57", trimAlt: "#2A2230" },
+    porch: { style: "shed", width: 172, height: 124 },
+    props: [
+      { kind: "crate", x: 146, y: 648, touchX: 318 }, { kind: "crate", x: 214, y: 648, touchX: 318, touchY: 596 },
+      { kind: "bolts", x: 258, y: 662, touchX: null }, { kind: "lamp", x: 290, y: 648, touchX: 370 }, { kind: "chair", x: 916, y: 648 },
+    ],
+    rockShape: "shard",
+    rocks: [{ x: 44, y: 684, size: 30 }, { x: 362, y: 692, size: 18 }, { x: 870, y: 694, size: 14 }, { x: 1236, y: 682, size: 34 }],
+    flour: false, ambient: { kind: "drift", count: 18, color: "accent" },
     windsocks: [], shelter: null, canopy: null,
   },
   matchaNebula: {
+    backdrop: NO_BACKDROP,
+    tones: { horizon: "#B4A46E", farHill: "#1E2B34", nearHill: "#2C3A2B", rim: "#E2DD9A" },
+    landmark: { x: 1066, y: 236 },
     silhouette: [160, 212, 170, 140, 184, 220, 152, 166], ridgeShape: "rounded", nearHills: [108, 72, 50, 36, 72, 116, 90],
-    porch: { width: 172, height: 144, roof: "pitched", window: "round" },
-    props: [{ kind: "lantern", x: 152, y: 648 }, { kind: "lantern", x: 258, y: 648 }, { kind: "bush", x: 108, y: 652 }, { kind: "bush", x: 220, y: 658 }, { kind: "bush", x: 1184, y: 650 }, { kind: "mist", x: 170, y: 564 }, { kind: "mist", x: 910, y: 574 }],
-    rocks: [{ x: 54, y: 680, size: 24 }, { x: 336, y: 694, size: 28 }, { x: 1220, y: 692, size: 30 }], flour: false,
-    windsocks: [{ x: 300, altitude: 150 }], shelter: null, canopy: null,
+    ground: "moss",
+    berth: { tint: "#EDE4BC", rim: "#FAF2CC", skirt: "#18221C", trim: "slats", trimColor: "#C4CE92", trimAlt: "#2C3828" },
+    porch: { style: "listening-post", width: 168, height: 128 },
+    props: [
+      { kind: "lantern", x: 152, y: 648, touchX: 330 }, { kind: "lantern", x: 236, y: 648, touchX: 414 },
+      { kind: "bush", x: 108, y: 652, touchX: 384 }, { kind: "bush", x: 220, y: 658, touchX: null }, { kind: "bush", x: 1200, y: 650, touchX: null },
+      { kind: "mist", x: 170, y: 564, touchX: 330 }, { kind: "mist", x: 910, y: 574 },
+    ],
+    rockShape: "mossy",
+    rocks: [{ x: 60, y: 690, size: 26 }, { x: 420, y: 688, size: 20 }, { x: 1250, y: 692, size: 28 }],
+    flour: false, ambient: { kind: "firefly", count: 14, color: "light" },
+    windsocks: [{ x: 300, altitude: 150, mount: "mast" }], shelter: null, canopy: null,
   },
   blackHoleBakery: {
+    backdrop: NO_BACKDROP,
+    tones: { horizon: "#6E4A66", farHill: "#221A2E", nearHill: "#382B3A", rim: "#EBC27E" },
+    landmark: { x: 1000, y: 226 },
     silhouette: [106, 106, 174, 174, 100, 186, 120, 120], ridgeShape: "terraced", nearHills: [60, 96, 38, 30, 42, 96, 70],
-    porch: { width: 184, height: 154, roof: "pitched", window: "round" },
-    props: [{ kind: "chimney", x: 1110, y: 508 }, { kind: "bread-rack", x: 182, y: 648 }, { kind: "bread-rack", x: 292, y: 648 }, { kind: "oven", x: 112, y: 648 }, { kind: "lamp", x: 916, y: 648 }],
-    rocks: [{ x: 40, y: 688, size: 28 }, { x: 354, y: 696, size: 20 }, { x: 1202, y: 680, size: 32 }], flour: true,
+    ground: "tiles",
+    berth: { tint: "#E2C3D2", rim: "#F6E2B6", skirt: "#2A1F33", trim: "scallops", trimColor: "#F6EAD2", trimAlt: "#7A4E5E" },
+    porch: { style: "dome-bakery", width: 196, height: 148 },
+    props: [
+      { kind: "bread-rack", x: 182, y: 648, touchX: 414 }, { kind: "bread-rack", x: 292, y: 648, touchX: null },
+      { kind: "oven", x: 100, y: 648, touchX: 328 }, { kind: "lamp", x: 916, y: 648 },
+    ],
+    rockShape: "crumb",
+    rocks: [{ x: 26, y: 690, size: 22 }, { x: 392, y: 696, size: 16 }, { x: 870, y: 692, size: 24 }, { x: 1250, y: 694, size: 18 }],
+    flour: true, ambient: null,
     windsocks: [], shelter: null, canopy: null,
   },
   imFine: {
+    backdrop: NO_BACKDROP,
+    tones: { horizon: "#566A7E", farHill: "#202833", nearHill: "#2D3642", rim: "#A9BCCF" },
+    landmark: { x: 1000, y: 214 },
     silhouette: [150, 184, 144, 192, 158, 148, 210, 174], ridgeShape: "crag",
     nearHills: [110, 80, 52, 40, 64, 112, 76],
-    porch: { width: 180, height: 158, roof: "pitched", window: "square" },
-    props: [{ kind: "puddle", x: 156, y: 680 }, { kind: "puddle", x: 970, y: 682 }, { kind: "chair", x: 908, y: 648 }, { kind: "lamp", x: 1196, y: 648 }],
-    rocks: [{ x: 70, y: 658, size: 54 }, { x: 240, y: 694, size: 38 }, { x: 1212, y: 690, size: 46 }], flour: false,
+    ground: "wet",
+    berth: { tint: "#C2CCD8", rim: "#E2EAF2", skirt: "#1B212B", trim: "planks", trimColor: "#71829A", trimAlt: "#28303E" },
+    porch: { style: "cottage", width: 156, height: 118 },
+    props: [{ kind: "puddle", x: 156, y: 680, touchX: 350 }, { kind: "puddle", x: 970, y: 682 }, { kind: "chair", x: 908, y: 648 }, { kind: "lamp", x: 1210, y: 648, touchX: null }],
+    rockShape: "boulder",
+    rocks: [{ x: 70, y: 668, size: 50 }, { x: 236, y: 696, size: 34 }, { x: 1236, y: 692, size: 40 }],
+    flour: false, ambient: { kind: "rain", count: 40, color: "plaster" },
     windsocks: [
-      { x: 1120, altitude: 236 },
-      { x: 382, altitude: 44 },
+      // High sock on the cottage roof ridge: fully exposed to the gusts, clear of the planet.
+      { x: 0, altitude: 214, mount: "ridge" },
+      { x: 382, altitude: 44, mount: "mast" },
     ],
     shelter: { windbreakX: 300, windbreakWidth: 120 },
     canopy: null,
   },
   home: {
+    backdrop: NO_BACKDROP,
+    tones: { horizon: "#86607A", farHill: "#282140", nearHill: "#3A3148", rim: "#ECCD96" },
+    landmark: { x: 1000, y: 236 },
     silhouette: [130, 166, 182, 148, 174, 136, 158, 144], ridgeShape: "rounded", nearHills: [78, 56, 42, 30, 54, 92, 68],
-    porch: { width: 176, height: 140, roof: "flat", window: "square" },
-    props: [{ kind: "bunting", x: 120, y: 344 }, { kind: "lamp", x: 160, y: 648 }, { kind: "lamp", x: 332, y: 648 }, { kind: "lamp", x: 906, y: 648 }, { kind: "mailbox", x: 1188, y: 648 }, { kind: "bunting", x: 930, y: 472 }],
-    rocks: [{ x: 74, y: 690, size: 24 }, { x: 292, y: 684, size: 26 }, { x: 1226, y: 686, size: 24 }], flour: false,
+    ground: "deck",
+    berth: { tint: "#F2DCC4", rim: "#FFF1D4", skirt: "#2B2236", trim: "stripes", trimColor: "#BA8798", trimAlt: "#E5C68F" },
+    porch: { style: "dock", width: 204, height: 136 },
+    props: [
+      { kind: "bunting", x: 120, y: 344 }, { kind: "lamp", x: 186, y: 648, touchX: 300 }, { kind: "lamp", x: 340, y: 648, touchX: null },
+      { kind: "lamp", x: 906, y: 648 }, { kind: "mailbox", x: 1200, y: 648, touchX: null }, { kind: "bunting", x: 930, y: 472 },
+    ],
+    rockShape: "pebbles",
+    rocks: [{ x: 96, y: 690, size: 18 }, { x: 300, y: 694, size: 14 }, { x: 1240, y: 688, size: 16 }],
+    flour: false, ambient: { kind: "firefly", count: 12, color: "light" },
     windsocks: [], shelter: null, canopy: { x0: 120, x1: 380, y: 300 },
   },
 };

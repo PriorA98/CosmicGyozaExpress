@@ -16,7 +16,8 @@ import type { LandingDefinition } from "../../types/campaign";
 import { drawSpans, filledEllipseSpans, snapToGrid } from "./pixelShapes";
 import { isReducedMotion } from "../../fx/feedback";
 import { createCampaignPorchDecor } from "./CampaignPorchDecor";
-import { flourPosition, gustWarningAlpha } from "./campaignPresentation";
+import { ambientMotePosition, campaignSkyBandColors, flourPosition, gustWarningAlpha, type AmbientMote } from "./campaignPresentation";
+import { mixHex } from "./colorMix";
 
 const CELL = LANDING_ART_SCALE;
 const VIEW_WIDTH = 1280;
@@ -32,14 +33,9 @@ export type CampaignSceneryOptions = {
 
 type Windsock = { readonly sprite: Phaser.GameObjects.Sprite; readonly altitude: number; frame: number };
 type Speck = { readonly shape: Phaser.GameObjects.Graphics; readonly x: number; readonly phase: number; readonly speed: number };
+type Mote = AmbientMote & { readonly shape: Phaser.GameObjects.Graphics };
 
-/** Mixes two `#RRGGBB` colours (t 0 → a, 1 → b) into a Phaser colour number. */
-export function mixHex(a: string, b: string, t: number): number {
-  const ca = colorNumber(a);
-  const cb = colorNumber(b);
-  const channel = (shift: number): number => Math.round(((ca >> shift) & 255) * (1 - t) + ((cb >> shift) & 255) * t);
-  return (channel(16) << 16) | (channel(8) << 8) | channel(0);
-}
+export { mixHex } from "./colorMix";
 
 /** Recipient by the pad: idle / welcome frames, a little hop when startled. */
 export interface LandingGreeter {
@@ -61,6 +57,8 @@ export class CampaignLandingScenery implements LandingGreeter {
   private readonly objects: Phaser.GameObjects.GameObject[] = [];
   private readonly windsocks: Windsock[] = [];
   private readonly specks: Speck[] = [];
+  private readonly motes: Mote[] = [];
+  private readonly ambientKind: "drift" | "firefly" | "rain" | undefined;
   private readonly windPeak: number;
   private readonly greeter: Phaser.GameObjects.Sprite | undefined;
   private readonly greeterBaseY: number;
@@ -74,22 +72,28 @@ export class CampaignLandingScenery implements LandingGreeter {
     const config = campaignLandingScenery;
     const decor = this.theme.id === "teaMoon" ? undefined : campaignLandingDecor[this.theme.id];
 
-    this.createSky(options.riseAbovePx);
-    this.createLandmark();
+    this.ambientKind = decor?.ambient?.kind;
+    this.createSky(options.riseAbovePx, decor);
+    this.createLandmark(decor);
     if (decor) {
-      this.createSilhouette(decor.silhouette, decor.ridgeShape);
-      this.createNearHills(decor.nearHills);
+      this.createSilhouette(decor);
+      this.createNearHills(decor);
     }
-    this.createGround();
+    this.createGround(decor);
     const recipientX = options.touchLayout ? config.recipient.touchX : config.recipient.x;
-    if (decor) this.track(createCampaignPorchDecor(scene, this.theme, decor, recipientX));
+    const porch = decor ? createCampaignPorchDecor(scene, this.theme, decor, recipientX, options.touchLayout) : undefined;
+    if (porch) for (const object of porch.objects) this.track(object);
     if (decor?.canopy) this.createCanopy(decor.canopy);
     if (options.definition.padMotion.kind === "path") this.createRail();
     if (decor?.shelter && options.definition.wind.kind === "gust") this.createShelter(decor.shelter);
     if (options.definition.wind.kind !== "none" && decor) {
-      for (const sock of decor.windsocks) this.createWindsock(sock.x, sock.altitude);
+      for (const sock of decor.windsocks) {
+        if (sock.mount === "ridge" && porch?.ridge) this.createWindsock(porch.ridge.x, sock.altitude, "ridge");
+        else if (sock.mount === "mast") this.createWindsock(sock.x, sock.altitude, "mast");
+      }
     }
     if (decor?.flour) this.createFlour();
+    if (decor?.ambient) this.createAmbient(decor.ambient);
 
     const recipient = config.recipient;
     const x = options.touchLayout ? recipient.touchX : recipient.x;
@@ -121,6 +125,7 @@ export class CampaignLandingScenery implements LandingGreeter {
       sock.sprite.setTint(colorNumber(warning ? this.theme.palette.light : "#FFFFFF"));
     }
     if (this.specks.length > 0) this.updateFlour(timeMs);
+    if (this.motes.length > 0) this.updateAmbient(isReducedMotion() ? 0 : timeMs, wind.acceleration.x);
   }
 
   idle(): void {
@@ -166,16 +171,31 @@ export class CampaignLandingScenery implements LandingGreeter {
     return object;
   }
 
-  private createSky(riseAbovePx: number): void {
+  private createSky(riseAbovePx: number, decor: CampaignLandingDecor | undefined): void {
     const { palette } = this.theme;
-    const bands = campaignLandingScenery.skyBands;
-    const g = this.track(this.scene.add.graphics().setDepth(depth.backdrop).setScrollFactor(0));
-    g.fillStyle(colorNumber(palette.skyTop), 1);
-    g.fillRect(0, -riseAbovePx, VIEW_WIDTH, riseAbovePx);
-    const bandHeight = Math.ceil(VIEW_HEIGHT / bands / CELL) * CELL;
-    for (let i = 0; i < bands; i += 1) {
-      g.fillStyle(mixHex(palette.skyTop, palette.skyBottom, i / (bands - 1)), 1);
-      g.fillRect(0, i * bandHeight, VIEW_WIDTH, bandHeight + CELL);
+    const skyKey = decor?.backdrop.skyTexture;
+    if (skyKey && this.scene.textures.exists(skyKey)) {
+      this.track(this.scene.add.image(0, -riseAbovePx, skyKey).setOrigin(0, 0).setDisplaySize(VIEW_WIDTH, VIEW_HEIGHT + riseAbovePx)
+        .setDepth(depth.backdrop).setScrollFactor(0));
+    } else {
+      // Vertical gradient (sky top, sky bottom, then the horizon glow) in pixel bands; every seam is dithered
+      // with interleaved rows. Drawn once.
+      const g = this.track(this.scene.add.graphics().setDepth(depth.backdrop).setScrollFactor(0));
+      g.fillStyle(colorNumber(palette.skyTop), 1);
+      g.fillRect(0, -riseAbovePx, VIEW_WIDTH, riseAbovePx);
+      const bands = campaignSkyBandColors(palette.skyTop, palette.skyBottom, decor?.tones.horizon ?? palette.skyBottom, campaignLandingScenery.skyBands);
+      const bandHeight = Math.ceil(campaignLandingScenery.groundTopY / bands.length / CELL) * CELL;
+      bands.forEach((color, i) => {
+        g.fillStyle(color, 1);
+        g.fillRect(0, i * bandHeight, VIEW_WIDTH, i === bands.length - 1 ? VIEW_HEIGHT : bandHeight + CELL);
+      });
+      for (let i = 1; i < bands.length; i += 1) {
+        const seam = i * bandHeight;
+        g.fillStyle(bands[i - 1] ?? 0, 1);
+        g.fillRect(0, seam + CELL, VIEW_WIDTH, CELL);
+        g.fillStyle(bands[i] ?? 0, 1);
+        g.fillRect(0, seam - CELL * 2, VIEW_WIDTH, CELL);
+      }
     }
     // Stars: fixed pseudo-random pattern (deterministic so captures stay stable).
     const stars = this.track(this.scene.add.graphics().setDepth(depth.backdrop + 1).setScrollFactor(0.15));
@@ -193,74 +213,136 @@ export class CampaignLandingScenery implements LandingGreeter {
     }
   }
 
-  private createLandmark(): void {
+  private createLandmark(decor: CampaignLandingDecor | undefined): void {
     const landmark = campaignLandingScenery.landmark;
     if (!this.scene.textures.exists(this.theme.destinationTexture)) return;
     this.track(
       this.scene.add
-        .image(landmark.x, landmark.y, this.theme.destinationTexture)
+        .image(decor?.landmark.x ?? landmark.x, decor?.landmark.y ?? landmark.y, this.theme.destinationTexture)
         .setScale(CELL)
         .setScrollFactor(landmark.scrollFactor)
         .setDepth(depth.parallax),
     );
   }
 
-  private createSilhouette(heights: readonly number[], shape: CampaignLandingDecor["ridgeShape"]): void {
+  private createSilhouette(decor: CampaignLandingDecor): void {
     const config = campaignLandingScenery.silhouette;
     const base = campaignLandingScenery.groundTopY + config.baseOffsetPx;
+    const farKey = decor.backdrop.farHillsTexture;
+    if (farKey && this.scene.textures.exists(farKey)) {
+      this.track(this.scene.add.image(0, base, farKey).setOrigin(0, 1).setScale(CELL).setScrollFactor(config.scrollFactor).setDepth(depth.parallax + 1));
+      return;
+    }
+    const heights = decor.silhouette;
+    const shape = decor.ridgeShape;
+    const { tones } = decor;
     const g = this.track(this.scene.add.graphics().setDepth(depth.parallax + 1).setScrollFactor(config.scrollFactor));
     const humpWidth = VIEW_WIDTH / heights.length;
     for (let i = 0; i < heights.length + 1; i += 1) {
       const height = heights[i % heights.length] ?? 40;
       const cx = i * humpWidth;
-      // Stepped rounded hump: rows narrow towards the top in whole art px.
+      // Stepped hump: rows narrow towards the top in whole art px; a thin horizon-lit contour on the left.
       for (let y = 0; y < height; y += config.stepPx) {
         const t = y / height;
         const profile = shape === "crag" ? 1 - t * 0.85 : shape === "terraced" ? 1 - Math.floor(t * 4) / 5 : Math.sqrt(1 - t * t);
         const half = snapToGrid(humpWidth * 0.62 * profile, CELL);
-        g.fillStyle(mixHex(this.theme.palette.skyBottom, this.theme.palette.ground, 0.45), 1);
+        g.fillStyle(colorNumber(tones.farHill), 1);
         g.fillRect(snapToGrid(cx - half, CELL), base - y - config.stepPx, half * 2, config.stepPx);
-        // Narrow dusk-lit contour, with sparse mineral seams down the near-facing slope.
-        g.fillStyle(mixHex(this.theme.palette.ground, this.theme.palette.light, 0.2), 0.8);
+        g.fillStyle(mixHex(tones.farHill, tones.horizon, 0.45), 1);
         g.fillRect(snapToGrid(cx - half, CELL), base - y - config.stepPx, CELL * 2, config.stepPx);
-        if (y % 32 === 0) {
-          g.fillStyle(colorNumber(this.theme.palette.accent), 0.12);
-          g.fillRect(snapToGrid(cx - half / 2, CELL), base - y, snapToGrid(half * 0.6, CELL), CELL * 2);
-        }
       }
     }
+    // Atmospheric haze between the far ridge and the near hills.
+    g.fillStyle(colorNumber(tones.horizon), 0.16);
+    g.fillRect(0, base - 96, VIEW_WIDTH, 96);
+    g.fillStyle(colorNumber(tones.horizon), 0.12);
+    g.fillRect(0, base - 48, VIEW_WIDTH, 48);
   }
 
-  private createGround(): void {
+  private createGround(decor: CampaignLandingDecor | undefined): void {
     const top = campaignLandingScenery.groundTopY;
     const { palette } = this.theme;
+    const groundKey = decor?.backdrop.groundTexture;
+    if (groundKey && this.scene.textures.exists(groundKey)) {
+      this.track(this.scene.add.image(0, top, groundKey).setOrigin(0, 0).setScale(CELL).setDepth(depth.world - 2));
+      return;
+    }
     const g = this.track(this.scene.add.graphics().setDepth(depth.world - 2));
+    const rim = decor?.tones.rim ?? palette.light;
+    const dark = mixHex(palette.ground, colors.ink, 0.4);
     g.fillStyle(colorNumber(palette.ground), 1);
     g.fillRect(0, top, VIEW_WIDTH, VIEW_HEIGHT - top + CELL * 8);
-    g.fillStyle(mixHex(palette.ground, palette.light, 0.25), 1);
+    g.fillStyle(mixHex(palette.ground, rim, 0.3), 1);
     g.fillRect(0, top, VIEW_WIDTH, CELL * 2);
-    g.fillStyle(mixHex(palette.ground, colors.ink, 0.35), 1);
-    for (let x = 0; x < VIEW_WIDTH; x += CELL * 22) {
-      g.fillRect(x + ((x / (CELL * 22)) % 2) * CELL * 8, top + CELL * 8, CELL * 6, CELL);
-      g.fillRect(x + CELL * 12, top + CELL * 18, CELL * 4, CELL);
+    g.fillStyle(dark, 1);
+    g.fillRect(0, top + CELL * 2, VIEW_WIDTH, CELL);
+    const rect = (x: number, y: number, w: number, h: number, color: number, alpha: number): void => {
+      g.fillStyle(color, alpha);
+      g.fillRect(snapToGrid(x, CELL), snapToGrid(y, CELL), snapToGrid(w, CELL), snapToGrid(h, CELL));
+    };
+    const rimColor = colorNumber(rim);
+    const accent = colorNumber(palette.accent);
+    switch (decor?.ground ?? "plates") {
+      case "plates":
+        for (let x = 40; x < VIEW_WIDTH; x += 96) {
+          rect(x, top + 6, 2, 66, dark, 0.8);
+          for (const ry of [12, 34, 58]) rect(x + 6, top + ry, 2, 2, rimColor, 0.45);
+        }
+        rect(0, top + 38, VIEW_WIDTH, 2, dark, 0.6);
+        break;
+      case "moss":
+        for (let x = 0; x < VIEW_WIDTH; x += 14) {
+          const k = (x / 14) % 3;
+          rect(x, top - 2 - k * 2, 4, 2 + k * 2, accent, 0.85);
+          if (k === 1) rect(x + 4, top + 16 + ((x / 14) % 5) * 8, 8, 2, accent, 0.3);
+        }
+        break;
+      case "tiles":
+        for (let row = 0; row < 3; row += 1) {
+          for (let x = (row % 2) * 20; x < VIEW_WIDTH; x += 40) {
+            rect(x, top + 6 + row * 22, 38, 20, rimColor, Math.floor(x / 40 + row) % 2 === 0 ? 0.06 : 0.02);
+            rect(x, top + 6 + row * 22, 2, 20, dark, 0.6);
+          }
+          rect(0, top + 4 + row * 22, VIEW_WIDTH, 2, dark, 0.6);
+        }
+        break;
+      case "wet":
+        for (let i = 0; i < 26; i += 1) rect((i * 151) % VIEW_WIDTH, top + 10 + ((i * 13) % 56), 24 + ((i * 17) % 40), 2, rimColor, 0.22);
+        break;
+      case "deck":
+        for (let y = top + 12, row = 0; y < VIEW_HEIGHT; y += 14, row += 1) {
+          rect(0, y, VIEW_WIDTH, 2, dark, 0.55);
+          for (let x = (row % 2) * 40; x < VIEW_WIDTH; x += 80) rect(x, y + 2, 2, 12, dark, 0.45);
+        }
+        break;
     }
+    for (let i = 0; i < 40; i += 1) rect((i * 178 + 26) % VIEW_WIDTH, top + 22 + ((i * 14) % 44), i % 3 === 0 ? 8 : 4, 2, i % 4 === 0 ? rimColor : colorNumber(colors.ink), 0.22);
   }
 
-  /** A nearer, rim-lit ridge behind the pad gives the inhabited apron depth. Drawn once. */
-  private createNearHills(heights: readonly number[]): void {
+  /** A nearer ridge behind the pad, rim-lit on its porch-facing (right) flank and crest. Drawn once. */
+  private createNearHills(decor: CampaignLandingDecor): void {
+    const heights = decor.nearHills;
+    const { tones } = decor;
     const base = campaignLandingScenery.groundTopY + 16;
     const g = this.track(this.scene.add.graphics().setDepth(depth.parallax + 2));
     const width = VIEW_WIDTH / heights.length;
+    const body = colorNumber(tones.nearHill);
+    const shade = mixHex(tones.nearHill, colors.ink, 0.3);
+    const rim = colorNumber(tones.rim);
     for (let i = 0; i <= heights.length; i += 1) {
       const height = heights[i % heights.length] ?? 60;
       const cx = snapToGrid(i * width + width / 2, CELL);
       for (let y = 0; y < height; y += 4) {
         const half = snapToGrid(width * 0.7 * Math.sqrt(1 - (y / height) ** 2), CELL);
-        g.fillStyle(mixHex(this.theme.palette.ground, this.theme.palette.light, 0.24), 1);
+        g.fillStyle(body, 1);
         g.fillRect(cx - half, base - y - 4, half * 2, 4);
-        g.fillStyle(mixHex(this.theme.palette.ground, this.theme.palette.skyBottom, 0.12), 1);
-        g.fillRect(cx - half + 4, base - y, Math.max(0, half * 2 - 8), 4);
+        g.fillStyle(shade, 1);
+        g.fillRect(cx - half, base - y - 4, CELL * 3, 4);
+        g.fillStyle(rim, 0.55);
+        g.fillRect(cx + half - CELL * 2, base - y - 4, CELL * 2, 4);
       }
+      g.fillStyle(rim, 0.8);
+      g.fillRect(cx - snapToGrid(width * 0.12, CELL), base - height - 4, snapToGrid(width * 0.24, CELL), CELL);
     }
   }
 
@@ -301,27 +383,43 @@ export class CampaignLandingScenery implements LandingGreeter {
     }
   }
 
-  private createWindsock(x: number, altitude: number): void {
+  /**
+   * Windsock at its sampling altitude. The sock art carries its own pole; a ground mast extends it down to the
+   * ground in the same dark warm wood, while a ridge sock stands behind the roof so its pole rises from the ridge.
+   */
+  private createWindsock(x: number, altitude: number, mount: "mast" | "ridge"): void {
     const config = campaignLandingScenery.windsock;
-    const ground = campaignLandingScenery.groundTopY;
+    const scale = config.sockScale;
     const topY = snapToGrid(this.definition.pad.surfaceY - altitude, CELL);
-    const pole = this.track(this.scene.add.graphics().setDepth(depth.world + 1));
-    pole.fillStyle(colorNumber(colors.ink), 1);
-    pole.fillRect(x - config.poleWidthPx / 2 - CELL, topY - CELL * 2, config.poleWidthPx + CELL * 2, ground - topY + CELL * 2);
-    pole.fillStyle(colorNumber(colors.plaster), 1);
-    pole.fillRect(x - config.poleWidthPx / 2, topY - CELL, config.poleWidthPx, ground - topY);
+    const artBottom = topY + (config.frameArtHeight - config.poleTopArtY) * scale;
+    if (mount === "mast" && artBottom < campaignLandingScenery.groundTopY) {
+      const ground = campaignLandingScenery.groundTopY;
+      const half = scale;
+      const pole = this.track(this.scene.add.graphics().setDepth(depth.world + 1));
+      pole.fillStyle(colorNumber(colors.ink), 1);
+      pole.fillRect(x - half - CELL, artBottom - scale * 2, half * 2 + CELL * 2, ground - artBottom + scale * 2 + CELL);
+      pole.fillStyle(mixHex(this.theme.palette.accent, colors.ink, 0.45), 1);
+      pole.fillRect(x - half, artBottom - scale * 2, half * 2, ground - artBottom + scale * 2);
+      pole.fillStyle(mixHex(this.theme.palette.accent, this.theme.palette.light, 0.2), 0.8);
+      pole.fillRect(x - half, artBottom - scale * 2, CELL, ground - artBottom + scale * 2);
+      pole.fillStyle(colorNumber(colors.ink), 1);
+      pole.fillRect(x - half * 2, ground - CELL * 3, half * 4, CELL * 3);
+    }
     const wind = this.definition.wind;
     const direction = wind.kind === "steady" ? wind.acceleration.x : wind.kind === "gust" ? wind.peakAcceleration.x : 1;
-    // Art points right (blowing towards +x) from the pole top; mirror for wind towards -x.
+    // Art points right (blowing towards +x); mirrored for wind towards -x, keeping the pole on the same column.
+    const poleU = config.poleArtX / config.frameArtWidth;
     const sprite = this.track(
       this.scene.add
         .sprite(x, topY, config.key, CAMPAIGN_WINDSOCK_FRAME.calm)
-        .setOrigin(0, 0.15)
-        .setScale(CELL)
+        .setOrigin(direction < 0 ? 1 - poleU : poleU, config.poleTopArtY / config.frameArtHeight)
+        .setScale(scale)
         .setFlipX(direction < 0)
-        .setDepth(depth.world + 4),
+        .setDepth(mount === "ridge" ? depth.world - 0.5 : depth.world + 4),
     );
-    if (direction < 0) sprite.setOrigin(1, 0.15);
+    // A low sock's own pole would reach below the ground band: crop the art at ground level.
+    const groundRows = config.poleTopArtY + Math.floor((campaignLandingScenery.groundTopY - topY) / scale);
+    if (mount === "mast" && groundRows < config.frameArtHeight) sprite.setCrop(0, 0, config.frameArtWidth, groundRows);
     this.windsocks.push({ sprite, altitude, frame: CAMPAIGN_WINDSOCK_FRAME.calm });
   }
 
@@ -418,7 +516,8 @@ export class CampaignLandingScenery implements LandingGreeter {
       return seed / 233280;
     };
     for (let i = 0; i < config.count; i += 1) {
-      const shape = this.track(this.scene.add.graphics().setDepth(depth.worldFx));
+      // Behind the porch and berth (world, world + 2): flour drifts in the apron air, never over the building.
+      const shape = this.track(this.scene.add.graphics().setDepth(depth.world - 1));
       const size = config.sizePx + (i % 3) * CELL;
       shape.fillStyle(colorNumber(this.theme.palette.light), config.alpha * (0.6 + next() * 0.4));
       drawSpans(shape, 0, 0, filledEllipseSpans(size / 2, 4, CELL), CELL);
@@ -436,6 +535,44 @@ export class CampaignLandingScenery implements LandingGreeter {
     for (const speck of this.specks) {
       const { x, y } = flourPosition(speck.x, speck.phase, speck.speed, timeMs);
       speck.shape.setPosition(snapToGrid(x, CELL), snapToGrid(y, CELL));
+    }
+  }
+
+  /** Theme ambience (dust / fireflies / rain): one tiny Graphics per mote, moved per frame, never redrawn. */
+  private createAmbient(ambient: NonNullable<CampaignLandingDecor["ambient"]>): void {
+    let seed = 23;
+    const next = (): number => {
+      seed = (seed * 9301 + 49297) % 233280;
+      return seed / 233280;
+    };
+    const tint = ambient.color === "plaster" ? colorNumber(colors.parchment) : colorNumber(this.theme.palette[ambient.color]);
+    for (let i = 0; i < ambient.count; i += 1) {
+      const band = ambient.kind === "rain" ? depth.parallax + 3 : depth.world - 1;
+      const shape = this.track(this.scene.add.graphics().setDepth(band));
+      if (ambient.kind === "rain") {
+        shape.fillStyle(tint, 1);
+        shape.fillRect(0, 0, CELL, CELL * 6);
+      } else if (ambient.kind === "firefly") {
+        shape.fillStyle(tint, 0.35);
+        shape.fillRect(-CELL, -CELL, CELL * 3, CELL * 3);
+        shape.fillStyle(colorNumber(colors.parchment), 1);
+        shape.fillRect(0, 0, CELL, CELL);
+      } else {
+        shape.fillStyle(tint, 1);
+        shape.fillRect(0, 0, i % 3 === 0 ? CELL * 2 : CELL, CELL);
+      }
+      const x = ambient.kind === "firefly" ? 60 + next() * 1160 : next() * VIEW_WIDTH;
+      this.motes.push({ shape, x, phase: next(), speed: 0.6 + next() * 0.8 });
+    }
+    this.updateAmbient(0, 0);
+  }
+
+  private updateAmbient(timeMs: number, windX: number): void {
+    const kind = this.ambientKind;
+    if (!kind) return;
+    for (const mote of this.motes) {
+      const at = ambientMotePosition(kind, mote, timeMs, windX);
+      mote.shape.setPosition(snapToGrid(at.x, CELL), snapToGrid(at.y, CELL)).setAlpha(at.alpha);
     }
   }
 }

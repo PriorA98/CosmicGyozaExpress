@@ -28,6 +28,7 @@ import {
   pixelRingRects,
   touchTargetPx,
   type BoardMove,
+  boardShipMarker,
 } from "../ui/boardLayout";
 import { Button } from "../ui/Button";
 import { Keycap } from "../ui/Keycap";
@@ -273,9 +274,9 @@ export class MissionSelectScene extends Phaser.Scene {
 
     const labelY = centre.y + BOARD_TOKEN.labelOffset;
     const label = this.add
-      .text(centre.x, labelY, node.mission.shortTitle, headingStyle({ size: uiTextSize(16, s), color: locked ? colors.parchmentDeep : colors.plaster }))
+      .text(centre.x, labelY, node.mission.shortTitle, headingStyle({ size: uiTextSize(16, s), color: colors.plaster }))
       .setOrigin(0.5, 0)
-      .setAlpha(locked ? 0.6 : 1)
+      .setAlpha(locked ? 0.85 : 1)
       .setDepth(depth.hud);
     let lock: Phaser.GameObjects.Container | null = null;
     const chipY = boardTokenCaption(centre, label.height, 0).chipY;
@@ -298,11 +299,12 @@ export class MissionSelectScene extends Phaser.Scene {
     const parts: Phaser.GameObjects.GameObject[] = [];
     if (note) {
       const text = this.add
-        .text(0, 0, note, monoStyle({ size: uiSecondaryTextSize(typeScale.sm, this.uiScale), bold: true, color: colors.parchment }))
+        .text(0, 0, note, monoStyle({ size: uiTextSize(typeScale.sm, this.uiScale), color: colors.parchmentDeep }))
+        .setAlpha(0.7)
         .setOrigin(0.5, 0.5);
       const padX = 8;
       const chipW = Math.ceil(text.width / 2) * 2 + padX * 2;
-      const chipH = Math.ceil(text.height / 2) * 2 + 6;
+      const chipH = Math.ceil(text.height / 2) * 2 + 2;
       const chipY = chipTop - centre.y + chipH / 2;
       const chip = this.add.graphics();
       chip.fillStyle(colorNumber(colors.cosmosDeep), 0.82);
@@ -411,8 +413,10 @@ export class MissionSelectScene extends Phaser.Scene {
     const selected = this.nodes[this.selected];
     if (selected) {
       const ship = this.add.image(0, 0, ASSET.shipIdle).setScale(2);
-      const caption = this.add.text(0, 62, boardCopy.here, monoStyle({ size: typeScale.sm, color: colors.amber, bold: true })).setOrigin(0.5, 0);
-      this.shipMarker = this.add.container(selected.centre.x - 164, selected.centre.y - 16, [ship, caption]).setDepth(depth.worldFx);
+      // Ship rides just below the route dots; the caption sits under it (omitted on compact, where the ring says enough).
+      const marker = boardShipMarker(selected.centre);
+      const caption = this.add.text(0, marker.captionDy, boardCopy.here, monoStyle({ size: typeScale.sm, color: colors.amber, bold: true })).setOrigin(0.5, 0).setVisible(!this.compact);
+      this.shipMarker = this.add.container(marker.x, marker.y, [ship, caption]).setDepth(depth.worldFx);
     }
     const ring = this.nodes[this.selected]?.selectRing;
     if (ring && !isReducedMotion()) {

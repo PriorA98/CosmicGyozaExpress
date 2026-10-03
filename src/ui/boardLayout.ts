@@ -24,7 +24,7 @@ export const BOARD_NODE_COUNT = BOARD_GRID.length;
 const COLUMN_X: readonly number[] = [280, 640, 1000];
 const ROW_Y: Readonly<Record<BoardLayoutKind, readonly [number, number]>> = {
   desktop: [184, 416],
-  compact: [160, 404],
+  compact: [160, 392],
 };
 
 /** One integer-scale illustration, with a separate label and status area below it. */
@@ -45,9 +45,16 @@ export function boardTokenCaption(centre: Point, labelHeight: number, chipHeight
   return { labelY, chipY, bottom: chipY + chipHeight };
 }
 
-/** On compact lower-row stops, put unlock chips inside the dim art, above the title and detail panel. */
-export function boardUnlockCaptionTop(centre: Point, chipTop: number, kind: BoardLayoutKind, index: number): number {
-  return kind === "compact" && BOARD_GRID[index]?.row === 1 ? centre.y + 48 : chipTop + 12;
+/** "You are here" ship: between stops, just below the route dots (which run through node centres). */
+export const BOARD_SHIP_MARKER = { dx: -164, dy: 44, captionDy: 36 } as const;
+
+export function boardShipMarker(centre: Point): { x: number; y: number; captionDy: number } {
+  return { x: centre.x + BOARD_SHIP_MARKER.dx, y: centre.y + BOARD_SHIP_MARKER.dy, captionDy: BOARD_SHIP_MARKER.captionDy };
+}
+
+/** Compensate for the lock container's 12px art offset: every pill sits below its name. */
+export function boardUnlockCaptionTop(_centre: Point, chipTop: number, _kind: BoardLayoutKind, _index: number): number {
+  return chipTop + 12;
 }
 
 /** Node centres in board order for a layout. */

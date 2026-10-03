@@ -28,6 +28,7 @@ import { drawRecessedSurface, UI_ART_SCALE } from "../ui/surfaces";
 import { bodyStyle, bodyStrongStyle, displayTitleStyle, headingStyle, monoStyle } from "../ui/textStyles";
 import { detectTouchDevice } from "../ui/TouchControls";
 import { hasAuthoredTexture } from "../ui/uiTextures";
+import { clampWrappedText, quoteLinesThatFit } from "../ui/textFit";
 
 /**
  * Title composition on the 1280x720 logical canvas (screen px at uiScale 1). Two layouts: the
@@ -677,9 +678,16 @@ export class TitleScene extends Phaser.Scene {
     const columnWidth = spec.width - columnX - pad;
     const name = this.add.text(columnX, frameY - 2, mission.recipientName, headingStyle({ size: uiTextSize(theme.legacy ? 22 : 20, s), color: colors.ink, ...(!theme.legacy ? { wrapWidth: columnWidth } : {}) }));
     const request = this.add.text(columnX, name.y + name.height + uiScaled(6, s), `“${mission.requestText}”`, bodyStyle({ size: uiTextSize(15, s), color: colors.inkSoft, wrapWidth: columnWidth }));
+    const itemsY = spec.height - pad - ITEM_TRAY_HEIGHT;
+    if (!theme.legacy) {
+      // Measure the wrapped quote and keep it clear of the cargo tray: clamp with an ellipsis to the lines that fit.
+      const wrapped = request.getWrappedText(request.text);
+      const lineHeight = request.height / Math.max(1, wrapped.length);
+      const maxLines = quoteLinesThatFit(itemsY - uiScaled(8, s) - request.y, lineHeight);
+      request.setText(clampWrappedText(request.text, maxLines, (text) => request.getWrappedText(text)));
+    }
     card.addContent(name, request);
 
-    const itemsY = spec.height - pad - ITEM_TRAY_HEIGHT;
     card.addContent(...this.createItems(columnX, itemsY, columnWidth));
   }
 

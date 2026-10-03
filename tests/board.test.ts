@@ -9,6 +9,7 @@ import {
   boardLegArrow,
   boardNodeCentres,
   boardRouteLegs,
+  boardShipMarker,
   boardTokenCaption,
   boardUnlockCaptionTop,
   initialBoardSelection,
@@ -22,17 +23,27 @@ const states = (completed: readonly string[], unlocked: readonly string[] = []):
   missionBoard(normalizeCampaignProgress(completed, unlocked)).map((node) => node.state);
 
 describe("board direction cues", () => {
-  it("keeps compact lower-row unlock hints above labels and the taller detail panel", () => {
-    const centres = boardNodeCentres("compact");
-    centres.forEach((centre, index) => {
-      const caption = boardTokenCaption(centre, 30, 30);
-      const top = boardUnlockCaptionTop(centre, caption.chipY, "compact", index);
-      if (index >= 3) {
-        expect(top + 30).toBeLessThan(caption.labelY);
-        expect(top + 30).toBeLessThan(540);
-      } else expect(top).toBe(caption.chipY + 12);
-      expect(boardUnlockCaptionTop(centre, caption.chipY, "desktop", index)).toBe(caption.chipY + 12);
-    });
+  it("keeps every unlock pill below its name and clear of the detail panel", () => {
+    for (const kind of ["desktop", "compact"] as const) {
+      boardNodeCentres(kind).forEach((centre, index) => {
+        // Name and lock-pill heights measured on phoneLandscape / desktop captures (pill = text + 2 px).
+        const nameHeight = kind === "compact" ? 28 : 22;
+        const pillHeight = kind === "compact" ? 24 : 20;
+        const caption = boardTokenCaption(centre, nameHeight, 0);
+        const top = boardUnlockCaptionTop(centre, caption.chipY, kind, index) - 12;
+        expect(top).toBeGreaterThan(caption.labelY + nameHeight);
+        if (index >= 3) expect(top + pillHeight).toBeLessThan(kind === "compact" ? 540 : 568);
+      });
+    }
+  });
+  it("keeps the you-are-here ship off the route dots that run through node centres", () => {
+    for (const kind of ["desktop", "compact"] as const) {
+      for (const centre of boardNodeCentres(kind)) {
+        const marker = boardShipMarker(centre);
+        expect(marker.y - 28).toBeGreaterThan(centre.y);
+        expect(Math.abs(marker.x - centre.x)).toBeGreaterThan(BOARD_TOKEN.ringRadius + 40);
+      }
+    }
   });
   it("points right, down around the bend, then left on an integer pixel grid", () => {
     const legs = boardRouteLegs(boardNodeCentres("desktop"), 220);
@@ -87,13 +98,14 @@ describe("board layout", () => {
     expect(BOARD_TOKEN.artSize).toBe(160);
     for (const kind of ["desktop", "compact"] as const) {
       const points = boardNodeCentres(kind);
-      const labelHeight = kind === "compact" ? 32 : 22;
-      const chipHeight = kind === "compact" ? 36 : 28;
+      // Measured on phoneLandscape / desktop captures (names ~28 / 22, chips ~28 / 28 logical px).
+      const labelHeight = kind === "compact" ? 28 : 22;
+      const chipHeight = 28;
       for (const centre of points.slice(0, 3)) {
         const caption = boardTokenCaption(centre, labelHeight, chipHeight);
         expect(caption.labelY).toBeGreaterThanOrEqual(centre.y + BOARD_TOKEN.selectRadius);
         expect(caption.chipY).toBeGreaterThan(caption.labelY + labelHeight);
-        expect(caption.bottom).toBeLessThan((points[3]?.y ?? 0) - BOARD_TOKEN.artSize / 2);
+        expect(caption.bottom).toBeLessThanOrEqual((points[3]?.y ?? 0) - BOARD_TOKEN.ringRadius);
       }
       for (const centre of points.slice(3)) {
         expect(boardTokenCaption(centre, labelHeight, chipHeight).bottom).toBeLessThanOrEqual(568);

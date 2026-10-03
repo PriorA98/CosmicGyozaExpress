@@ -7,7 +7,8 @@ import type { ForceSample } from "../../systems/ForceFieldSystem";
 import { motionPathTrack } from "../../systems/MotionPathSystem";
 import type { ForceZoneDefinition, MovingObstacleDefinition, VisibilityDefinition } from "../../types/campaign";
 import type { Point } from "../../types/flight";
-import { cueIsClear, flowCueBases, quarterTurnRotation, windsockFrame, wrap, zoneBounds } from "./flightCueMath";
+import { cueIsClear, flowCueBases, fogPuffLayout, gustCueLevels, quarterTurnRotation, windsockFrame, wrap, zoneBounds, type FogPuff } from "./flightCueMath";
+import { seededRandom } from "./textureFallbacks";
 import type { HudScreenRect } from "./FlightDashboard";
 import { ensurePixelHalo } from "./pixelArt";
 
@@ -86,18 +87,30 @@ export function drawMotionTracks(scene: Phaser.Scene, definitions: readonly Movi
 type ArrowField = {
   readonly zone: Extract<ForceZoneDefinition, { kind: "directional-current" | "gust" }>;
   readonly arrows: readonly { readonly image: Phaser.GameObjects.Image; readonly base: Point }[];
+  /** Gusts only: wisps streaming along the two band edges parallel to the push. */
+  readonly streaks: readonly { readonly image: Phaser.GameObjects.Image; readonly base: Point }[];
+  /** Gusts only: faint band tint + dotted edges, drawn once; only its alpha changes. */
+  readonly band: Phaser.GameObjects.Graphics | undefined;
   readonly direction: Point;
   readonly bounds: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
+  readonly outer: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
   readonly windsock: Phaser.GameObjects.Image | undefined;
   readonly sockSilhouettes: readonly Phaser.GameObjects.Graphics[];
   readonly activeKey: string;
+  readonly spacing: number;
   offset: number;
+  streakOffset: number;
   lastKey: string;
 };
 
+const GUST_STREAK_KEY = "flight-gust-streak";
+const GUST_OUTLINE_KEY = "flight-gust-outline";
+const CURRENT_WISP_KEY = "flight-current-wisp-v2";
+
 /**
- * Force-zone telegraphs: currents = drifting flow arrows, radial gravity = three dotted pixel rings with
- * inward chevrons, gusts = windsock at the band edge + arrows that brighten in warning and run while active.
+ * Force-zone telegraphs: currents = drifting flow wisps along several lanes, radial gravity = three dotted
+ * pixel rings with inward chevrons, gusts = windsock at the band entry + band tint/edges + arrows that are
+ * outlined while gathering (warning) and bright, streaming and edge-wisped while pushing (the strongest state).
  */
 export class ForceZoneCues {
   private readonly fields: ArrowField[] = [];
@@ -109,6 +122,7 @@ export class ForceZoneCues {
     zones: readonly ForceZoneDefinition[],
     private readonly theme: CampaignThemeDefinition,
     private readonly reducedMotion: boolean,
+    private readonly entry?: Point,
   ) {
     for (const zone of zones) {
       if (zone.kind === "radial-gravity") this.drawGravity(zone);
@@ -121,41 +135,52 @@ export class ForceZoneCues {
     const dtSeconds = this.lastSimMs === undefined ? 0 : Math.max(0, simTimeMs - this.lastSimMs) / 1000;
     this.lastSimMs = simTimeMs;
     const style = campaignFlightStyle;
+    const camera = this.scene.cameras.main;
+    const { width, height } = this.scene.scale;
     for (const field of this.fields) {
       const sample = samples.find((candidate) => candidate.zoneId === field.zone.id);
       let alpha: number = style.flow.alpha;
+      let streakAlpha = 0;
       let speed: number = style.flow.speedPxPerSecond;
       let tint: string = campaignCuePalette.matcha;
-      const warning = sample?.phase === "warning" && field.zone.kind === "gust";
+      let outlined = false;
       if (field.zone.kind === "gust") {
         const phase = sample?.phase ?? "calm";
         const envelope = sample?.envelope ?? 0;
-        speed = style.gust.speedPxPerSecond * envelope;
-        if (phase === "warning") {
-          alpha = this.reducedMotion ? style.gust.warningAlpha : 0.55 + 0.3 * (0.5 + 0.5 * Math.sin(simTimeMs / 260));
-          tint = this.theme.palette.light;
-        } else if (phase === "calm") {
-          alpha = style.gust.calmAlpha;
-        } else {
-          alpha = style.gust.calmAlpha + (style.gust.activeAlpha - style.gust.calmAlpha + 0.2) * envelope;
-          tint = this.theme.palette.light;
-        }
+        // Physics and cue read the same sample: speed and brightness follow the envelope that pushes the ship.
+        const levels = gustCueLevels(phase, envelope, simTimeMs, this.reducedMotion);
+        alpha = levels.arrows;
+        streakAlpha = levels.streaks;
+        outlined = levels.outlined;
+        speed = phase === "warning" ? style.gust.speedPxPerSecond * 0.12 : style.gust.speedPxPerSecond * envelope;
+        tint = outlined ? this.theme.palette.light : campaignCuePalette.cream;
+        field.band?.setAlpha(levels.band);
         const frame = windsockFrame(phase, envelope);
         if (field.windsock) field.windsock.setFrame(frame);
         field.sockSilhouettes.forEach((sock, index) => sock.setVisible(index === frame));
       }
-      if (!this.reducedMotion) field.offset = wrap(field.offset + speed * dtSeconds, style.flow.spacingPx);
-      const key = `${alpha.toFixed(2)}:${tint}:${warning}`;
+      if (!this.reducedMotion) {
+        field.offset = wrap(field.offset + speed * dtSeconds, field.spacing);
+        field.streakOffset = wrap(field.streakOffset + speed * style.gust.streakSpeedScale * dtSeconds, style.gust.streakSpacingPx);
+      }
+      const key = `${alpha.toFixed(2)}:${streakAlpha.toFixed(2)}:${tint}:${outlined}`;
       const restyle = key !== field.lastKey;
       field.lastKey = key;
+      const place = (image: Phaser.GameObjects.Image, base: Point, offset: number, bounds: ArrowField["bounds"], shown: boolean): void => {
+        const x = base.x + field.direction.x * offset;
+        const y = base.y + field.direction.y * offset;
+        const inside = x >= bounds.x && x <= bounds.x + bounds.width && y >= bounds.y && y <= bounds.y + bounds.height;
+        const visible = shown && inside && cueIsClear({ x, y }, ship, { x: x - camera.scrollX, y: y - camera.scrollY }, width, height, avoid);
+        image.setVisible(visible);
+        if (visible) image.setPosition(snap(x), snap(y));
+      };
       for (const arrow of field.arrows) {
-        const x = arrow.base.x + field.direction.x * field.offset;
-        const y = arrow.base.y + field.direction.y * field.offset;
-        const inside = x >= field.bounds.x && x <= field.bounds.x + field.bounds.width && y >= field.bounds.y && y <= field.bounds.y + field.bounds.height;
-        const camera = this.scene.cameras.main;
-        const clear = cueIsClear({ x, y }, ship, { x: x - camera.scrollX, y: y - camera.scrollY }, this.scene.scale.width, this.scene.scale.height, avoid);
-        arrow.image.setPosition(snap(x), snap(y)).setVisible(inside && clear);
-        if (restyle) arrow.image.setTexture(warning ? "flight-gust-outline" : field.activeKey).setAlpha(alpha).setTint(colorNumber(tint));
+        place(arrow.image, arrow.base, field.offset, field.bounds, alpha > 0.01);
+        if (restyle) arrow.image.setTexture(outlined ? GUST_OUTLINE_KEY : field.activeKey).setAlpha(alpha).setTint(colorNumber(tint));
+      }
+      for (const streak of field.streaks) {
+        place(streak.image, streak.base, field.streakOffset, field.outer, streakAlpha > 0.01);
+        if (restyle) streak.image.setAlpha(streakAlpha);
       }
     }
   }
@@ -163,6 +188,8 @@ export class ForceZoneCues {
   destroy(): void {
     for (const field of this.fields) {
       for (const arrow of field.arrows) arrow.image.destroy();
+      for (const streak of field.streaks) streak.image.destroy();
+      field.band?.destroy();
       field.windsock?.destroy();
       for (const sock of field.sockSilhouettes) sock.destroy();
     }
@@ -171,31 +198,73 @@ export class ForceZoneCues {
 
   private createArrowField(zone: Extract<ForceZoneDefinition, { kind: "directional-current" | "gust" }>): ArrowField {
     const style = campaignFlightStyle.flow;
-    const push = zone.kind === "gust" ? zone.peakAcceleration : zone.acceleration;
+    const gustStyle = campaignFlightStyle.gust;
+    const isGust = zone.kind === "gust";
+    const push = isGust ? zone.peakAcceleration : zone.acceleration;
     const rotation = quarterTurnRotation(push.x, push.y);
     const direction = { x: Math.round(Math.cos(rotation)), y: Math.round(Math.sin(rotation)) };
+    const vertical = direction.y !== 0;
     const outer = zoneBounds(zone.area);
     const inset = style.edgeInsetPx;
     const bounds = { x: outer.x + inset, y: outer.y + inset, width: Math.max(0, outer.width - inset * 2), height: Math.max(0, outer.height - inset * 2) };
     const arrows: { image: Phaser.GameObjects.Image; base: Point }[] = [];
-    const spacing = style.spacingPx;
+    const spacing = isGust ? gustStyle.spacingPx : style.currentSpacingPx;
+    const lanes = isGust ? gustStyle.lanes : style.currentLanes;
     this.ensureFlowTextures();
-    const activeKey = zone.kind === "gust" ? ASSET.campaignFlowArrow : "flight-current-wisp";
-    for (const { x, y } of flowCueBases(bounds, direction.y !== 0, spacing)) {
-        const image = this.scene.add
-          .image(snap(x), snap(y), activeKey)
-          .setScale(FLIGHT_ART_SCALE)
-          .setRotation(rotation)
-          .setDepth(CUE_DEPTH)
-          .setAlpha(style.alpha)
-          .setVisible(false);
-        arrows.push({ image, base: { x, y } });
+    const activeKey = isGust ? ASSET.campaignFlowArrow : CURRENT_WISP_KEY;
+    for (const { x, y } of flowCueBases(bounds, vertical, spacing, lanes)) {
+      const image = this.scene.add
+        .image(snap(x), snap(y), activeKey)
+        .setScale(FLIGHT_ART_SCALE)
+        .setRotation(rotation)
+        .setDepth(CUE_DEPTH)
+        .setAlpha(style.alpha)
+        .setVisible(false);
+      arrows.push({ image, base: { x, y } });
     }
+    const streaks: { image: Phaser.GameObjects.Image; base: Point }[] = [];
+    let band: Phaser.GameObjects.Graphics | undefined;
     let windsock: Phaser.GameObjects.Image | undefined;
     const sockSilhouettes: Phaser.GameObjects.Graphics[] = [];
-    if (zone.kind === "gust") {
+    if (isGust) {
+      const light = colorNumber(this.theme.palette.light);
+      band = this.scene.add.graphics().setDepth(FOG_DEPTH + 0.2).setAlpha(0);
+      band.fillStyle(light, gustStyle.bandFillAlpha).fillRect(snap(outer.x), snap(outer.y), snap(outer.width), snap(outer.height));
+      // Dotted edges on the two sides parallel to the push: the "walls" of the gust band.
+      band.fillStyle(light, gustStyle.bandEdgeAlpha);
+      const edgeLength = vertical ? outer.height : outer.width;
+      for (const side of [0, 1]) {
+        for (let t = 0; t < edgeLength; t += 16) {
+          const ex = vertical ? outer.x + side * outer.width : outer.x + t;
+          const ey = vertical ? outer.y + t : outer.y + side * outer.height;
+          band.fillRect(snap(ex) - 2, snap(ey) - 2, vertical ? 4 : 8, vertical ? 8 : 4);
+        }
+      }
+      // Streaming wisps just inside both edges (two staggered rows per edge).
+      for (const [side, depthIn] of [[0, 28], [0, 70], [1, -28], [1, -70]] as const) {
+        const stagger = Math.abs(depthIn) > 40 ? gustStyle.streakSpacingPx / 2 : 0;
+        for (let t = -gustStyle.streakSpacingPx + stagger; t <= edgeLength + gustStyle.streakSpacingPx; t += gustStyle.streakSpacingPx) {
+          const base = vertical
+            ? { x: outer.x + side * outer.width + depthIn, y: outer.y + t }
+            : { x: outer.x + t, y: outer.y + side * outer.height + depthIn };
+          const image = this.scene.add
+            .image(snap(base.x), snap(base.y), GUST_STREAK_KEY)
+            .setScale(FLIGHT_ART_SCALE)
+            .setRotation(rotation)
+            .setTint(colorNumber(campaignCuePalette.cream))
+            .setDepth(CUE_DEPTH)
+            .setVisible(false);
+          streaks.push({ image, base });
+        }
+      }
+      // Windsock at the band entry (side nearest the route start), dropped below the flight line so the
+      // edge indicator's label band and the ship's path stay clear.
+      const centre = { x: outer.x + outer.width / 2, y: outer.y + outer.height / 2 };
+      const entry = this.entry ?? centre;
+      const sockX = entry.x <= centre.x ? outer.x + gustStyle.windsockInsetPx : outer.x + outer.width - gustStyle.windsockInsetPx;
+      const sockY = Math.min(outer.y + outer.height - gustStyle.windsockInsetPx - 80, Math.max(outer.y + gustStyle.windsockInsetPx, entry.y + gustStyle.windsockDropPx));
       windsock = this.scene.add
-        .image(snap(outer.x + outer.width / 2), snap(outer.y + outer.height / 2), ASSET.campaignWindsock, 0)
+        .image(snap(sockX), snap(sockY), ASSET.campaignWindsock, 0)
         .setScale(FLIGHT_ART_SCALE)
         .setFlipX(push.x < 0)
         .setDepth(WINDSOCK_DEPTH);
@@ -216,26 +285,38 @@ export class ForceZoneCues {
         sockSilhouettes.push(sock);
       }
     }
-    return { zone, arrows, direction, bounds, windsock, sockSilhouettes, activeKey, offset: 0, lastKey: "" };
+    return { zone, arrows, streaks, band, direction, bounds, outer, windsock, sockSilhouettes, activeKey, spacing, offset: 0, streakOffset: 0, lastKey: "" };
   }
 
   private ensureFlowTextures(): void {
-    for (const key of ["flight-current-wisp", "flight-gust-outline"]) {
+    for (const key of [CURRENT_WISP_KEY, GUST_OUTLINE_KEY, GUST_STREAK_KEY]) {
       if (this.scene.textures.exists(key)) continue;
       const g = this.scene.add.graphics();
       g.fillStyle(0xffffff, 1);
-      if (key === "flight-current-wisp") {
-        for (let x = 2; x < 40; x += 2) {
-          const y = 9 + Math.round(Math.sin(x / 7) * 2);
-          g.fillRect(x, y, 2, 1);
-          if (x > 10 && x < 32) g.fillRect(x - 4, y + 5, 2, 1);
+      let size = { w: 44, h: 20 };
+      if (key === CURRENT_WISP_KEY) {
+        // Three long wavy strands with a soft head: a drifting current, not an arrow or a lane line.
+        size = { w: 72, h: 28 };
+        const strands = [{ y: 8, from: 6, to: 64, phase: 0 }, { y: 15, from: 0, to: 70, phase: 1.7 }, { y: 22, from: 14, to: 56, phase: 3.1 }];
+        for (const strand of strands) {
+          for (let x = strand.from; x < strand.to; x += 1) {
+            const y = strand.y + Math.round(Math.sin(x / 9 + strand.phase) * 2);
+            if (x % 12 === 11) continue; // breaks keep it wispy
+            g.fillRect(x, y, 1, 1);
+          }
         }
-        g.fillRect(35, 7, 2, 2).fillRect(37, 8, 2, 2).fillRect(35, 11, 2, 2);
-      } else {
+        g.fillRect(66, 13, 2, 2).fillRect(68, 15, 2, 2).fillRect(66, 17, 2, 2);
+      } else if (key === GUST_OUTLINE_KEY) {
         g.fillRect(3, 6, 18, 1).fillRect(3, 10, 18, 1).fillRect(3, 6, 1, 5);
         for (let t = 0; t <= 6; t += 1) { g.fillRect(26 - t, 8 - t, 1, 1); g.fillRect(26 - t, 8 + t, 1, 1); }
+      } else {
+        // Gust streak: bright head, dashed fading tail (alpha steps on the art grid).
+        size = { w: 40, h: 6 };
+        g.fillStyle(0xffffff, 1).fillRect(26, 2, 12, 2).fillRect(36, 1, 2, 4);
+        g.fillStyle(0xffffff, 0.6).fillRect(14, 2, 10, 2);
+        g.fillStyle(0xffffff, 0.3).fillRect(2, 2, 9, 2);
       }
-      g.generateTexture(key, 44, 20); g.destroy();
+      g.generateTexture(key, size.w, size.h); g.destroy();
     }
   }
 
@@ -296,9 +377,14 @@ export class ForceZoneCues {
   }
 }
 
-/** Stepped fog bank: nested tiled bands (soft pixel edge), total alpha ≤ maxAlpha, slow decorative drift. */
+/**
+ * Soft fog bank: deterministic puffs (three stepped-halo sizes) jittered over the area, thinner and fainter
+ * at the fringe; slow drift wraps inside the area with an edge fade so nothing pops. Two overlapping puffs
+ * stay under `maxAlpha`. Static textures; per frame only positions/alpha of ~30 images change.
+ */
 export class FogLayer {
-  private readonly bands: Phaser.GameObjects.TileSprite[] = [];
+  private readonly puffs: { readonly image: Phaser.GameObjects.Image; readonly puff: FogPuff; readonly baseAlpha: number }[] = [];
+  private readonly outer: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
 
   constructor(
     scene: Phaser.Scene,
@@ -306,55 +392,47 @@ export class FogLayer {
     private readonly reducedMotion: boolean,
   ) {
     const style = campaignFlightStyle.fog;
-    const outer = zoneBounds(visibility.area);
-    // n stacked bands of alpha a/n compound to 1-(1-a/n)^n < a, so the densest point never exceeds maxAlpha.
-    const bandAlpha = visibility.maxAlpha / style.bands;
-    for (let i = 0; i < style.bands; i += 1) {
-      const inset = i * style.bandInsetPx;
-      const width = outer.width - inset * 2;
-      const height = outer.height - inset * 2;
-      if (width <= 0 || height <= 0) break;
-      const band = scene.add
-        .tileSprite(snap(outer.x + inset), snap(outer.y + inset), snap(width), snap(height), visibility.textureKey)
-        .setOrigin(0, 0)
-        .setTileScale(FLIGHT_ART_SCALE)
-        .setTint(colorNumber(i % 2 === 0 ? campaignCuePalette.fog : campaignCuePalette.matcha))
-        .setTintMode(Phaser.TintModes.SCREEN)
-        .setAlpha(bandAlpha)
-        .setDepth(FOG_DEPTH + i * 0.01);
-      band.tilePositionX = i * 37;
-      band.tilePositionY = i * 19;
-      const maskKey = `flight-fog-fringe-${i}-${width}-${height}`;
-      if (!scene.textures.exists(maskKey)) {
-        const fringe = scene.add.graphics();
-        fringe.fillStyle(0xffffff, 1);
-        // Static mask in art pixels; Phaser 4's internal filter maps it to the whole band.
-        for (let row = 0; row < height; row += 16) {
-          const edge = 30 + Math.round((1 + Math.sin(row / 45 + i)) * 20 / 2) * 2;
-          const topBottom = Math.max(0, 60 - Math.min(row, height - row));
-          fringe.fillRect((edge + topBottom) / FLIGHT_ART_SCALE, row / FLIGHT_ART_SCALE, (width - 2 * (edge + topBottom)) / FLIGHT_ART_SCALE, Math.min(16, height - row) / FLIGHT_ART_SCALE);
-        }
-        fringe.generateTexture(maskKey, width / FLIGHT_ART_SCALE, height / FLIGHT_ART_SCALE);
-        fringe.destroy();
+    this.outer = zoneBounds(visibility.area);
+    const perStep = visibility.maxAlpha / 3 / style.puffSteps.length;
+    const keys = style.puffRadiiArt.map((radius) => ensurePixelHalo(scene, {
+      key: `flight-fog-puff-${radius}`,
+      radius,
+      steps: style.puffSteps,
+      color: style.color,
+      alphaPerStep: perStep,
+    }));
+    fogPuffLayout(this.outer, style.puffSpacingPx, seededRandom(style.seed)).forEach((puff, index) => {
+      // Each puff is a lumpy cloud: a main disc plus a smaller, offset companion, so no puff reads as a circle.
+      const side = index % 2 === 0 ? 1 : -1;
+      const radius = (style.puffRadiiArt[puff.size] ?? style.puffRadiiArt[0]) * FLIGHT_ART_SCALE;
+      const companionSize: 0 | 1 | 2 = puff.size === 2 ? 1 : 0;
+      const companion: FogPuff = { ...puff, x: puff.x + side * radius * style.companionOffset[0], y: puff.y - radius * style.companionOffset[1], size: companionSize };
+      for (const part of [puff, companion]) {
+        const image = scene.add
+          .image(snap(part.x), snap(part.y), keys[part.size] ?? keys[0] ?? "")
+          .setScale(FLIGHT_ART_SCALE)
+          .setAlpha(part.alpha)
+          .setDepth(FOG_DEPTH + part.size * 0.01);
+        this.puffs.push({ image, puff: part, baseAlpha: part.alpha });
       }
-      band.enableFilters();
-      band.filters?.internal.addMask(maskKey);
-      this.bands.push(band);
-    }
+    });
   }
 
   update(simTimeMs: number): void {
     if (this.reducedMotion) return;
     const drift = this.visibility.driftPixelsPerSecond;
-    this.bands.forEach((band, index) => {
-      const factor = campaignFlightStyle.fog.driftScale * (1 + index * 0.35);
-      // Whole art pixels only, so the fog texture never shimmers on sub-pixel offsets.
-      band.tilePositionX = Math.round((simTimeMs / 1000) * drift.x * factor / FLIGHT_ART_SCALE) + index * 37;
-      band.tilePositionY = Math.round((simTimeMs / 1000) * drift.y * factor / FLIGHT_ART_SCALE) + index * 19;
-    });
+    const style = campaignFlightStyle.fog;
+    const { x: ox, y: oy, width, height } = this.outer;
+    for (const { image, puff, baseAlpha } of this.puffs) {
+      const factor = style.driftScale * puff.drift * (simTimeMs / 1000);
+      const x = ox + wrap(puff.x - ox + drift.x * factor, width);
+      const y = oy + wrap(puff.y - oy + drift.y * factor, height);
+      const edge = Math.min(x - ox, ox + width - x, y - oy, oy + height - y);
+      image.setPosition(snap(x), snap(y)).setAlpha(baseAlpha * Math.max(0, Math.min(1, edge / style.edgeFadePx)));
+    }
   }
 
   destroy(): void {
-    for (const band of this.bands) band.destroy();
+    for (const { image } of this.puffs) image.destroy();
   }
 }
