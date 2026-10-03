@@ -105,3 +105,23 @@ Previews: `preview/r3-idle12-old.png` and `preview/r3-idle12-a.png` (before/afte
 Remaining weak spots: the pilot face is still about 6 px wide (eyes are single pixels). At 33.75
 degrees and above, RotSprite sometimes drops an eye pixel or a pixel of the dome ring. At ship size
 this is an accepted cost of baking rotation offline.
+
+## v3 (2026-10-03): back to the player's original design, refined
+The player asked for the ship to look like their original drawing (`assets/reference/gyoza-ship/default.png`,
+143x128, frames default / fly-1..3 / dmg-1..5), just more refined. The v2 crescent saucer had drifted too far from it.
+`scripts/draw_ship_v3.py` reuses the v2 rig helpers (raster, outline, flame, puffs, stars) and replaces the parts
+with the original's silhouette:
+- a tall rounded glass dome, about 65% of the hull width, kept nearly clear (glass tint alpha 18) so the sky shows
+  through as in the original, with a light inner rim, a crescent glint and the dark cockpit console with its two
+  peaks;
+- a deep convex bowl hull with a raised, crimped tan rim, pale dough with tan flanks, pleat marks and a toast belly;
+- sturdy splayed legs crossing in an X on each side, with feet;
+- a small nozzle stub.
+Same contract as v2: 64x80, pivot (32,34), integer 2x. Incident frames: squash; dizzy tilt with crust crumbs;
+dome pop with steam; beige puff with crust chunks (after the original dmg-4); drifting puffs.
+Commands:
+```
+python art-src/ship/scripts/draw_ship_v3.py
+for f in gyoza-idle gyoza-fly-01..03 gyoza-incident-01..05: python tools/art/rotsprite.py public/assets/ship/$f.png public/assets/ship/rot/$f-rot.png --pivot 32,34 --cell 112 --angles 32 --columns 8
+python art-src/items/scripts/compose_postcard_v4.py art-src/items/raw/postcard-v3.png art-src/items/work/w4/pc-v4-shipv3.png   (re-stamps the memory postcard)
+```
