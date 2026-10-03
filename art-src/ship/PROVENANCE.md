@@ -125,3 +125,21 @@ python art-src/ship/scripts/draw_ship_v3.py
 for f in gyoza-idle gyoza-fly-01..03 gyoza-incident-01..05: python tools/art/rotsprite.py public/assets/ship/$f.png public/assets/ship/rot/$f-rot.png --pivot 32,34 --cell 112 --angles 32 --columns 8
 python art-src/items/scripts/compose_postcard_v4.py art-src/items/raw/postcard-v3.png art-src/items/work/w4/pc-v4-shipv3.png   (re-stamps the memory postcard)
 ```
+
+## v4 (2026-10-03): the player's original drawing, kept as drawn (supersedes v2 and v3)
+The player asked to "just keep the original design". The shipped frames are now the original drawing itself:
+`art-src/ship/originals/*.png`, which are byte-identical to `assets/reference/gyoza-ship/{default,fly-1..3,dmg-1..5}.png`.
+`scripts/original_frames.py`:
+1. registers each frame with `offsets.json`, using the wave-1 explosion and smoke overrides;
+2. places the original idle saucer centre (72,75) on the art pivot (32,34);
+3. moves detached debris that would cross the canvas edge inward, never the ship body;
+4. downscales by exactly 1/2 with a box filter.
+
+The game displays art at 2x, so the ship appears at the drawing's own size, in its own colours, outlines, soft edges and
+flame. No repainting or palette change. The v2/v3 rigs (`draw_ship.py`, `draw_ship_v3.py`) are kept for history only.
+Commands:
+```
+python art-src/ship/scripts/original_frames.py
+for f in gyoza-idle gyoza-fly-01..03 gyoza-incident-01..05: python tools/art/rotsprite.py public/assets/ship/$f.png public/assets/ship/rot/$f-rot.png --pivot 32,34 --cell 112 --angles 32 --columns 8
+python art-src/items/scripts/compose_postcard_v4.py art-src/items/raw/postcard-v3.png art-src/items/work/w4/pc-v4-original-ship.png
+```
