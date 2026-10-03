@@ -11,6 +11,7 @@ import {
   boardNodeCentres,
   boardRouteLegs,
   boardShipMarker,
+  boardStatusTop,
   boardTokenCaption,
   boardUnlockCaptionTop,
   initialBoardSelection,
@@ -64,6 +65,23 @@ describe("board direction cues", () => {
 });
 
 describe("board layout", () => {
+  it("keeps measured compact badges at least six pixels from labels, the next ring and the card", () => {
+    const centres = boardNodeCentres("compact");
+    for (const scale of [1.3, 1.48, 1.6]) {
+      const panelTop = 720 - 12 - boardDetailHeight("compact", scale);
+      for (const [index, centre] of centres.entries()) {
+        for (const chipHeight of [24, 28, 32, 36, 40]) {
+          const top = boardStatusTop(centre, 32, chipHeight, "compact");
+          expect(centre.y + BOARD_TOKEN.labelOffset - (top + chipHeight)).toBeGreaterThanOrEqual(6);
+          const limit = index < 3 ? (centres[3]?.y ?? 0) - BOARD_TOKEN.selectRadius : panelTop;
+          expect(limit - (top + chipHeight)).toBeGreaterThanOrEqual(6);
+        }
+        // The name remains under the art and clear of the next row/card, too.
+        const limit = index < 3 ? (centres[3]?.y ?? 0) - BOARD_TOKEN.selectRadius : panelTop;
+        expect(limit - (centre.y + BOARD_TOKEN.labelOffset + 32)).toBeGreaterThanOrEqual(6);
+      }
+    }
+  });
   it("places six nodes in a U: top row left→right, bottom row right→left", () => {
     const centres = boardNodeCentres("desktop");
     expect(centres).toHaveLength(6);

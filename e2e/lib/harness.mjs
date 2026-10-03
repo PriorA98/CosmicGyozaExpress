@@ -18,14 +18,21 @@ export const VIEWPORTS = {
  * Viewports that emulate a touch phone (hasTouch + isMobile), so Phaser's device.input.touch is
  * true and touch-pad HUD layouts render. Plain `phoneLandscape` stays keyboard-first.
  */
-export const TOUCH_VIEWPORTS = new Set(["phoneLandscapeTouch"]);
+export const TOUCH_VIEWPORTS = new Set(["phoneLandscapeTouch", "phoneSmallTouch", "phoneLargeTouch", "phonePortraitTouch", "phoneBrowserBarTouch", "phoneSmallBrowserTouch"]);
 VIEWPORTS.phoneLandscapeTouch = { width: 844, height: 390 };
+/** Real-device-like touch phones with their device pixel ratio (iPhone SE / iPhone 14 Pro Max / portrait). */
+VIEWPORTS.phoneSmallTouch = { width: 667, height: 375, dpr: 2 };
+VIEWPORTS.phoneLargeTouch = { width: 932, height: 430, dpr: 3 };
+VIEWPORTS.phonePortraitTouch = { width: 390, height: 844, dpr: 3 };
+/** Landscape phones with the browser toolbar/address bar visible (shorter than the screen). */
+VIEWPORTS.phoneBrowserBarTouch = { width: 844, height: 340, dpr: 3 };
+VIEWPORTS.phoneSmallBrowserTouch = { width: 667, height: 320, dpr: 2 };
 
 /** Playwright context options for a named viewport. */
 export function contextOptions(viewportName) {
-  const viewport = VIEWPORTS[viewportName];
+  const { width, height, dpr = 1 } = VIEWPORTS[viewportName];
   const touch = TOUCH_VIEWPORTS.has(viewportName);
-  return { viewport, deviceScaleFactor: 1, hasTouch: touch, isMobile: touch };
+  return { viewport: { width, height }, deviceScaleFactor: dpr, hasTouch: touch, isMobile: touch };
 }
 
 /**

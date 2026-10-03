@@ -4,6 +4,7 @@ import { applyShowcaseSaveFixture } from "./dev/saveFixtures";
 import { readRequestedShowcase } from "./dev/showcaseStates";
 import { installFxSettings } from "./fx/fxSettings";
 import { installAdaptiveCanvasInterpolation } from "./game/displayScale";
+import { installFullscreenButton } from "./game/fullscreen";
 import { gameConfig } from "./gameConfig";
 import { installAudioSystem } from "./systems/AudioSystem";
 import { installCampaignSaveListeners } from "./systems/SaveSystem";
@@ -31,6 +32,8 @@ installAdaptiveCanvasInterpolation(game);
 installFxSettings(game);
 // Mute (M) feedback toast for every scene, including showcases that boot straight into flight/landing/result.
 installSoundToast(game);
+// Phone-only "full screen" pill on the title screen where the Fullscreen API exists (not iPhone Safari).
+installFullscreenButton(game);
 
 if (import.meta.env.DEV) {
   installDevProbe(game);

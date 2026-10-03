@@ -358,6 +358,8 @@ export const landingScenery = {
     tickerLines: 2 as const,
     /** Narrower panel on phone-class displays (it is scaled up there). */
     compactWidth: 264,
+    /** Keep the spawn/descent lane clear even at the largest phone HUD scale. */
+    compactLaneHalfWidth: 140,
     /** Opaque backing under the translucent HudPanel / ticker surfaces, inset past their rounded corners. */
     backingInsetPx: 6,
     /** Extra boost on top of `compactUiScale` so phone labels clear ~12 CSS px. */

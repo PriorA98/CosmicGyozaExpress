@@ -53,13 +53,15 @@ export class LandingDashboard {
   constructor(scene: Phaser.Scene, options: LandingDashboardOptions) {
     const config = landingScenery.hud;
     this.rows = options.compact ? COMPACT_ROWS : FULL_ROWS;
-    const width = Math.round((options.compact ? config.compactWidth : config.width) * options.scale);
+    const width = options.compact
+      ? Math.min(Math.round(config.compactWidth * options.scale), Math.floor(scene.scale.width / 2 - config.compactLaneHalfWidth - config.x))
+      : Math.round(config.width * options.scale);
     const rows: HudRow[] = [
       ...this.rows.map((id) => ({ id, label: landingCopy.rows[id], value: "" })),
       { id: "package", label: landingCopy.rows.package, value: "" },
     ];
 
-    this.panel = new HudPanel(scene, { x: 0, y: 0, width, title: options.title ?? landingCopy.dashboardTitle, icon: "moon", rows, uiScale: options.scale });
+    this.panel = new HudPanel(scene, { x: 0, y: 0, width, title: options.title ?? landingCopy.dashboardTitle, fitTitle: options.compact, icon: "moon", rows, uiScale: options.scale });
     const backing = scene.add.graphics();
     backing.fillStyle(colorNumber(colors.cosmosPanel), 1);
     const inset = config.backingInsetPx;

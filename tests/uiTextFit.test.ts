@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MISSION_IDS, resolveMission } from "../src/data/campaign";
-import { clampWrappedText, quoteLinesThatFit } from "../src/ui/textFit";
+import { clampWrappedText, fittedPixelTextSize, quoteLinesThatFit } from "../src/ui/textFit";
 
 const wrap = (text: string): string[] => text.match(/.{1,28}/g) ?? [];
 
@@ -43,5 +43,13 @@ describe("quote lines that fit above the cargo tray", () => {
   it("allows two lines in the exact measured space without trailing line spacing", () => {
     expect(quoteLinesThatFit(52, 28, 4)).toBe(2);
     expect(quoteLinesThatFit(51, 28, 4)).toBe(1);
+  });
+});
+
+describe("compact HUD title fitting", () => {
+  it("keeps fitting titles unchanged and reduces long headings on the pixel font grid", () => {
+    expect(fittedPixelTextSize(32, 16, 8, 380, (size) => size * 8)).toBe(32);
+    expect(fittedPixelTextSize(32, 16, 8, 380, (size) => size * 14)).toBe(24);
+    expect(fittedPixelTextSize(32, 16, 8, 180, (size) => size * 14)).toBe(16);
   });
 });

@@ -31,6 +31,7 @@ import {
   touchTargetPx,
   type BoardMove,
   boardShipMarker,
+  boardStatusTop,
 } from "../ui/boardLayout";
 import { Button } from "../ui/Button";
 import { Keycap } from "../ui/Keycap";
@@ -285,7 +286,7 @@ export class MissionSelectScene extends Phaser.Scene {
     if (locked) lock = this.createLock(centre, boardUnlockCaptionTop(centre, chipY, this.compact ? "compact" : "desktop", index), node.unlockedBy ? boardCopy.lockedAfter(node.unlockedBy.shortTitle) : null);
     if (node.state === "completed") {
       const stamp = new CollectedStamp(this, { x: 0, y: 0, label: boardCopy.deliveredStamp, uiScale: Math.min(s, 1.3) });
-      stamp.setPosition(Math.round(centre.x - stamp.stampWidth / 2), chipY).setDepth(depth.hud).setName(`stamp-${node.mission.id}`);
+      stamp.setPosition(Math.round(centre.x - stamp.stampWidth / 2), boardStatusTop(centre, label.height, stamp.stampHeight, this.compact ? "compact" : "desktop")).setDepth(depth.hud).setName(`stamp-${node.mission.id}`);
     }
 
     const hit = this.add
@@ -296,7 +297,7 @@ export class MissionSelectScene extends Phaser.Scene {
     this.nodes.push({ node, centre, selectRing, label, hit, lock });
   }
 
-  /** Pixel padlock over the art; the "After …" chip sits below the destination label. */
+  /** Pixel padlock over the art; compact status badges tuck above the destination label. */
   private createLock(centre: Point, chipTop: number, note: string | null): Phaser.GameObjects.Container {
     const parts: Phaser.GameObjects.GameObject[] = [];
     if (note) {
@@ -307,7 +308,8 @@ export class MissionSelectScene extends Phaser.Scene {
       const padX = 8;
       const chipW = Math.ceil(text.width / 2) * 2 + padX * 2;
       const chipH = Math.ceil(text.height / 2) * 2 + 2;
-      const chipY = chipTop - centre.y + chipH / 2;
+      const top = this.compact ? boardStatusTop(centre, 0, chipH, "compact") + 12 : chipTop;
+      const chipY = top - centre.y + chipH / 2;
       const chip = this.add.graphics();
       chip.fillStyle(colorNumber(colors.cosmosDeep), 0.82);
       fillSteppedRect(chip, -chipW / 2, chipY - chipH / 2, chipW, chipH, STEPPED_CORNER.soft, 2);

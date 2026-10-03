@@ -50,6 +50,13 @@ export function boardTokenCaption(centre: Point, labelHeight: number, chipHeight
   return { labelY, chipY, bottom: chipY + chipHeight };
 }
 
+/** Compact status badges sit along the lower art edge, leaving room between rows and the card. */
+export function boardStatusTop(centre: Point, labelHeight: number, chipHeight: number, kind: BoardLayoutKind): number {
+  return kind === "compact"
+    ? Math.floor((centre.y + BOARD_TOKEN.labelOffset - 6 - chipHeight) / 2) * 2
+    : boardTokenCaption(centre, labelHeight, chipHeight).chipY;
+}
+
 /** "You are here" ship: between stops, just below the route dots (which run through node centres). */
 export const BOARD_SHIP_MARKER = { dx: -164, dy: 44, captionDy: 36 } as const;
 

@@ -120,3 +120,62 @@
 .sound-toast[hidden] {
   display: none;
 }
+
+/*
+ * Phone "full screen" pill (src/game/fullscreen.ts). Title screen only, touch phones whose browser
+ * supports the Fullscreen API. Sits in the shell's top-right corner, inside the notch safe area.
+ */
+.fullscreen-button {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  right: calc(env(safe-area-inset-right, 0px) + 8px);
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 2px solid var(--color-ink);
+  border-radius: 2px;
+  background: var(--color-parchment);
+  color: var(--color-ink);
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  box-shadow: var(--shadow-pixel);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.fullscreen-button[hidden] {
+  display: none;
+}
+
+.fullscreen-button:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--color-ink);
+}
+
+/* pixel "expand" glyph: four corner brackets */
+.fullscreen-button__icon {
+  width: 12px;
+  height: 12px;
+  background:
+    linear-gradient(var(--color-ink), var(--color-ink)) 0 0 / 5px 2px no-repeat,
+    linear-gradient(var(--color-ink), var(--color-ink)) 0 0 / 2px 5px no-repeat,
+    linear-gradient(var(--color-ink), var(--color-ink)) 100% 0 / 5px 2px no-repeat,
+    linear-gradient(var(--color-ink), var(--color-ink)) 100% 0 / 2px 5px no-repeat,
+    linear-gradient(var(--color-ink), var(--color-ink)) 0 100% / 5px 2px no-repeat,
+    linear-gradient(var(--color-ink), var(--color-ink)) 0 100% / 2px 5px no-repeat,
+    linear-gradient(var(--color-ink), var(--color-ink)) 100% 100% / 5px 2px no-repeat,
+    linear-gradient(var(--color-ink), var(--color-ink)) 100% 100% / 2px 5px no-repeat;
+}
+
+/* Notched phones (viewport-fit=cover): keep the letterboxed canvas inside the safe area. */
+@supports (padding: env(safe-area-inset-left)) {
+  .app-shell {
+    box-sizing: border-box;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  }
+}

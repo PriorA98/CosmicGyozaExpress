@@ -7,6 +7,7 @@ import { Meter } from "./Meter";
 import type { MeterAccent } from "./statePalette";
 import { addNineSlicePanel, drawDarkHudSurface } from "./surfaces";
 import { monoStyle, pixelLabelStyle } from "./textStyles";
+import { fittedPixelTextSize } from "./textFit";
 
 export type HudTextRow = {
   readonly kind?: "text";
@@ -32,6 +33,8 @@ export type HudPanelOptions = {
   readonly y: number;
   readonly width: number;
   readonly title: string;
+  /** Fit the heading inside the panel on pixel-font grid steps. Default preserves desktop typography. */
+  readonly fitTitle?: boolean;
   readonly icon?: UiIconName;
   readonly rows: readonly HudRow[];
   readonly fixed?: boolean;
@@ -134,6 +137,13 @@ export class HudPanel extends Phaser.GameObjects.Container {
     this.titleText = scene.add
       .text(titleX, headerHeight / 2 + 1, options.title.toUpperCase(), pixelLabelStyle({ size: uiPixelLabelSize(this.uiScale), color: colors.amber }))
       .setOrigin(0, 0.5);
+    if (options.fitTitle) {
+      const size = fittedPixelTextSize(uiPixelLabelSize(this.uiScale), 16, 8, this.panelWidth - padding - titleX, (fontSize) => {
+        this.titleText.setFontSize(fontSize);
+        return this.titleText.width;
+      });
+      this.titleText.setFontSize(size);
+    }
     this.add(this.titleText);
 
     const divider = scene.add.graphics();

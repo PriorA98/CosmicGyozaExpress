@@ -16,3 +16,10 @@ export function quoteLinesThatFit(available: number, lineHeight: number, lineSpa
   if (!(lineHeight > 0) || !Number.isFinite(available)) return 1;
   return Math.max(1, Math.floor((available + lineSpacing) / lineHeight));
 }
+
+/** Fit a pixel-font heading on whole font-grid steps; measure with the renderer's actual font. */
+export function fittedPixelTextSize(size: number, minSize: number, grid: number, width: number, measure: (size: number) => number): number {
+  let fitted = size;
+  while (fitted > minSize && measure(fitted) > width) fitted = Math.max(minSize, fitted - grid);
+  return fitted;
+}

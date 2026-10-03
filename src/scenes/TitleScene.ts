@@ -679,7 +679,7 @@ export class TitleScene extends Phaser.Scene {
     const name = this.add.text(columnX, frameY - 2, mission.recipientName, headingStyle({ size: uiTextSize(theme.legacy ? 22 : 20, s), color: colors.ink, ...(!theme.legacy ? { wrapWidth: columnWidth } : {}) }));
     const request = this.add.text(columnX, name.y + name.height + uiScaled(6, s), `“${mission.requestText}”`, bodyStyle({ size: uiTextSize(15, s), color: colors.inkSoft, wrapWidth: columnWidth }));
     const itemsY = spec.height - pad - ITEM_TRAY_HEIGHT;
-    if (!theme.legacy) {
+    if (!theme.legacy || this.compact) {
       // Measure the wrapped quote and keep it clear of the cargo tray: clamp with an ellipsis to the lines that fit.
       const wrapped = request.getWrappedText(request.text);
       // Phaser omits trailing line spacing from the text height (two 28px lines occupy 52px).

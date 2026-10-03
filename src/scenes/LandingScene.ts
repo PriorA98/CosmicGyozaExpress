@@ -287,7 +287,7 @@ export class LandingScene extends Phaser.Scene {
       footOffset: this.shipLayout.footPx,
       contactY: this.contactY,
       shipScale: this.ship.scaleX,
-      cameraScrollY: this.cameras.main.scrollY,
+      cameraScrollY: this.cameras.main?.scrollY ?? 0,
     }));
 
     if (this.phase.kind === "intro") this.startArrivalIntro();
@@ -916,9 +916,10 @@ export class LandingScene extends Phaser.Scene {
 
   private buildHud(): void {
     const uiScale = this.hudScale();
+    const compact = isCompactDisplay(this);
     const dashboard = new LandingDashboard(this, {
-      compact: isCompactDisplay(this), scale: uiScale,
-      title: this.theme.legacy ? undefined : this.mission.shortTitle.toLowerCase() + campaignLandingCopy.titleSuffix,
+      compact, scale: uiScale,
+      title: compact ? this.mission.shortTitle : this.theme.legacy ? undefined : this.mission.shortTitle.toLowerCase() + campaignLandingCopy.titleSuffix,
       showNote: !this.theme.legacy,
     });
     const touchPads = this.touchLayout ? new LandingTouchPads(this, compactUiScale(this)) : undefined;
