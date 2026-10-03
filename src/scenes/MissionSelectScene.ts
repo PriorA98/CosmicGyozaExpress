@@ -29,14 +29,14 @@ import { Button } from "../ui/Button";
 import { Keycap } from "../ui/Keycap";
 import { uiScaled, uiSecondaryTextSize, uiTextSize, type Point } from "../ui/layout";
 import { CollectedStamp } from "../ui/NoticeChips";
-import { ParchmentCard } from "../ui/ParchmentCard";
+import { CARD_HEADER_HEIGHT, ParchmentCard } from "../ui/ParchmentCard";
 import { installSoundToast } from "../ui/SoundToast";
 import { fillSteppedRect, STEPPED_CORNER } from "../ui/surfaces";
 import { bodyStyle, displayTitleStyle, headingStyle, monoStyle } from "../ui/textStyles";
 import { detectTouchDevice } from "../ui/TouchControls";
 import { hasAuthoredTexture } from "../ui/uiTextures";
 
-/** Board look (logical px at uiScale 1). Node art is drawn at its native 1x (plan §6 destination art). */
+/** Board look in logical pixels. Destination art keeps its authored 2x scale inside small windows. */
 const NODE = {
   /** Half-size of the node's tap zone around its centre (art is ~150 px tall). */
   hitHalf: 84,
@@ -44,9 +44,10 @@ const NODE = {
   selectRadius: 96,
   ringBand: 4,
   clearRadius: 104,
+  artScale: 2,
+  artRadius: 76,
   labelGap: 6,
   lockedAlpha: 0.38,
-  lockedTint: 0x7d8299,
 } as const;
 const ROUTE = { spacing: 16, dot: 4, openAlpha: 0.85, closedAlpha: 0.32 } as const;
 const MARGIN_X = 64;
@@ -124,6 +125,8 @@ export class MissionSelectScene extends Phaser.Scene {
       uiScale: Number(this.uiScale.toFixed(2)),
       touch: this.touch,
       selected: this.nodes[this.selected]?.node.mission.id ?? null,
+      artScale: NODE.artScale,
+      panelTop: this.panel?.y ?? null,
       launchLabel: this.selectedNode?.state === "completed" ? boardCopy.replay : boardCopy.launch,
       leaving: this.leaving,
       nodes: this.nodes.map((view) => ({
@@ -132,7 +135,8 @@ export class MissionSelectScene extends Phaser.Scene {
         x: view.centre.x,
         y: view.centre.y,
         label: view.label.text,
-        hitCss: Math.round(NODE.hitHalf * 2 * displayScale(this.game)),
+        hitCss: Math.round(view.hit.width * displayScale(this.game)),
+        hitHeightCss: Math.round(view.hit.height * displayScale(this.game)),
       })),
       launchButtonCss: this.launchButton
         ? { width: Math.round(this.launchButton.buttonWidth * displayScale(this.game)), height: Math.round(this.launchButton.buttonHeight * displayScale(this.game)) }
@@ -202,6 +206,7 @@ export class MissionSelectScene extends Phaser.Scene {
       onActivate: () => this.goBack(),
     });
     back.setName("back").setDepth(depth.hud);
+    back.setX(this.scale.width - MARGIN_X - back.buttonWidth);
     this.backButton = back;
 
     if (this.touch || this.compact) return;
@@ -254,9 +259,21 @@ export class MissionSelectScene extends Phaser.Scene {
     selectRing.fillStyle(colorNumber(colors.plaster), 0.95);
     drawRing(selectRing, centre, NODE.selectRadius, NODE.ringBand, NODE.ringBand);
 
-    const textureKey = themeFor(node.mission.themeId).destinationTexture;
-    const art = this.add.image(centre.x, centre.y, textureKey).setDepth(depth.world);
-    if (locked) art.setAlpha(NODE.lockedAlpha).setTint(NODE.lockedTint);
+    const theme = themeFor(node.mission.themeId);
+    // Like illustrations cut into a delivery notice: crop the loaded art with a pixel window,
+    // rather than shrinking it below the asset contract. Final art uses exactly the same window.
+    const window = this.make.graphics({}, false);
+    window.fillStyle(colorNumber(theme.palette.ground), 1);
+    drawRing(window, centre, NODE.artRadius, NODE.artRadius, NODE.ringBand);
+    const mask = window.createGeometryMask();
+    const art = this.add.image(centre.x, centre.y, theme.destinationTexture)
+      .setScale(NODE.artScale).setMask(mask).setDepth(depth.world);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      art.clearMask();
+      mask.destroy();
+      window.destroy();
+    });
+    if (locked) art.setAlpha(NODE.lockedAlpha).setTint(colorNumber(colors.duskBlue));
 
     const labelY = centre.y + NODE.hitHalf + NODE.labelGap;
     const label = this.add
@@ -321,53 +338,13 @@ export class MissionSelectScene extends Phaser.Scene {
     const mission = node.mission;
     const width = this.scale.width - 80;
     const pad = uiScaled(this.compact ? 14 : 18, s);
-    const buttonWidth = uiScaled(this.compact ? 230 : 280, s);
     const buttonHeight = Math.max(uiScaled(56, s), this.compact ? touchTargetPx(TOUCH_TARGET_CSS, displayScale(this.game), uiScaled(64, s)) : 0);
-    const textWidth = width - pad * 3 - buttonWidth;
-
-    // Measure first so the card is exactly as tall as its copy.
-    const recipient = this.add.text(0, 0, mission.recipientName, headingStyle({ size: uiTextSize(this.compact ? 19 : 22, s), color: colors.ink }));
-    const item = this.add.text(0, 0, `${boardCopy.carrying} · ${mission.deliveryItemName}`, monoStyle({ size: uiSecondaryTextSize(typeScale.sm, s), bold: true, color: colors.sageDeep, wrapWidth: textWidth }));
-    const request = this.add.text(0, 0, `“${mission.requestText}”`, bodyStyle({ size: uiTextSize(this.compact ? 14 : 15, s), color: colors.inkSoft, wrapWidth: textWidth }));
-    const gap = uiScaled(4, s);
-    const header = this.compact ? 0 : undefined;
-    const card = new ParchmentCard(this, {
-      x: 40,
-      y: 0,
-      width,
-      height: 10,
-      ...(header === 0 ? {} : { title: mission.shortTitle.toLowerCase() }),
-      padding: pad,
-      uiScale: s,
-    });
-    const top = header === 0 ? pad : card.contentTop;
-    const textHeight = recipient.height + gap + item.height + gap * 2 + request.height;
-    const height = Math.ceil(top + Math.max(textHeight, buttonHeight) + pad);
-    card.destroy();
-
-    const y = this.scale.height - 12 - height;
-    const panel = new ParchmentCard(this, {
-      x: 40,
-      y,
-      width,
-      height,
-      ...(header === 0 ? {} : { title: mission.shortTitle.toLowerCase() }),
-      padding: pad,
-      uiScale: s,
-    });
-    panel.setDepth(depth.hud).setName("detail-panel");
-    const contentTop = header === 0 ? pad : panel.contentTop;
-    recipient.setPosition(pad, contentTop - 2);
-    item.setPosition(pad, recipient.y + recipient.height + gap);
-    request.setPosition(pad, item.y + item.height + gap * 2);
-    panel.addContent(recipient, item, request);
-    this.panel = panel;
-
+    // Button can grow to fit a pixel-font label. Reserve its measured width before wrapping copy.
     const launch = new Button(this, {
-      x: 40 + width - pad - buttonWidth,
-      y: Math.round(y + contentTop + (height - contentTop - pad - buttonHeight) / 2),
+      x: 0,
+      y: 0,
       label: node.state === "completed" ? boardCopy.replay : boardCopy.launch,
-      width: buttonWidth,
+      width: uiScaled(this.compact ? 230 : 280, s),
       height: buttonHeight,
       icon: "package",
       uiScale: s,
@@ -375,6 +352,37 @@ export class MissionSelectScene extends Phaser.Scene {
     });
     launch.setName("launch").setDepth(depth.hud + 1);
     this.launchButton = launch;
+    const buttonWidth = launch.buttonWidth;
+    const textWidth = width - pad * 3 - buttonWidth;
+
+    // Measure first so the card is exactly as tall as its copy.
+    const recipient = this.add.text(0, 0, mission.recipientName, headingStyle({ size: uiTextSize(this.compact ? 19 : 22, s), color: colors.ink, wrapWidth: textWidth }));
+    const item = this.add.text(0, 0, `${boardCopy.carrying} · ${mission.deliveryItemName}`, monoStyle({ size: uiSecondaryTextSize(typeScale.sm, s), bold: true, color: colors.sageDeep, wrapWidth: textWidth }));
+    const request = this.add.text(0, 0, `“${mission.requestText}”`, bodyStyle({ size: uiTextSize(this.compact ? 14 : 15, s), color: colors.inkSoft, wrapWidth: textWidth }));
+    const gap = uiScaled(4, s);
+    const top = this.compact ? pad : uiScaled(CARD_HEADER_HEIGHT, s) + uiScaled(12, s);
+    const textHeight = recipient.height + gap + item.height + gap * 2 + request.height;
+    const height = Math.ceil(top + Math.max(textHeight, buttonHeight) + pad);
+
+    const y = this.scale.height - 12 - height;
+    const panel = new ParchmentCard(this, {
+      x: 40,
+      y,
+      width,
+      height,
+      ...(!this.compact ? { title: mission.shortTitle.toLowerCase() } : {}),
+      padding: pad,
+      uiScale: s,
+    });
+    panel.setDepth(depth.hud).setName("detail-panel");
+    const contentTop = panel.contentTop;
+    recipient.setPosition(pad, contentTop - 2);
+    item.setPosition(pad, recipient.y + recipient.height + gap);
+    request.setPosition(pad, item.y + item.height + gap * 2);
+    panel.addContent(recipient, item, request);
+    this.panel = panel;
+
+    launch.setPosition(40 + width - pad - buttonWidth, Math.round(y + contentTop + (height - contentTop - pad - buttonHeight) / 2));
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -414,6 +422,7 @@ export class MissionSelectScene extends Phaser.Scene {
       }
       return;
     }
+    emitGameEvent(this, { type: "ui:confirm" });
     this.select(index);
   }
 

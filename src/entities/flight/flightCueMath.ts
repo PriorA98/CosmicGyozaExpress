@@ -12,6 +12,14 @@ export function advanceSimClock(simTimeMs: number, deltaMs: number, maxStepMs: n
   return simTimeMs + Math.min(deltaMs, maxStepMs);
 }
 
+/** Finite bounded steps sharing the same consumed time as the scene clock. */
+export function simulationSteps(deltaMs: number, maxFrameMs: number, substepMs: number): readonly number[] {
+  if (!Number.isFinite(deltaMs) || deltaMs <= 0 || !(maxFrameMs > 0) || !(substepMs > 0)) return [];
+  const consumed = Math.min(deltaMs, maxFrameMs);
+  const count = Math.ceil(consumed / substepMs);
+  return Array.from({ length: count }, (_, index) => Math.min(substepMs, consumed - index * substepMs));
+}
+
 /** Windsock strip frame for a gust sample: warning lifts the sock before any push arrives. */
 export function windsockFrame(phase: GustPhase, envelope: number): number {
   if (phase === "warning") return CAMPAIGN_WINDSOCK_FRAME.warning;

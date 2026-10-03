@@ -520,7 +520,7 @@ export const campaignFlightStyle = {
   fog: { bands: 3, bandInsetPx: 90, driftScale: 1 },
   pickup: { bobArtPx: 2, bobPeriodMs: 2600, haloRadiusArt: 10, haloSteps: [2, 5] as const, haloAlpha: 0.12 },
   lantern: { bodyColor: "#3A2E2A", glowRadiusArt: 10, glowSteps: [3, 7, 12] as const, glowAlpha: 0.08, idleAlpha: 0.7 },
-  gauge: { width: 112, height: 36, gap: 6, arrowPx: 9 },
+  gauge: { width: 164, height: 68, gap: 6, arrowPx: 9 },
 } as const;
 
 /** Static rock look for a campaign route obstacle: deterministic texture by size, gentle bob. */

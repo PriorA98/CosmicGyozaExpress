@@ -24,11 +24,14 @@ export class DestinationIndicator {
   private uiScale = 1;
   private avoidRects: readonly HudScreenRect[] = [];
   private pillBlockHeight = 0;
+  private nextReadoutMs = 0;
+  private lastTimeMs = 0;
 
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly destination: Point,
     label: string = flightHudCopy.indicatorLabel,
+    private readonly readoutIntervalMs = 0,
   ) {
     const style = destinationIndicatorStyle;
     this.graphics = scene.add.graphics();
@@ -66,6 +69,8 @@ export class DestinationIndicator {
   }
 
   update(docking: DockingState, timeMs: number): void {
+    if (timeMs < this.lastTimeMs) this.nextReadoutMs = 0;
+    this.lastTimeMs = timeMs;
     const style = destinationIndicatorStyle;
     const { width, height } = this.scene.scale;
     const camera = this.scene.cameras.main;
@@ -92,7 +97,8 @@ export class DestinationIndicator {
     const text = `${units >= 10 ? units.toFixed(0) : units.toFixed(1)} ${style.unitLabel}`;
     const belowFits = y + (style.labelGap + this.pillBlockHeight) * this.uiScale < avoidTop;
     const below = (y < height / 2 || Math.abs(Math.sin(angle)) < 0.5) && belowFits;
-    if (text !== this.lastReadout) {
+    if (text !== this.lastReadout && timeMs >= this.nextReadoutMs) {
+      this.nextReadoutMs = timeMs + this.readoutIntervalMs;
       this.lastReadout = text;
       this.readout.setText(text);
     }

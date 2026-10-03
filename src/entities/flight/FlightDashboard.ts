@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { ASSET } from "../../data/assetManifest";
 import {
   campaignFlightStyle,
+  FLIGHT_ART_SCALE,
   destinationIndicatorStyle,
   flightHudCopy,
   flightHudLayout,
@@ -193,7 +194,7 @@ export class FlightDashboard {
     const windsock = this.scene.textures.exists(ASSET.campaignWindsock)
       ? this.scene.add.image(arrowX, arrowY, ASSET.campaignWindsock, 0).setVisible(false)
       : undefined;
-    if (windsock) windsock.setScale(Math.max(1, Math.floor((height - 4) / 32)));
+    if (windsock) windsock.setScale(FLIGHT_ART_SCALE);
     const text = this.scene.add
       .text(Math.round(height + 2 * s), Math.round(height / 2), "", monoStyle({ size: Math.round(typeScale.sm * s), bold: true, color: colors.plaster }))
       .setOrigin(0, 0.5);
@@ -274,7 +275,7 @@ export class FlightDashboard {
     ];
     // Kit widgets take `uiScale` natively (crisp text sizes, pixel font snapped to its grid).
     const panelWidth = Math.round((compact ? layout.compactPanelWidth : layout.panelWidth) * s);
-    const panel = new HudPanel(scene, { x: margin, y: margin, width: panelWidth, title: flightHudCopy.title, icon: "radar", rows, fixed: true, uiScale: s });
+    const panel = new HudPanel(scene, { x: margin, y: margin, width: panelWidth, title: this.copy.title, icon: "radar", rows, fixed: true, uiScale: s });
     panel.setDepth(depth.hud);
     this.panel = panel;
 

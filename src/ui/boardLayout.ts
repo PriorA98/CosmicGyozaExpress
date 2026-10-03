@@ -24,7 +24,7 @@ export const BOARD_NODE_COUNT = BOARD_GRID.length;
 const COLUMN_X: readonly number[] = [280, 640, 1000];
 const ROW_Y: Readonly<Record<BoardLayoutKind, readonly [number, number]>> = {
   desktop: [204, 410],
-  compact: [168, 392],
+  compact: [184, 400],
 };
 
 /** Node centres in board order for a layout. */

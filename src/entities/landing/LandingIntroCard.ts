@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { landingCopy } from "../../data/landingCopy";
-import { LANDING_ART_SCALE, landingScenery } from "../../data/landingScenery";
+import { LANDING_ART_SCALE, campaignLandingScenery, landingScenery } from "../../data/landingScenery";
 import { colors, depth, fontStacks, typeScale } from "../../game/designTokens";
 import { ParchmentCard, monoStyle } from "../../ui";
 import { ensureLandingRabbitAnimations } from "./MoonRabbit";
@@ -13,7 +13,7 @@ import { ensureLandingRabbitAnimations } from "./MoonRabbit";
 export type LandingIntroCardContent = {
   readonly title: string;
   readonly subtitle: string;
-  /** Recipient portrait strip frame shown at 1x beside the text; null = text only (home). */
+  /** Recipient portrait strip frame shown at 2x beside the text; null = text only (home). */
   readonly portrait: { readonly key: string; readonly frame: number } | null;
 };
 
@@ -27,8 +27,8 @@ export class LandingIntroCard {
     this.scale = scale;
     const intro = landingScenery.intro;
     const art = LANDING_ART_SCALE;
-    const width = intro.cardWidth;
-    const height = intro.cardHeight;
+    const width = content === undefined ? intro.cardWidth : campaignLandingScenery.introCard.width;
+    const height = content === undefined ? intro.cardHeight : campaignLandingScenery.introCard.height;
     const left = -width / 2;
     const top = -height / 2;
     const pad = 18;
@@ -44,12 +44,13 @@ export class LandingIntroCard {
       figure.play(landingScenery.rabbit.waveAnimKey);
     } else if (content.portrait !== null) {
       figure = scene.add
-        .sprite(left + pad + 24, top + height - 14, content.portrait.key, content.portrait.frame)
+        .sprite(left + pad + campaignLandingScenery.introCard.figureWidth / 2, top + height - 14, content.portrait.key, content.portrait.frame)
         .setOrigin(0.5, 1)
-        .setScale(1);
+        .setScale(art);
     }
 
-    const textLeft = figure === undefined ? left + pad + 8 : left + pad + 48 + 16;
+    const textLeft = figure === undefined ? left + pad + 8 : left + pad + (content === undefined ? 48 : campaignLandingScenery.introCard.figureWidth) + 16;
+    const textWidth = width / 2 - pad - textLeft;
     const title = scene.add
       .text(textLeft, top + 22, content?.title ?? landingCopy.intro.title, {
         color: colors.ink,
@@ -58,9 +59,11 @@ export class LandingIntroCard {
         fontStyle: "700",
       })
       .setOrigin(0, 0);
+    if (content !== undefined) title.setWordWrapWidth(textWidth, true);
     const subtitle = scene.add
       .text(textLeft, title.y + title.height + 4, content?.subtitle ?? landingCopy.intro.subtitle, monoStyle({ size: typeScale.sm, color: colors.terracottaDeep, bold: true }))
       .setOrigin(0, 0);
+    if (content !== undefined) subtitle.setWordWrapWidth(textWidth, true);
 
     this.root = scene.add
       .container(Math.round(scene.scale.width / 2), Math.round(intro.cardTopPx + (height * scale) / 2), figure === undefined ? [card, title, subtitle] : [card, figure, title, subtitle])

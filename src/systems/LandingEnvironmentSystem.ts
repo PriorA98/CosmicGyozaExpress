@@ -138,6 +138,7 @@ export function rideLandingPad(offsetX: number, pad: LandingPadDefinition, tunin
 export type WindsockFrame = "calm" | "warning" | "medium" | "strong";
 
 export function windsockFrameFor(wind: LandingWindSample, peakMagnitude: number): WindsockFrame {
+  if (wind.exposure <= 0) return "calm";
   const magnitude = Math.hypot(wind.acceleration.x, wind.acceleration.y);
   if (magnitude <= 1e-6) return wind.phase === "warning" ? "warning" : "calm";
   const share = peakMagnitude > 0 ? magnitude / peakMagnitude : 1;
@@ -164,10 +165,11 @@ export function campaignLandingNote(input: {
 }): CampaignLandingNote | null {
   const { definition, wind } = input;
   if (definition.wind.kind === "gust") {
-    if (wind.phase === "warning") return "gustWarning";
     if (wind.exposure <= 0) return "landingCalm";
+    if (wind.phase === "warning") return "gustWarning";
+    if (wind.envelope > 0) return "landingTwist";
     if (input.clockMs < input.introNoteMs) return "landingIntro";
-    return wind.envelope > 0 ? "landingTwist" : null;
+    return null;
   }
   if (input.clockMs < input.introNoteMs) return "landingIntro";
   if (definition.wind.kind === "steady" || definition.padMotion.kind === "path") return "landingTwist";

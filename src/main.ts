@@ -6,6 +6,7 @@ import { installFxSettings } from "./fx/fxSettings";
 import { installAdaptiveCanvasInterpolation } from "./game/displayScale";
 import { gameConfig } from "./gameConfig";
 import { installAudioSystem } from "./systems/AudioSystem";
+import { installCampaignSaveListeners } from "./systems/SaveSystem";
 import { installSoundToast } from "./ui/SoundToast";
 import "./styles/tokens.css";
 import "./styles/base.css";
@@ -24,6 +25,7 @@ const devScenes: Phaser.Types.Scenes.SceneType[] = import.meta.env.DEV
 const baseScenes = Array.isArray(gameConfig.scene) ? gameConfig.scene : [];
 const game = new Phaser.Game({ ...gameConfig, scene: [...baseScenes, ...devScenes] });
 installAudioSystem(game);
+installCampaignSaveListeners(game);
 installAdaptiveCanvasInterpolation(game);
 // Syncs save.settings.reducedMotion (and the OS preference) into src/fx; re-syncs on settings:changed.
 installFxSettings(game);

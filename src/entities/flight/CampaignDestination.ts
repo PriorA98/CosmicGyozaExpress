@@ -3,24 +3,21 @@ import type { CampaignThemeDefinition } from "../../data/campaign/themes";
 import { FLIGHT_ART_SCALE, campaignFlightStyle } from "../../data/flightScenery";
 import { depth, motion } from "../../game/designTokens";
 import { isReducedMotion } from "../../fx/feedback";
-import { directionVector } from "../../systems/ShipMovementSystem";
-import type { FlightDestinationDefinition, FlightWorldBounds, Point } from "../../types/flight";
-import { destinationBodyCenter } from "./flightCueMath";
+import type { FlightDestinationDefinition, Point } from "../../types/flight";
 import { contractScale, ensurePixelHalo } from "./pixelArt";
 
 /**
  * Generic campaign destination body (Tea Moon keeps `TeaMoon`): the theme's 160x160 art at 2x with a
- * stepped breathing halo, sitting just beyond the arrival ring in the required bottom direction so the
- * ship docks bottom-toward the station exactly like the Tea Moon read.
+ * stepped breathing halo centered on the authored arrival ring.
  */
 export class CampaignDestination {
   readonly bodyCenter: Point;
   private readonly image: Phaser.GameObjects.Image;
   private readonly halo: Phaser.GameObjects.Image;
 
-  constructor(scene: Phaser.Scene, destination: FlightDestinationDefinition, theme: CampaignThemeDefinition, world: FlightWorldBounds) {
+  constructor(scene: Phaser.Scene, destination: FlightDestinationDefinition, theme: CampaignThemeDefinition) {
     const style = campaignFlightStyle.destination;
-    this.bodyCenter = destinationBodyCenter(destination, directionVector(destination.requiredBottomFacingRadians), style.halfSizePx, style.gapPx, world);
+    this.bodyCenter = { x: Math.round(destination.x / FLIGHT_ART_SCALE) * FLIGHT_ART_SCALE, y: Math.round(destination.y / FLIGHT_ART_SCALE) * FLIGHT_ART_SCALE };
 
     const haloKey = ensurePixelHalo(scene, {
       key: `flight-destination-halo-${theme.id}`,

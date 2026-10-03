@@ -1,7 +1,5 @@
 import Phaser from "phaser";
 import { ASSET, RABBIT_PORTRAIT_FRAME, SHIP_ART } from "../data/assetManifest";
-import { resolveMission } from "../data/campaign";
-import { themeFor } from "../data/campaign/themes";
 import { TEA_MOON_MISSION_ID, teaMoonMission } from "../data/missions";
 import { routeLogCopy, settingsCopy, titleCopy } from "../data/uiCopy";
 import { createDevSceneLauncherPanel, installDevSceneHotkeys } from "../dev/DevSceneLauncher";
@@ -11,16 +9,17 @@ import { playEnterTransition, transitionToScene } from "../fx/transitions";
 import { compactUiScale, isCompactDisplay } from "../game/displayScale";
 import { colorNumber, colors, depth, motion, typeScale } from "../game/designTokens";
 import { emitGameEvent } from "../game/events";
-import { isCampaignComplete, nextSuggestedMission, normalizeCampaignProgress, type CampaignProgress } from "../systems/CampaignSystem";
+import { nextSuggestedMission, normalizeCampaignProgress, type CampaignProgress } from "../systems/CampaignSystem";
 import { SaveSystem } from "../systems/SaveSystem";
 import type { MissionSelectSceneData } from "../types/campaign";
 import type { FlightSceneData } from "../types/flight";
 import { Button } from "../ui/Button";
+import { campaignRouteLog, titleDeliveryAction } from "../ui/campaignMenu";
 import { addUiIcon } from "../ui/icons";
 import { Keycap } from "../ui/Keycap";
 import { dotsAlongQuadratic, quadraticPoint, uiScaled, uiSecondaryTextSize, uiTextSize, type Point } from "../ui/layout";
 import { ParchmentCard } from "../ui/ParchmentCard";
-import { RouteLogPanel, type RouteLogPanelOptions, type RouteLogStat } from "../ui/RouteLogPanel";
+import { RouteLogPanel, type RouteLogStat } from "../ui/RouteLogPanel";
 import { SettingsPanel } from "../ui/SettingsPanel";
 import { installSoundToast } from "../ui/SoundToast";
 import { CollectedStamp, SaveNoticeChip } from "../ui/NoticeChips";
@@ -524,8 +523,7 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private get primaryLabel(): string {
-    if (!this.anyDelivered) return titleCopy.startButton;
-    return isCampaignComplete(this.progress) ? titleCopy.boardPrimaryButton : titleCopy.nextDeliveryButton(nextSuggestedMission(this.progress).shortTitle);
+    return titleDeliveryAction(this.progress).label;
   }
 
   private createActions(): void {
@@ -551,12 +549,12 @@ export class TitleScene extends Phaser.Scene {
     const ctaWidthPx = cta.buttonWidth;
     const gap = uiScaled(this.layout.secondaryGap, s);
     // With two secondary actions they split the CTA width exactly, so the column edges line up.
-    const pairWidth = Math.floor((ctaWidthPx - gap) / 2);
+    const pairWidth = this.anyDelivered ? Math.floor((ctaWidthPx - gap) / 2) : undefined;
     const settings = new Button(this, {
       x,
       y: rowY,
       label: titleCopy.settingsButton,
-      width: pairWidth,
+      ...(pairWidth === undefined ? {} : { width: pairWidth }),
       height: secondaryHeight,
       variant: "ink",
       icon: "settings",
@@ -568,13 +566,12 @@ export class TitleScene extends Phaser.Scene {
 
     if (!this.anyDelivered) {
       const board = new Button(this, {
-        x: x + ctaWidthPx - settings.buttonWidth,
+        x: x + settings.buttonWidth + gap,
         y: rowY,
         label: titleCopy.boardButton,
-        width: settings.buttonWidth,
+        width: Math.max(0, ctaWidthPx - settings.buttonWidth - gap),
         height: secondaryHeight,
         variant: "ink",
-        icon: "radar",
         uiScale: s,
         onActivate: () => this.openBoard(),
       });
@@ -846,8 +843,10 @@ export class TitleScene extends Phaser.Scene {
 
   private openRouteLog(): void {
     if (this.panelOpen || this.starting) return;
+    const { missionId, ...presentation } = campaignRouteLog(this.progress);
     this.routeLog = new RouteLogPanel(this, {
-      ...routeLogOptions(this.progress),
+      ...presentation,
+      stats: readRouteStats(missionId),
       uiScale: this.uiScale,
       onClose: () => {
         this.routeLog = undefined;
@@ -915,37 +914,6 @@ function readSaveNotice(): SaveNoticeKind | null {
   } catch {
     return null;
   }
-}
-
-/**
- * Route log contents: the furthest delivered stop is the headline entry (postcard + gentle stats);
- * with more than one delivery, a short history lists each stop and its recipient. Unknown ids were
- * already dropped by campaign normalization.
- */
-function routeLogOptions(progress: CampaignProgress): Omit<RouteLogPanelOptions, "uiScale" | "onClose"> {
-  const delivered = progress.completedMissions.map((id) => resolveMission(id));
-  const headline = delivered[delivered.length - 1] ?? resolveMission(TEA_MOON_MISSION_ID);
-  const legacyPostcard = headline.id === TEA_MOON_MISSION_ID;
-  const postcardFrame = themeFor(headline.themeId).postcardFrame;
-  const campaignCard = !legacyPostcard && postcardFrame !== null;
-  const options: Omit<RouteLogPanelOptions, "uiScale" | "onClose"> = {
-    copy: {
-      ...routeLogCopy,
-      entryTitle: legacyPostcard ? routeLogCopy.entryTitle : headline.shortTitle.toLowerCase(),
-      postcardCaption: routeLogCopy.captions[headline.id],
-    },
-    postcardKey: campaignCard ? ASSET.campaignPostcards : ASSET.memoryPostcard,
-    ...(campaignCard ? { postcardFrame } : {}),
-    stats: readRouteStats(headline.id),
-  };
-  if (delivered.length < 2) return options;
-  return {
-    ...options,
-    history: {
-      title: routeLogCopy.historyTitle,
-      entries: delivered.map((mission) => ({ title: mission.shortTitle, detail: mission.recipientName.split(",")[0] ?? mission.recipientName })),
-    },
-  };
 }
 
 function readRouteStats(missionId: string): RouteLogStat[] {

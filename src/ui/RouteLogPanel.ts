@@ -26,7 +26,7 @@ export type RouteLogPanelOptions = {
   readonly copy: RouteLogPanelCopy;
   /** Texture key of the collected postcard (96x64 art, shown at 2x). Missing art draws a stamp. */
   readonly postcardKey: string;
-  /** Frame inside `postcardKey` (sprite-sheet postcards); scaled by an integer to fill the frame. */
+  /** Frame inside `postcardKey` (campaign sprite-sheet postcards); keeps the authored 2x scale. */
   readonly postcardFrame?: number;
   /** Optional delivery history below the entry, two columns of short lines. Omitted: no list. */
   readonly history?: { readonly title: string; readonly entries: readonly RouteLogEntry[] };
@@ -106,8 +106,7 @@ export class RouteLogPanel {
     const cy = top + Math.round(frameHeight / 2);
     if (hasAuthoredTexture(scene, options.postcardKey) && options.postcardFrame !== undefined) {
       const image = scene.add.image(cx, cy, options.postcardKey, options.postcardFrame);
-      const fit = Math.floor(Math.min((frameWidth - framePad * 2) / Math.max(1, image.width), (frameHeight - framePad * 2) / Math.max(1, image.height)));
-      card.addContent(image.setScale(Math.max(1, fit)));
+      card.addContent(image.setScale(UI_ART_SCALE));
     } else if (hasAuthoredTexture(scene, options.postcardKey)) {
       card.addContent(scene.add.image(cx, cy, options.postcardKey).setScale(postcardScale));
     } else {

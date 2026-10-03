@@ -446,7 +446,8 @@ export const campaignLandingScenery = {
   flour: { count: 28, riseSpeedPx: 9, swayPx: 10, sizePx: 4, alpha: 0.6, topY: 90 },
   /** Light-gravity landings (gravity below this, px/s²) show floating flour specks. */
   lowGravityBelow: 120,
-  windIndicator: { topPx: 14, width: 150, height: 34 },
+  windIndicator: { topPx: 14, compactTopPx: 60, width: 178, height: 34 },
+  introCard: { width: 540, height: 164, figureWidth: 96 },
   /** Dashboard: the mission's landingIntro line shows for this long after descent starts. */
   introNoteMs: 3600,
   /** Below this altitude (px) fixed-pad landings show the mission's landingCalm line. */

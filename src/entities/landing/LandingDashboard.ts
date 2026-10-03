@@ -23,6 +23,8 @@ export type LandingDashboardOptions = {
   readonly scale: number;
   /** Panel title; omitted = the Tea Moon title. */
   readonly title?: string;
+  /** Campaign mechanics remain signposted on compact displays, too. */
+  readonly showNote?: boolean;
 };
 
 type ReadoutRowId = "descent" | "drift" | "tilt" | "altitude" | "pad";
@@ -61,7 +63,7 @@ export class LandingDashboard {
     const inset = config.backingInsetPx;
     backing.fillRect(inset, inset, width - inset * 2, this.panel.panelHeight - inset * 2);
     const children: Phaser.GameObjects.GameObject[] = [backing, this.panel];
-    if (!options.compact) {
+    if (!options.compact || options.showNote) {
       const tickerY = this.panel.panelHeight + config.tickerGap;
       backing.fillRect(inset, tickerY + inset, width - inset * 2, dashboardTickerHeight(config.tickerLines) - inset * 2);
       this.ticker = new DashboardTicker(scene, { x: 0, y: tickerY, width, maxLines: config.tickerLines });

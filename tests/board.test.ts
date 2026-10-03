@@ -48,6 +48,17 @@ describe("board layout", () => {
     }
   });
 
+  it("keeps compact node windows below the header and their labels above the details", () => {
+    const centres = boardNodeCentres("compact");
+    for (const centre of centres.slice(0, 3)) expect(centre.y - 96).toBeGreaterThanOrEqual(88);
+    for (const centre of centres.slice(3)) expect(centre.y + 90 + 30).toBeLessThanOrEqual(520);
+    // Each 168x192 logical node hit box exceeds 44 CSS px at 844x390 Scale.FIT.
+    const fit = Math.min(844 / 1280, 390 / 720);
+    expect(168 * fit).toBeGreaterThanOrEqual(44);
+    expect(192 * fit).toBeGreaterThanOrEqual(44);
+    expect(touchTargetPx(44, fit, 88) * fit).toBeGreaterThanOrEqual(44);
+  });
+
   it("pixel rings are whole-band rows inside the radius", () => {
     const rects = pixelRingRects(86, 4, 4);
     expect(rects.length).toBeGreaterThan(40);
@@ -113,6 +124,18 @@ describe("board navigation", () => {
     expect(initialBoardSelection(partial, 1)).toBe(1);
     expect(initialBoardSelection(partial, -1)).toBe(0);
     expect(BOARD_GRID).toHaveLength(6);
+  });
+
+  it("every arrow preserves a selectable destination across every progress combination", () => {
+    for (let mask = 0; mask < 64; mask += 1) {
+      const currentStates = states(MISSION_IDS.filter((_id, index) => (mask & (1 << index)) !== 0));
+      currentStates.forEach((state, index) => {
+        if (state === "locked") return;
+        for (const move of ["left", "right", "up", "down", "next", "previous"] as const) {
+          expect(currentStates[navigateBoard(currentStates, index, move)]).not.toBe("locked");
+        }
+      });
+    }
   });
 });
 

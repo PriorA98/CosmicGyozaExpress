@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { CAMPAIGN_WINDSOCK_FRAME } from "../../data/assetManifest";
+import { CAMPAIGN_PORTRAIT_FRAME, CAMPAIGN_WINDSOCK_FRAME } from "../../data/assetManifest";
 import type { CampaignThemeDefinition } from "../../data/campaign/themes";
 import { campaignLandingCopy } from "../../data/landingCopy";
 import { campaignLandingDecor, campaignLandingScenery, LANDING_ART_SCALE } from "../../data/landingScenery";
@@ -88,7 +88,7 @@ export class CampaignLandingScenery implements LandingGreeter {
     this.greeterBaseY = config.groundTopY + CELL * 2;
     if (this.theme.portraitTexture !== null) {
       this.greeter = scene.add
-        .sprite(x, this.greeterBaseY, this.theme.portraitTexture, recipient.frameIdle)
+        .sprite(x, this.greeterBaseY, this.theme.portraitTexture, CAMPAIGN_PORTRAIT_FRAME.idle)
         .setOrigin(0.5, 1)
         .setScale(CELL)
         .setFlipX(x > options.definition.pad.centerX)
@@ -117,7 +117,7 @@ export class CampaignLandingScenery implements LandingGreeter {
     this.waveTimer = undefined;
     if (!this.greeter) return;
     this.scene.tweens.killTweensOf(this.greeter);
-    this.greeter.setFrame(campaignLandingScenery.recipient.frameIdle).setY(this.greeterBaseY);
+    this.greeter.setFrame(CAMPAIGN_PORTRAIT_FRAME.idle).setY(this.greeterBaseY);
   }
 
   wave(): void {
@@ -126,13 +126,13 @@ export class CampaignLandingScenery implements LandingGreeter {
     const recipient = campaignLandingScenery.recipient;
     this.waveTimer?.remove();
     let swaps = 0;
-    greeter.setFrame(recipient.frameWelcome);
+    greeter.setFrame(CAMPAIGN_PORTRAIT_FRAME.welcome);
     this.waveTimer = this.scene.time.addEvent({
       delay: recipient.waveStepMs,
       repeat: recipient.waveSwaps * 2 - 1,
       callback: () => {
         swaps += 1;
-        greeter.setFrame(swaps % 2 === 0 ? recipient.frameWelcome : recipient.frameIdle);
+        greeter.setFrame(swaps % 2 === 0 ? CAMPAIGN_PORTRAIT_FRAME.welcome : CAMPAIGN_PORTRAIT_FRAME.idle);
       },
     });
   }
@@ -159,6 +159,8 @@ export class CampaignLandingScenery implements LandingGreeter {
     const { palette } = this.theme;
     const bands = campaignLandingScenery.skyBands;
     const g = this.track(this.scene.add.graphics().setDepth(depth.backdrop).setScrollFactor(0));
+    g.fillStyle(colorNumber(palette.skyTop), 1);
+    g.fillRect(0, -riseAbovePx, VIEW_WIDTH, riseAbovePx);
     const bandHeight = Math.ceil(VIEW_HEIGHT / bands / CELL) * CELL;
     for (let i = 0; i < bands; i += 1) {
       g.fillStyle(mixHex(palette.skyTop, palette.skyBottom, i / (bands - 1)), 1);

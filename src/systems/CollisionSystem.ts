@@ -139,10 +139,15 @@ export function resolveMovingCollision(
   const relativeY = state.velocityY - obstacleVelocity.y;
   const relativeSpeed = vectorLength(relativeX, relativeY);
   const severity = classifyCollision(relativeSpeed, tuning);
-  const relative = resolveCircleCollision(
-    { ...state, velocityX: relativeX, velocityY: relativeY },
+  const relativeState = { ...state, velocityX: relativeX, velocityY: relativeY };
+  const relative = severity === "none" ? {
+    ...relativeState,
+    x: state.x + contact.normalX * (contact.overlap + tuning.separationPadding),
+    y: state.y + contact.normalY * (contact.overlap + tuning.separationPadding),
+  } : resolveCircleCollision(
+    relativeState,
     contact,
-    severity === "none" ? "soft-bump" : severity,
+    severity,
     tuning,
   );
   return {
@@ -150,4 +155,35 @@ export function resolveMovingCollision(
     severity,
     relativeSpeed,
   };
+}
+
+/** Sweeps the relative ship/rock segment; a crossing contact separates back to its entry side. */
+export function sweptMovingContact(
+  previousShip: { readonly x: number; readonly y: number },
+  currentShip: { readonly x: number; readonly y: number },
+  shipRadius: number,
+  previousObstacle: { readonly x: number; readonly y: number },
+  obstacle: StaticObstacleDefinition,
+): CollisionContact | undefined {
+  const overlap = detectCircleCollision({ ...currentShip, radius: shipRadius }, obstacle);
+  if (overlap) return overlap;
+  const sx = previousShip.x - previousObstacle.x;
+  const sy = previousShip.y - previousObstacle.y;
+  const ex = currentShip.x - obstacle.x;
+  const ey = currentShip.y - obstacle.y;
+  const dx = ex - sx;
+  const dy = ey - sy;
+  const radius = shipRadius + obstacle.radius;
+  const a = dx * dx + dy * dy;
+  const c = sx * sx + sy * sy - radius * radius;
+  // Already inside and leaving is separation, not a new impact.
+  if (a <= 1e-9 || c < 0) return undefined;
+  const b = 2 * (sx * dx + sy * dy);
+  const discriminant = b * b - 4 * a * c;
+  if (discriminant <= 0) return undefined;
+  const t = (-b - Math.sqrt(discriminant)) / (2 * a);
+  if (t < 0 || t > 1) return undefined;
+  const nx = (sx + dx * t) / radius;
+  const ny = (sy + dy * t) / radius;
+  return { obstacleId: obstacle.id, normalX: nx, normalY: ny, overlap: Math.max(0, radius - ex * nx - ey * ny), distance: radius };
 }

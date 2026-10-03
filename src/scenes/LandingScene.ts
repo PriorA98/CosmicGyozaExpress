@@ -1,12 +1,17 @@
 import Phaser from "phaser";
-import { ASSET } from "../data/assetManifest";
-import { LANDING_ART_SCALE, landingCopy, landingScenery, landingZoneColors } from "../data/landingScenery";
-import { landingTuning } from "../data/landingTuning";
+import { ASSET, CAMPAIGN_PORTRAIT_FRAME } from "../data/assetManifest";
+import { landingForMission, resolveMission } from "../data/campaign";
+import { themeFor } from "../data/campaign/themes";
+import { campaignLandingCopy } from "../data/landingCopy";
+import { LANDING_ART_SCALE, campaignLandingScenery, landingCopy, landingScenery, landingZoneColors } from "../data/landingScenery";
 import { TEA_MOON_MISSION_ID } from "../data/missions";
 import { installDevSceneHotkeys } from "../dev/DevSceneLauncher";
 import { registerDevState } from "../dev/devProbe";
 import { GyozaShip, rotationCellIndex } from "../entities/GyozaShip";
 import { LandingAids } from "../entities/landing/LandingAids";
+import { CampaignBerth } from "../entities/landing/CampaignBerth";
+import { CampaignLandingScenery, type LandingGreeter } from "../entities/landing/CampaignLandingScenery";
+import { LandingWindIndicator } from "../entities/landing/LandingWindIndicator";
 import { showLandingCaption } from "../entities/landing/LandingCaption";
 import { createLandingControlsHint, LandingDashboard } from "../entities/landing/LandingDashboard";
 import { LandingIntroCard } from "../entities/landing/LandingIntroCard";
@@ -40,16 +45,23 @@ import { emitGameEvent } from "../game/events";
 import { Button } from "../ui";
 import {
   classifyLandingIncident,
-  classifyLandingTouchdown,
   createLandingState,
-  createTeaMoonLandingPad,
   integrateLandingMovement,
   padAlignment,
   pinStateToLandingPad,
-  readLandingZone,
   type LandingPadAlignment,
   type LandingZoneReading,
 } from "../systems/LandingSystem";
+import {
+  acceptedPadOffset,
+  campaignLandingNote,
+  classifyPadTouchdown,
+  landingContactState,
+  readPadLandingZone,
+  rideLandingPad,
+  sampleLandingEnvironment,
+} from "../systems/LandingEnvironmentSystem";
+import type { GustPhase } from "../types/campaign";
 import { applyPackageConditionEvent, packageConditionLabel } from "../systems/PackageConditionSystem";
 import { bottomVector } from "../systems/ShipMovementSystem";
 import type { ShipKinematicState } from "../types/flight";
@@ -88,6 +100,7 @@ type HudLayer = {
   /** Touch layouts only: the parchment retry chip (keyboard players have R). */
   readonly retryChip: Button | undefined;
   readonly uiScale: number;
+  readonly wind: LandingWindIndicator | undefined;
 };
 
 const NO_CONTROLS: LandingControls = { thrust: false, rotateLeft: false, rotateRight: false, stabilizer: false };
@@ -99,6 +112,14 @@ const FLY_ROT_FRAMES = [ASSET.shipFly1Rot, ASSET.shipFly2Rot, ASSET.shipFly3Rot]
 const TRAIL_DEPTH = depth.ship - 1;
 
 export class LandingScene extends Phaser.Scene {
+  private mission = resolveMission(TEA_MOON_MISSION_ID);
+  private definition = landingForMission(TEA_MOON_MISSION_ID);
+  private theme = themeFor(this.definition.themeId);
+  private environment = sampleLandingEnvironment(this.definition, createLandingState(this.definition.tuning), 0);
+  private landingClockMs = 0;
+  private gustPhase: GustPhase | undefined;
+  private acceptedOffsetX = 0;
+  private lastCampaignHudMs = Number.NEGATIVE_INFINITY;
   private sceneData: LandingSceneData = {
     missionId: TEA_MOON_MISSION_ID,
     packageCondition: 100,
@@ -108,9 +129,9 @@ export class LandingScene extends Phaser.Scene {
   private keys: LandingKeys | undefined;
   private ship!: GyozaShip;
   private shipLayout!: ShipDisplayLayout;
-  private scenery!: LunarScenery;
-  private padSite!: LandingPadSite;
-  private rabbit!: MoonRabbit;
+  private scenery!: LunarScenery | CampaignLandingScenery;
+  private padSite!: LandingPadSite | CampaignBerth;
+  private rabbit!: LandingGreeter;
   private aids!: LandingAids;
   private hud: HudLayer | undefined;
   private touchLayout = false;
@@ -120,10 +141,10 @@ export class LandingScene extends Phaser.Scene {
   private thrustTrail!: ThrustTrail;
   private caption: Phaser.GameObjects.Container | undefined;
   private introCard: LandingIntroCard | undefined;
-  private pad: LandingPadDefinition = createTeaMoonLandingPad();
+  private pad: LandingPadDefinition = this.definition.pad;
   /** Where feet and the contact shadow visually rest on the blanket's top face. */
   private contactY = 0;
-  private landingState: LandingKinematicState = createLandingState();
+  private landingState: LandingKinematicState = createLandingState(this.definition.tuning);
   private phase: LandingPhase = { kind: "intro" };
   private reading!: LandingZoneReading;
   private alignment!: LandingPadAlignment;
@@ -151,9 +172,12 @@ export class LandingScene extends Phaser.Scene {
   }
 
   init(data: Partial<LandingSceneInit>): void {
+    this.mission = resolveMission(data.missionId);
+    this.definition = landingForMission(data.missionId);
+    this.theme = themeFor(this.definition.themeId);
     this.startOverride = data.start;
     this.sceneData = {
-      missionId: data.missionId ?? TEA_MOON_MISSION_ID,
+      missionId: this.mission.id,
       packageCondition: data.packageCondition ?? 100,
       routeCrashes: data.routeCrashes ?? 0,
       routeDurationMs: data.routeDurationMs ?? 0,
@@ -164,9 +188,15 @@ export class LandingScene extends Phaser.Scene {
     emitGameEvent(this, { type: "scene:enter", scene: "LandingScene" });
 
     this.packageCondition = this.sceneData.packageCondition;
-    this.pad = createTeaMoonLandingPad();
-    this.contactY = this.pad.surfaceY + (landingScenery.pad.contactRowArtPx - landingScenery.pad.surfaceRowArtPx) * CELL;
-    this.landingState = this.startOverride ?? createLandingState();
+    this.landingClockMs = 0;
+    this.gustPhase = undefined;
+    this.acceptedOffsetX = 0;
+    this.lastCampaignHudMs = Number.NEGATIVE_INFINITY;
+    this.landingState = this.startOverride ?? createLandingState(this.definition.tuning);
+    this.environment = sampleLandingEnvironment(this.definition, this.landingState, this.landingClockMs);
+    this.pad = this.environment.pad.pad;
+    const padArt = this.theme.legacy ? landingScenery.pad : campaignLandingScenery.berth;
+    this.contactY = this.pad.surfaceY + (padArt.contactRowArtPx - padArt.surfaceRowArtPx) * CELL;
     this.delivered = false;
     this.landingIncidents = 0;
     this.thrustHeld = false;
@@ -190,11 +220,20 @@ export class LandingScene extends Phaser.Scene {
     this.computePlayBounds();
     this.refreshReadings();
 
-    this.scenery = new LunarScenery(this, { surfaceY: this.pad.surfaceY, touchLayout: this.touchLayout });
-    this.padSite = new LandingPadSite(this, this.pad);
-    const rabbitConfig = landingScenery.rabbit;
-    this.rabbit = new MoonRabbit(this, this.pad.surfaceY, this.touchLayout ? rabbitConfig.touchX : rabbitConfig.x);
-    this.aids = new LandingAids(this, this.pad, this.contactY);
+    if (this.theme.legacy) {
+      this.scenery = new LunarScenery(this, { surfaceY: this.pad.surfaceY, touchLayout: this.touchLayout });
+      this.padSite = new LandingPadSite(this, this.pad);
+      const rabbitConfig = landingScenery.rabbit;
+      this.rabbit = new MoonRabbit(this, this.pad.surfaceY, this.touchLayout ? rabbitConfig.touchX : rabbitConfig.x);
+    } else {
+      const scenery = new CampaignLandingScenery(this, {
+        definition: this.definition, theme: this.theme, touchLayout: this.touchLayout, riseAbovePx: landingScenery.intro.risePx,
+      });
+      this.scenery = scenery;
+      this.rabbit = scenery;
+      this.padSite = new CampaignBerth(this, this.pad, this.theme);
+    }
+    this.aids = new LandingAids(this, this.pad, this.contactY, this.definition.tuning);
 
     this.shipLayout = resolveShipLayout(this, landingScenery.ship.fallbackFootRatio);
     this.ship = new GyozaShip(this, this.toShipState(this.landingState));
@@ -230,7 +269,14 @@ export class LandingScene extends Phaser.Scene {
     registerDevState("landing", () => ({
       state: this.landingState,
       phase: this.phase,
-      pad: this.pad,
+      missionId: this.mission.id,
+      pad: { ...this.pad, velocityX: this.environment.pad.velocity.x },
+      wind: { ax: this.environment.wind.acceleration.x, ay: this.environment.wind.acceleration.y, phase: this.environment.wind.phase, exposure: this.environment.wind.exposure },
+      tuning: {
+        gravity: this.definition.tuning.gravityAcceleration, thruster: this.definition.tuning.thrusterAcceleration,
+        safeVerticalSpeed: this.definition.tuning.safeVerticalSpeed, safeHorizontalSpeed: this.definition.tuning.safeHorizontalSpeed,
+        safeAngleDegrees: this.definition.tuning.safeAngleDegrees, shipRadius: this.definition.tuning.shipRadius,
+      },
       packageCondition: this.packageCondition,
       landingIncidents: this.landingIncidents,
       zone: this.reading,
@@ -246,11 +292,13 @@ export class LandingScene extends Phaser.Scene {
 
     if (this.phase.kind === "intro") this.startArrivalIntro();
     else this.updateShipVisual();
+    this.sampleEnvironment();
     this.updateDashboard();
+    if (!this.theme.legacy) this.rabbit.wave();
   }
 
   override update(time: number, delta: number): void {
-    const deltaSeconds = clamp(delta / 1000, 0, landingTuning.maxDeltaSeconds);
+    const deltaSeconds = clamp(delta / 1000, 0, this.definition.tuning.maxDeltaSeconds);
     this.controls = this.readControls();
 
     if (this.keys && Phaser.Input.Keyboard.JustDown(this.keys.R)) this.requestRetry();
@@ -268,6 +316,7 @@ export class LandingScene extends Phaser.Scene {
         this.updateDescent(time, deltaSeconds);
         break;
       case "settling":
+        this.landingClockMs += deltaSeconds * 1000;
         this.updateSettling(time);
         break;
       case "incident":
@@ -278,7 +327,8 @@ export class LandingScene extends Phaser.Scene {
     }
 
     this.updateThrustTrail();
-    this.scenery.update(this.ship.x);
+    if (this.scenery instanceof LunarScenery) this.scenery.update(this.ship.x);
+    else this.scenery.update(time, this.landingClockMs, this.environment.wind);
     this.updateDashboard();
   }
 
@@ -315,7 +365,11 @@ export class LandingScene extends Phaser.Scene {
     }
     this.updateShipVisual();
 
-    const card = new LandingIntroCard(this, this.hudScale());
+    const card = new LandingIntroCard(this, this.hudScale(), this.theme.legacy ? undefined : {
+      title: this.mission.title + campaignLandingCopy.titleSuffix,
+      subtitle: this.theme.portraitTexture === null ? campaignLandingCopy.homeSubtitle : this.mission.recipientName + campaignLandingCopy.wavingSuffix,
+      portrait: this.theme.portraitTexture === null ? null : { key: this.theme.portraitTexture, frame: CAMPAIGN_PORTRAIT_FRAME.welcome },
+    });
     this.introCard = card;
     this.time.delayedCall(intro.cardDelayMs, () => {
       if (this.introCard === card) card.playIn();
@@ -371,8 +425,23 @@ export class LandingScene extends Phaser.Scene {
 
   // --- Phases -------------------------------------------------------------------------------
 
+  /** One environment sample drives contact, berth position, wind physics, and the visible cues. */
+  private sampleEnvironment(): void {
+    this.environment = sampleLandingEnvironment(this.definition, this.landingState, this.landingClockMs);
+    this.pad = this.environment.pad.pad;
+    this.aids.setPad(this.pad);
+    if (this.padSite instanceof CampaignBerth) this.padSite.setCenterX(this.pad.centerX);
+    if (this.definition.wind.kind === "gust" && this.gustPhase !== this.environment.wind.phase) {
+      this.gustPhase = this.environment.wind.phase;
+      emitGameEvent(this, { type: "landing:gust-phase", phase: this.gustPhase });
+    }
+  }
+
   private updateDescent(time: number, deltaSeconds: number): void {
-    this.landingState = integrateLandingMovement(this.landingState, this.controls, deltaSeconds);
+    this.landingClockMs += deltaSeconds * 1000;
+    this.sampleEnvironment();
+    this.landingState = integrateLandingMovement(this.landingState, this.controls, deltaSeconds, this.definition.tuning,
+      this.definition.collisionModel === "legacy-horizontal" ? undefined : this.environment.wind.acceleration);
     this.keepShipInsideView();
     this.refreshReadings();
     this.thrustPower = stepThrustPower(this.thrustPower, this.controls.thrust, deltaSeconds, landingScenery.thrust);
@@ -382,7 +451,7 @@ export class LandingScene extends Phaser.Scene {
     this.aids.update({
       shipX: this.ship.x,
       shipY: this.ship.y,
-      feetY: this.landingState.y + landingTuning.shipRadius,
+      feetY: this.landingState.y + this.definition.tuning.shipRadius,
       rotation: this.ship.visualRotation,
       reading: this.reading,
       readouts: this.readouts,
@@ -396,17 +465,18 @@ export class LandingScene extends Phaser.Scene {
   }
 
   private handleTouchdown(time: number): void {
-    const touchdown = classifyLandingTouchdown(this.landingState, this.pad);
+    const touchdown = classifyPadTouchdown(this.definition.collisionModel, this.landingState, this.environment.pad, this.definition.tuning);
     if (touchdown.kind === "none") return;
 
     // Freeze the readouts at the touchdown speed so the HUD and the caption agree with what happened.
-    const snapshot = buildLandingReadouts(this.reading, this.landingState.velocityX, this.landingState.velocityY);
+    const contact = landingContactState(this.definition.collisionModel, this.landingState, this.environment.pad);
+    const snapshot = buildLandingReadouts(this.reading, contact.velocityX, contact.velocityY, undefined, this.definition.tuning);
     this.readouts = snapshot;
-    this.touchdownSpeed = Math.abs(this.landingState.velocityY);
+    this.touchdownSpeed = Math.abs(contact.velocityY);
     this.cutThrust();
 
     if (touchdown.kind === "incident") {
-      const incidentKind = classifyLandingIncident(touchdown);
+      const incidentKind = classifyLandingIncident(touchdown, this.definition.tuning);
       this.packageCondition = applyPackageConditionEvent(this.packageCondition, "landing-incident");
       this.landingIncidents += 1;
       this.phase = { kind: "incident", startedAtMs: time, incidentKind };
@@ -420,8 +490,9 @@ export class LandingScene extends Phaser.Scene {
       this.packageCondition = applyPackageConditionEvent(this.packageCondition, "bumpy-landing");
     }
     this.settleTilt.value = this.landingState.rotation;
-    this.landingState = pinStateToLandingPad(this.landingState, this.pad);
-    this.reading = readLandingZone(this.landingState, this.pad);
+    this.acceptedOffsetX = acceptedPadOffset(this.landingState, this.pad);
+    this.landingState = pinStateToLandingPad(this.landingState, this.pad, this.definition.tuning);
+    this.reading = readPadLandingZone(this.definition.collisionModel, this.landingState, this.environment.pad, this.definition.tuning);
     this.alignment = padAlignment(this.landingState, this.pad);
     this.phase = { kind: "settling", startedAtMs: time, result: touchdown.kind };
     this.readouts = buildSettledReadouts(snapshot);
@@ -432,9 +503,13 @@ export class LandingScene extends Phaser.Scene {
   private updateSettling(time: number): void {
     if (this.phase.kind !== "settling") return;
 
+    if (!this.theme.legacy) this.sampleEnvironment();
+    if (this.definition.padMotion.kind === "path") {
+      this.landingState = rideLandingPad(this.acceptedOffsetX, this.pad, this.definition.tuning);
+    }
     this.updateShipVisual();
-    this.aids.updateShadowOnly(this.landingState.x, this.landingState.y + landingTuning.shipRadius);
-    if (time - this.phase.startedAtMs < landingTuning.settleDurationMs || this.delivered) return;
+    this.aids.updateShadowOnly(this.landingState.x, this.landingState.y + this.definition.tuning.shipRadius);
+    if (time - this.phase.startedAtMs < this.definition.tuning.settleDurationMs || this.delivered) return;
 
     this.delivered = true;
     const result = this.phase.result;
@@ -455,7 +530,7 @@ export class LandingScene extends Phaser.Scene {
     }
     this.aids.updateShadowOnly(this.ship.x, this.ship.y + this.shipLayout.footPx);
 
-    if (elapsed >= landingTuning.incidentRestartMs) {
+    if (elapsed >= this.definition.tuning.incidentRestartMs) {
       this.restartLandingAttempt();
     }
   }
@@ -472,7 +547,10 @@ export class LandingScene extends Phaser.Scene {
     this.caption?.destroy();
     this.caption = undefined;
 
-    this.landingState = createLandingState();
+    this.landingState = createLandingState(this.definition.tuning);
+    this.landingClockMs = 0;
+    this.gustPhase = undefined;
+    this.sampleEnvironment();
     this.phase = { kind: "descending" };
     this.dip.value = 0;
     this.settleTilt.value = 0;
@@ -484,12 +562,17 @@ export class LandingScene extends Phaser.Scene {
 
     this.padSite.reset();
     this.rabbit.idle();
+    if (!this.theme.legacy) this.rabbit.wave();
     this.aids.show();
     this.updateShipVisual();
     this.ship.setVisible(true).setAlpha(0);
     this.tweens.add({ targets: this.ship, alpha: 1, duration: motion.slow, ease: "Sine.easeOut" });
 
     emitGameEvent(this, { type: "landing:retry" });
+    if (!this.theme.legacy) {
+      this.lastCampaignHudMs = Number.NEGATIVE_INFINITY;
+      this.updateDashboard(true);
+    }
   }
 
   // --- Touchdown + incident presentation ----------------------------------------------------
@@ -512,7 +595,7 @@ export class LandingScene extends Phaser.Scene {
     // Dust puffs out sideways from under the feet, behind the hull, so the hero pose stays clear; the
     // gentler the touchdown, the smaller the puff. Only a bumpy landing kicks a few puffs in front.
     const dust = dustConfig[result];
-    const speedShare = clamp(this.touchdownSpeed / landingTuning.bumpyVerticalSpeed, 0, 1);
+    const speedShare = clamp(this.touchdownSpeed / this.definition.tuning.bumpyVerticalSpeed, 0, 1);
     const perSide = Math.round(Phaser.Math.Linear(dust.minCountPerSide, dust.maxCountPerSide, speedShare));
     for (const side of [-1, 1] as const) {
       burstDust(this, x + side * dust.footSpreadPx, this.contactY - CELL, {
@@ -561,7 +644,7 @@ export class LandingScene extends Phaser.Scene {
     this.caption = showLandingCaption(this, {
       x,
       y: this.captionY(),
-      title: landingCopy.touchdown[result],
+      title: this.theme.legacy ? landingCopy.touchdown[result] : this.mission.landingLines[result],
       subtitle: `${landingCopy.touchdownSpeedLabel} ${descent.number} ${descent.unit} · ${landingCopy.rows.package} ${this.packageWord()}`,
       accent: landingZoneColors[result],
       scale: this.hudScale(),
@@ -587,9 +670,9 @@ export class LandingScene extends Phaser.Scene {
       x: impactX,
       y: this.captionY(),
       title: landingCopy.incidentTitle,
-      subtitle: landingCopy.incidentNotes[kind],
+      subtitle: this.theme.legacy ? landingCopy.incidentNotes[kind] : campaignLandingCopy.incidentNotes[kind],
       accent: colors.brick,
-      progressMs: landingTuning.incidentRestartMs,
+      progressMs: this.definition.tuning.incidentRestartMs,
       scale: this.hudScale(),
     });
 
@@ -832,11 +915,16 @@ export class LandingScene extends Phaser.Scene {
 
   private buildHud(): void {
     const uiScale = this.hudScale();
-    const dashboard = new LandingDashboard(this, { compact: isCompactDisplay(this), scale: uiScale });
+    const dashboard = new LandingDashboard(this, {
+      compact: isCompactDisplay(this), scale: uiScale,
+      title: this.theme.legacy ? undefined : this.mission.shortTitle.toLowerCase() + campaignLandingCopy.titleSuffix,
+      showNote: !this.theme.legacy,
+    });
     const touchPads = this.touchLayout ? new LandingTouchPads(this, compactUiScale(this)) : undefined;
     const hint = this.touchLayout ? undefined : createLandingControlsHint(this, uiScale, isCompactDisplay(this) ? "top-right" : "bottom");
     const retryChip = this.touchLayout ? this.createRetryChip(compactUiScale(this)) : undefined;
-    this.hud = { dashboard, hint, touchPads, retryChip, uiScale };
+    const wind = this.theme.legacy || this.definition.wind.kind === "none" ? undefined : new LandingWindIndicator(this, this.definition.wind, uiScale, isCompactDisplay(this));
+    this.hud = { dashboard, hint, touchPads, retryChip, uiScale, wind };
     this.aids.setUiScale(compactUiScale(this));
     if (this.phase.kind === "intro") this.setHudAlpha(0);
   }
@@ -869,6 +957,7 @@ export class LandingScene extends Phaser.Scene {
     hud.hint?.destroy();
     hud.touchPads?.destroy();
     hud.retryChip?.destroy();
+    hud.wind?.destroy();
     this.hud = undefined;
     this.buildHud();
     this.updateDashboard();
@@ -881,6 +970,7 @@ export class LandingScene extends Phaser.Scene {
     hud.hint?.setAlpha(alpha);
     hud.touchPads?.setAlpha(alpha);
     hud.retryChip?.setAlpha(alpha);
+    hud.wind?.setAlpha(alpha);
   }
 
   private fadeHudIn(durationMs: number): void {
@@ -895,9 +985,14 @@ export class LandingScene extends Phaser.Scene {
     });
   }
 
-  private updateDashboard(): void {
+  private updateDashboard(immediateNote = false): void {
     const hud = this.hud;
     if (!hud) return;
+    if (!this.theme.legacy) {
+      if (this.time.now - this.lastCampaignHudMs < 100) return;
+      this.lastCampaignHudMs = this.time.now;
+      hud.wind?.update(this.environment.wind);
+    }
     const readouts = this.readouts;
     hud.dashboard.update(
       {
@@ -910,7 +1005,7 @@ export class LandingScene extends Phaser.Scene {
         note: this.dashboardNote(),
       },
       this.time.now,
-      this.phase.kind !== "descending",
+      immediateNote || this.phase.kind !== "descending",
     );
   }
 
@@ -920,6 +1015,17 @@ export class LandingScene extends Phaser.Scene {
   }
 
   private dashboardNote(): string {
+    if (!this.theme.legacy) {
+      if (this.phase.kind === "incident") return campaignLandingCopy.incidentNotes[this.phase.incidentKind];
+      if (this.phase.kind === "settling" || this.phase.kind === "delivered") return this.mission.dashboard.afterTouchdown;
+      if (this.phase.kind === "intro") return this.mission.dashboard.landingIntro;
+      const note = campaignLandingNote({
+        definition: this.definition, clockMs: this.landingClockMs, wind: this.environment.wind, altitude: this.reading.altitude,
+        introNoteMs: campaignLandingScenery.introNoteMs, calmAltitude: campaignLandingScenery.calmNoteAltitude,
+      });
+      if (note !== null) return this.mission.dashboard[note];
+      return this.alignment.onPad ? this.mission.dashboard.landingCalm : campaignLandingCopy.notes.offPad;
+    }
     const notes = landingCopy.notes;
     const hud = landingScenery.hud;
     switch (this.phase.kind) {
@@ -937,7 +1043,7 @@ export class LandingScene extends Phaser.Scene {
     if (!this.alignment.onPad) return notes.offPad;
     if (this.controls.stabilizer) return notes.stabilizing;
     if (this.controls.thrust) return notes.thrusting;
-    if (this.reading.angleDegrees > landingTuning.safeAngleDegrees * hud.tiltNoteRatio) return notes.tilted;
+    if (this.reading.angleDegrees > this.definition.tuning.safeAngleDegrees * hud.tiltNoteRatio) return notes.tilted;
     return notes.descendingIdle;
   }
 
@@ -968,14 +1074,15 @@ export class LandingScene extends Phaser.Scene {
 
   /** One reading per frame; the HUD and the in-world gauge both format from this same object. */
   private refreshReadings(): void {
-    this.reading = readLandingZone(this.landingState, this.pad);
+    const contact = landingContactState(this.definition.collisionModel, this.landingState, this.environment.pad);
+    this.reading = readPadLandingZone(this.definition.collisionModel, this.landingState, this.environment.pad, this.definition.tuning);
     this.alignment = padAlignment(this.landingState, this.pad);
-    this.readouts = buildLandingReadouts(this.reading, this.landingState.velocityX, this.landingState.velocityY);
+    this.readouts = buildLandingReadouts(this.reading, contact.velocityX, contact.velocityY, undefined, this.definition.tuning);
   }
 
   /** On touch layouts the ship never flies (or crashes) underneath the tile columns. */
   private computePlayBounds(): void {
-    const radius = landingTuning.shipRadius;
+    const radius = this.definition.tuning.shipRadius;
     this.playMinX = radius;
     this.playMaxX = this.scale.width - radius;
     if (!this.touchLayout) return;
@@ -985,7 +1092,7 @@ export class LandingScene extends Phaser.Scene {
   }
 
   private keepShipInsideView(): void {
-    const radius = landingTuning.shipRadius;
+    const radius = this.definition.tuning.shipRadius;
     const state = this.landingState;
     const x = clamp(state.x, this.playMinX, this.playMaxX);
     const y = clamp(state.y, radius, this.pad.surfaceY - radius + 18);
@@ -1009,7 +1116,7 @@ export class LandingScene extends Phaser.Scene {
     const footPx = this.shipLayout.footPx;
     const rotation = this.landingState.rotation + this.settleTilt.value;
     const bottom = bottomVector(rotation);
-    const centerOffset = landingTuning.shipRadius + (this.contactY - this.pad.surfaceY) - footPx;
+    const centerOffset = this.definition.tuning.shipRadius + (this.contactY - this.pad.surfaceY) - footPx;
     const dip = Math.round(this.dip.value / CELL) * CELL;
 
     this.ship.setKinematicState(

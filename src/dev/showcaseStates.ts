@@ -462,6 +462,7 @@ export const SHOWCASE_STATES: readonly ShowcaseStateDefinition[] = [
     description: "I'm Fine landing: gusts up high, porch shelter below",
     settleMs: 3400,
     save: "campaign-all-unlocked",
+    hold: ["KeyW"],
     data: missionLanding("im-fine", { packageCondition: 90, start: descent("im-fine") }),
   },
   {

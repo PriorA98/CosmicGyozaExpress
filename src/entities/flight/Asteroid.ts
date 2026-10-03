@@ -35,11 +35,11 @@ export class Asteroid {
     private readonly obstacle: StaticObstacleDefinition,
     private readonly visual: AsteroidVisualDefinition | undefined,
     index: number,
+    textureKey: string = visual?.textureKey ?? asteroidArt.fallbackTextureKey,
   ) {
     this.id = obstacle.id;
     this.baseX = obstacle.x;
     this.baseY = obstacle.y;
-    const textureKey = visual?.textureKey ?? asteroidArt.fallbackTextureKey;
     const legacyScale = (obstacle.radius * 2) / (asteroidArt.legacyCanvasPx * asteroidArt.legacyBodyFillRatio);
     this.baseScale = contractScale(scene, textureKey, legacyScale);
     this.phase = (index * 0.37) % 1;

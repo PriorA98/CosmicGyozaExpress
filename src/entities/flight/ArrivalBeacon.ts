@@ -65,6 +65,7 @@ export class ArrivalBeacon {
     private readonly destination: FlightDestinationDefinition,
     shipLayout: ShipArtLayout,
     private readonly beaconLabel: string = flightHudCopy.beaconLabel,
+    texturePrefix: string = KEY_PREFIX,
   ) {
     const style = arrivalBeaconStyle;
     const bottom = directionVector(destination.requiredBottomFacingRadians);
@@ -75,7 +76,7 @@ export class ArrivalBeacon {
 
     // Faint dotted approach circle.
     const approachKey = ensurePixelRing(scene, {
-      key: `${KEY_PREFIX}-approach`,
+      key: `${texturePrefix}-approach`,
       radius: Math.round(destination.approachRadius / ART),
       thickness: 1,
       dashCount: style.approachDashCount,
@@ -87,7 +88,7 @@ export class ArrivalBeacon {
 
     const ringTexture = (suffix: string, fill: number, thickness: number, color: string): string =>
       ensurePixelRing(scene, {
-        key: `${KEY_PREFIX}-${suffix}`,
+        key: `${texturePrefix}-${suffix}`,
         radius: radiusArt,
         thickness,
         dashCount: style.dashCount,
@@ -105,7 +106,7 @@ export class ArrivalBeacon {
     this.ring = scene.add.image(x, y, this.ringKeys.idle).setScale(ART).setDepth(depth.world + 1);
 
     const trackKey = ensurePixelRing(scene, {
-      key: `${KEY_PREFIX}-progress-track`,
+      key: `${texturePrefix}-progress-track`,
       radius: progressRadiusArt,
       thickness: style.progressThickness,
       dashCount: 1,
@@ -113,7 +114,7 @@ export class ArrivalBeacon {
       color: colors.plaster,
     });
     const trackShadowKey = ensurePixelRing(scene, {
-      key: `${KEY_PREFIX}-progress-shadow`,
+      key: `${texturePrefix}-progress-shadow`,
       radius: progressRadiusArt,
       thickness: style.progressThickness + 2,
       dashCount: 1,

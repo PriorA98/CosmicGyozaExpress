@@ -82,8 +82,8 @@ export function formatDriftReadout(velocityX: number, units: ReadoutUnits = DEFA
   return { word, number, unit, zone, text: `${word} ${number} ${unit}${arrow}` };
 }
 
-export function formatTiltReadout(angleDegrees: number): LandingReadout {
-  const zone = tiltZone(angleDegrees);
+export function formatTiltReadout(angleDegrees: number, tuning?: LandingTuning): LandingReadout {
+  const zone = tiltZone(angleDegrees, tuning);
   const word = landingCopy.tiltWords[zone];
   const number = String(Math.round(Math.abs(angleDegrees)));
   const unit = landingCopy.units.degrees;
@@ -168,7 +168,7 @@ export function buildLandingReadouts(
   return {
     descent: formatDescentReadout(velocityY, units, tuning),
     drift: formatDriftReadout(velocityX, units, tuning),
-    tilt: formatTiltReadout(reading.angleDegrees),
+    tilt: formatTiltReadout(reading.angleDegrees, tuning),
     altitude: formatAltitudeReadout(reading.altitude, reading.onPad, units),
     pad: formatPadReadout(reading.onPad),
     overallZone: reading.onPad ? reading.zone : "rough",

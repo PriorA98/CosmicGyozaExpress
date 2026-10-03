@@ -15,8 +15,8 @@ export type WindIndicatorWord = keyof typeof campaignLandingCopy.wind;
 export function windIndicatorWord(wind: LandingWindDefinition, sample: LandingWindSample): Exclude<WindIndicatorWord, "label"> {
   if (wind.kind === "steady") return "steady";
   if (wind.kind === "none") return "calm";
+  if (sample.exposure <= 0) return "sheltered";
   if (sample.phase === "warning") return "gathering";
-  if (sample.envelope > 0 && sample.exposure <= 0) return "sheltered";
   if (sample.envelope > 0) return "gusting";
   return "calm";
 }
@@ -33,7 +33,7 @@ export class LandingWindIndicator {
   private readonly peak: number;
   private key = "";
 
-  constructor(scene: Phaser.Scene, wind: LandingWindDefinition, uiScale: number) {
+  constructor(scene: Phaser.Scene, wind: LandingWindDefinition, uiScale: number, compact = false) {
     this.wind = wind;
     const direction = wind.kind === "steady" ? wind.acceleration.x : wind.kind === "gust" ? wind.peakAcceleration.x : 1;
     this.peak = wind.kind === "steady" ? Math.abs(wind.acceleration.x) : wind.kind === "gust" ? Math.abs(wind.peakAcceleration.x) : 1;
@@ -54,7 +54,11 @@ export class LandingWindIndicator {
       .text(config.width / 2 - 10, config.height / 2, "", monoStyle({ size: typeScale.xs, color: colors.amber, bold: true }))
       .setOrigin(1, 0.5);
     this.root = scene.add
-      .container(Math.round(scene.scale.width / 2), Math.round(config.topPx * uiScale), [panel, label, this.arrow, this.word])
+      .container(
+        Math.round(compact ? scene.scale.width - config.topPx - config.width * uiScale / 2 : scene.scale.width / 2),
+        Math.round((compact ? config.compactTopPx : config.topPx) * uiScale),
+        [panel, label, this.arrow, this.word],
+      )
       .setScrollFactor(0, 0, true)
       .setScale(uiScale)
       .setDepth(depth.hud);

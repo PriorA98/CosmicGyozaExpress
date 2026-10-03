@@ -100,8 +100,10 @@ export const flightNoteTuning = {
 
 /** Campaign route mechanics (moving rocks, force zones, pickups). Tea Moon never reads these. */
 export const campaignFlightTuning = {
-  /** The route's simulation clock never advances more than one ship integration step per frame. */
+  /** Total foreground time consumed by the route clock per frame (50 ms). */
   maxSimStepMs: shipTuning.maxDeltaSeconds * 1000,
+  /** Moving-rock contacts and fields integrate in bounded 120 Hz steps. */
+  substepMs: 1000 / 120,
   /** Dominant zone influence that counts as "first felt" for the mechanic intro line. */
   mechanicIntroInfluence: 0.15,
   /** A moving rock this close (edge to edge, px) introduces the moving-rock mechanic. */
