@@ -1,0 +1,14 @@
+First also view_image D:/code/CosmicGyozaExpress/public/assets/items/tea.png and D:/code/CosmicGyozaExpress/public/assets/items/mochi.png (approved item style).
+Generate the following separate images, each one centred subject on a SOLID FLAT MAGENTA #FF00FF background, with bold simple silhouettes readable at tiny sizes (cargo is shown at 32x32 art pixels, postcards at 48x32, pickups at 16x16).
+CARGO (square 1:1 each):
+1) cargo-bento: a three-tier lacquered bento box tied with a cloth (#B96C58, #D69A57).
+2) cargo-flask: a warm matcha thermos flask with a little steam curl (#80966B, #B7C69A).
+3) cargo-jar: a glass jar of bubbly sourdough starter with a cloth lid tied with string (#E5BD76, cloth #806C91).
+4) cargo-soup: a lidded soup pot with an extra spoon leaning on it (soup #EDC477, pot #657A91).
+5) cargo-parcel: a parcel wrapped in kraft paper with an unreasonably big rose ribbon bow (#BA8798, #E5C68F).
+POSTCARDS (landscape 3:2 each: a little cream postcard with a thin border and a tiny stamp corner, showing one simple landmark scene, no text):
+6) postcard-bento (the bento asteroid station), 7) postcard-matcha (a paper lantern in green mist), 8) postcard-bakery (a glowing domed oven bakery), 9) postcard-im-fine (a cottage with one lit window in rain), 10) postcard-home (the home station with ribbon bunting).
+PICKUPS (square 1:1):
+11) pickup-postcard: a small floating envelope/postcard with a peach heart seal (#F4E6C8, #E6A57A), extra-bold outline.
+12) pickup-crumb: a tiny glowing star crumb (#E6A57A, #F4E6C8).
+Save to D:/code/CosmicGyozaExpress/art-src/campaign/items/raw/ as cargo-bento-v1.png, cargo-flask-v1.png, cargo-jar-v1.png, cargo-soup-v1.png, cargo-parcel-v1.png, postcard-bento-v1.png, postcard-matcha-v1.png, postcard-bakery-v1.png, postcard-im-fine-v1.png, postcard-home-v1.png, pickup-postcard-v1.png, pickup-crumb-v1.png.

@@ -1,0 +1,11 @@
+You are generating production pixel-art SOURCE images for the cozy game "Cosmic Gyoza Express" (2D side-view space delivery game: a dumpling-shaped gyoza spaceship delivers warm food to lonely little worlds).
+
+FIRST use view_image on these style references and match their rendering, outline weight, light direction and warmth exactly:
+- D:/code/CosmicGyozaExpress/public/assets/ship/gyoza-idle.png (hero ship)
+- D:/code/CosmicGyozaExpress/public/assets/celestial/tea-moon.png (approved destination planet: Tea Moon with its teahouse)
+- D:/code/CosmicGyozaExpress/public/assets/characters/rabbit-portrait.png (approved character portrait strip)
+- D:/code/CosmicGyozaExpress/public/assets/lunar/lunar-sky.png and lunar-hills-far.png (approved landing backdrop layers)
+
+Art direction: cozy handcrafted pixel art, warm, soft, gently funny, never cold sci-fi, never creepy. Chunky readable pixel clusters with simple shapes (the image will be downscaled to a small true pixel resolution, so avoid fine noise, tiny details and noisy dithering). Soft light from the top-left, warm dark ink outlines (#1D1F33), not pure black. Shared base palette: ink #1D1F33, cosmos #1A1B2E, cosmos-deep #0E0F1C, parchment #F4ECDC, cream #F4E6C8, peach #E6A57A, terracotta #C97B5A, amber #D4A055, sage #8DA17A. No text, letters, numbers, UI, frames, signatures or watermarks in any image.
+Background rule: where a SOLID FLAT MAGENTA #FF00FF background is requested use exactly that flat colour with no gradient, no shadow and no anti-aliased halo; the subject must not contain magenta or hot pink.
+Save rule: copy each resulting PNG to exactly the path given (PowerShell Copy-Item). Do NOT modify, create or delete any other files in the repository. Do not ask questions; make routine decisions yourself. Report the final file paths and anything that deviated from the request.

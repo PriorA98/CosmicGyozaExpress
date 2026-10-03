@@ -625,6 +625,11 @@
         "status": "done",
         "commit": "f67897c",
         "notes": "campaign autopilot: all 5 new missions PASS soft+bumpy, 0 crashes, retry ~1.1 s; board layout + Tea next-delivery fix"
+      },
+      {
+        "id": "D",
+        "status": "scheduled",
+        "notes": "Codex hit usage limit at r2 (fixes completed by Claude builders). Final-art wave: 5 Codex image jobs (destinations, characters, items, landing backdrops, space nebulae + cues) launch at the Codex reset; prompts in art-src/campaign/*/scripts/"
       }
     ],
     "open": [
@@ -637,7 +642,7 @@
           7.4
         ],
         "runtimeErrors": 0,
-        "status": "fixing (Codex r2)"
+        "status": "round-2 fixes landed (d3ac3de); critic round 3 after final art"
       },
       "campaign-landing": {
         "rounds": [
@@ -645,7 +650,7 @@
           7.3
         ],
         "runtimeErrors": 0,
-        "status": "fixing (Codex r2)"
+        "status": "round-2 fixes landed (d3ac3de); critic round 3 after final art"
       },
       "campaign-shell": {
         "rounds": [
@@ -653,7 +658,7 @@
           8.1
         ],
         "runtimeErrors": 0,
-        "status": "fixing (Codex r2)"
+        "status": "round-2 fixes landed (d3ac3de); critic round 3 after final art"
       }
     },
     "criticNotes": "Round 1 critics: Claude Opus read-only, ~29-36 tool calls / ~87k tokens each; placeholder campaign art excluded from scores."
