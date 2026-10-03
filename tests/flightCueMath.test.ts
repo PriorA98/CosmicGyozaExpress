@@ -1,6 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { CAMPAIGN_WINDSOCK_FRAME } from "../src/data/assetManifest";
-import { advanceSimClock, simulationSteps, windsockFrame, quarterTurnRotation, octantIndex, wrap, zoneBounds, pickRockTexture, flowCueBases, cueIsClear, clearIndicatorPosition } from "../src/entities/flight/flightCueMath";
+import { advanceSimClock, simulationSteps, windsockFrame, quarterTurnRotation, octantIndex, wrap, zoneBounds, pickRockTexture, flowCueBases, cueIsClear, clearIndicatorPosition, backdropPropClearsHud } from "../src/entities/flight/flightCueMath";
+
+describe("campaign backdrop HUD clearance", () => {
+  const hud = [{ x: 20, y: 20, width: 320, height: 280 }];
+  it("keeps a complete prop silhouette out of the panel, including an edge-only overlap", () => {
+    expect(backdropPropClearsHud({ x: 360, y: 180 }, 60, hud)).toBe(false);
+    expect(backdropPropClearsHud({ x: 410, y: 180 }, 60, hud)).toBe(true);
+    expect(backdropPropClearsHud({ x: 180, y: 350 }, 60, hud)).toBe(false);
+    expect(backdropPropClearsHud({ x: 180, y: 370 }, 60, hud)).toBe(true);
+  });
+  it("keeps visible props between HUD bands and handles an empty legacy HUD", () => {
+    expect(backdropPropClearsHud({ x: 640, y: 360 }, 60, [...hud, { x: 0, y: 600, width: 1280, height: 120 }])).toBe(true);
+    expect(backdropPropClearsHud({ x: 20, y: 20 }, 60, [])).toBe(true);
+  });
+});
 
 describe("campaign flight clock", () => {
   it("consumes at most 50 ms, split into steps no larger than 1/120 s", () => {

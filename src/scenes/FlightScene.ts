@@ -259,7 +259,7 @@ export class FlightScene extends Phaser.Scene {
       docking: evaluateDocking(this.ship.kinematics, this.route.destination).kind,
       arrivalProgress: this.arrivalProgress,
       debugVisible: this.debugVisible,
-      camera: { scrollX: Math.round(this.cameras.main.scrollX), scrollY: Math.round(this.cameras.main.scrollY) },
+      camera: { scrollX: Math.round(this.cameras?.main?.scrollX ?? 0), scrollY: Math.round(this.cameras?.main?.scrollY ?? 0) },
       missionId: this.mission.id,
       simTimeMs: this.simTimeMs,
       environment: { ax: this.environment.acceleration.x, ay: this.environment.acceleration.y, phase: this.environment.dominant?.phase ?? this.environment.zones.find((zone) => this.gustPhases.has(zone.zoneId))?.phase ?? "calm" },
@@ -643,7 +643,7 @@ export class FlightScene extends Phaser.Scene {
     this.pickups?.update(this.simTimeMs);
 
     this.updateCameraTarget(delta);
-    this.backdrop.update(time);
+    this.backdrop.update(time, this.theme.legacy ? undefined : this.hud.labelAvoidRects);
     this.beacon.update(docking, this.arrivalProgress, time);
     if (!this.theme.legacy && time >= this.nextHudMs) this.indicator.setWorldKeepOuts([
       ...this.route.obstacles.map((rock) => ({ x: rock.x, y: rock.y, radius: rock.radius + 12 })),
@@ -772,7 +772,7 @@ export class FlightScene extends Phaser.Scene {
     if (this.route.visibility.kind === "fog") this.fog = new FogLayer(this, this.route.visibility, reducedMotion);
     drawMotionTracks(this, this.route.movingObstacles, this.theme);
     this.movingObstacles.forEach((obstacle, index) => {
-      this.asteroids.set(obstacle.id, new Asteroid(this, { ...obstacle.position, id: obstacle.id, label: obstacle.label, radius: obstacle.radius }, undefined, this.route.obstacles.length + index, obstacle.textureKey, this.theme.palette.accent));
+      this.asteroids.set(obstacle.id, new Asteroid(this, { ...obstacle.position, id: obstacle.id, label: obstacle.label, radius: obstacle.radius }, undefined, this.route.obstacles.length + index, obstacle.textureKey, this.theme.palette.light));
     });
   }
 

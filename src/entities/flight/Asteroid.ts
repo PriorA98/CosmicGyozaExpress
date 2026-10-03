@@ -30,6 +30,7 @@ export class Asteroid {
   private baseX: number;
   private baseY: number;
   private readonly motionRing: Phaser.GameObjects.Image | undefined;
+  private readonly motionRim: { readonly image: Phaser.GameObjects.Image; readonly x: number; readonly y: number }[] = [];
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -52,6 +53,14 @@ export class Asteroid {
       .setFlipX(visual?.flipX ?? false)
       .setDepth(depth.world + index * 0.01);
     if (motionAccent) {
+      // One art-pixel silhouette rim, created once. Moving bodies keep their authored shading.
+      for (const [x, y] of [[-2, -2], [2, -2], [-2, 2], [2, 2]] as const) {
+        const image = scene.add.image(obstacle.x + x, obstacle.y + y, textureKey)
+          .setScale(this.baseScale).setFlipX(visual?.flipX ?? false)
+          .setTint(colorNumber(motionAccent)).setTintMode(Phaser.TintModes.FILL)
+          .setAlpha(0.65).setDepth(this.image.depth - 0.001);
+        this.motionRim.push({ image, x, y });
+      }
       const key = ensurePixelRing(scene, { key: `flight-moving-rock-${obstacle.radius}-${motionAccent}`, radius: Math.round(obstacle.radius / FLIGHT_ART_SCALE) + 4, thickness: 2, dashCount: 1, dashFill: 1, color: motionAccent });
       this.motionRing = scene.add.image(obstacle.x, obstacle.y, key).setScale(FLIGHT_ART_SCALE).setAlpha(0.7).setDepth(depth.world - 0.05);
     }
@@ -64,12 +73,14 @@ export class Asteroid {
     const bob = Math.round(Math.sin((timeMs / bobPeriod + this.phase) * TAU) * bobArtPx) * FLIGHT_ART_SCALE;
 
     this.image.setPosition(this.baseX + Math.round(this.nudgeX), this.baseY + bob + Math.round(this.nudgeY));
+    for (const rim of this.motionRim) rim.image.setPosition(this.image.x + rim.x, this.image.y + rim.y);
     this.motionRing?.setPosition(this.baseX, this.baseY);
     if (this.squash !== 0) {
       this.image.setScale(this.baseScale * (1 + this.squash), this.baseScale * (1 - this.squash));
     } else if (this.image.scaleX !== this.baseScale || this.image.scaleY !== this.baseScale) {
       this.image.setScale(this.baseScale);
     }
+    for (const rim of this.motionRim) rim.image.setScale(this.image.scaleX, this.image.scaleY);
 
     if (this.flashSettleAtMs > 0 && timeMs >= this.flashSettleAtMs) {
       this.flashSettleAtMs = 0;
@@ -122,5 +133,6 @@ export class Asteroid {
     this.reactionTween?.stop();
     this.image.destroy();
     this.motionRing?.destroy();
+    for (const rim of this.motionRim) rim.image.destroy();
   }
 }

@@ -552,7 +552,7 @@ export type CampaignBackdropMood = {
   readonly layerTints: Readonly<Record<string, string>>;
   readonly layerTextureKeys?: Readonly<Partial<Record<string, AssetKey>>>;
   /** Celestial bodies reused from `flightCelestialBodies` by id, re-tinted and re-placed (screen px). */
-  readonly bodies: readonly { readonly id: string; readonly x: number; readonly y: number; readonly tint: string; readonly radiusArt?: number }[];
+  readonly bodies: readonly { readonly id: string; readonly x: number; readonly y: number; readonly tint: string; readonly radiusArt?: number; readonly textureKey?: AssetKey; readonly textureScale?: number }[];
   readonly debrisTints: readonly [string, string, string];
   readonly debrisAlpha: number;
   readonly prop: CampaignBackdropProp | null;
@@ -600,7 +600,7 @@ export const campaignBackdropMoods: Readonly<Record<ThemeId, CampaignBackdropMoo
     cosmos: "#221A2C",
     layerTextureKeys: { nebula: ASSET.campaignNebulaHome },
     layerTints: { "stars-far": "#F4E0E6", nebula: "#E893B2", "stars-near": "#F8EAEE" },
-    bodies: [{ id: "tea-moon", x: 900, y: 190, tint: colors.sage, radiusArt: 14 }],
+    bodies: [{ id: "tea-moon", x: 900, y: 190, tint: colors.sage, radiusArt: 14, textureKey: ASSET.celestialTeaMoon, textureScale: 1 / 3 }],
     debrisTints: ["#E2C0CC", "#CFA9B8", "#EED6C8"],
     debrisAlpha: 0.85,
     prop: "ribbon-lantern",

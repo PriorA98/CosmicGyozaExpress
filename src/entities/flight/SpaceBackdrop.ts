@@ -19,7 +19,7 @@ import type { Point } from "../../types/flight";
 import { isReducedMotion } from "../../fx/feedback";
 import { ensureVerticalMirrorTile } from "./pixelArt";
 import { ensureStandInStarTile, isFallbackTexture, planetTextureOrStandIn } from "./textureFallbacks";
-import { mixHexColor, parallaxBodyOpacity, parallaxPropCandidates, placeParallaxProps, type KeepOut } from "./flightCueMath";
+import { backdropPropClearsHud, mixHexColor, parallaxBodyOpacity, parallaxPropCandidates, placeParallaxProps, type KeepOut, type ScreenRect } from "./flightCueMath";
 
 /** Route geometry the campaign backdrop uses to keep its far props off gameplay. */
 export type BackdropRouteLayout = { readonly cameraPath: readonly Point[]; readonly keepOuts: readonly KeepOut[] };
@@ -41,8 +41,9 @@ const QUARTER_TURN_DEGREES = 90;
  */
 export class SpaceBackdrop {
   private readonly layers: ParallaxLayer[] = [];
-  private readonly campaignBodies: { readonly object: Phaser.GameObjects.Image | Phaser.GameObjects.Graphics; readonly anchor: Point; readonly scrollFactor: number; readonly radius: number }[] = [];
+  private readonly campaignBodies: { readonly object: Phaser.GameObjects.Image | Phaser.GameObjects.Graphics; readonly anchor: Point; readonly scrollFactor: number; readonly radius: number; readonly alpha?: number }[] = [];
   private readonly bodyKeepOuts: readonly KeepOut[];
+  private readonly campaignProps: { readonly object: Phaser.GameObjects.Image | Phaser.GameObjects.Graphics; readonly scrollFactor: number; readonly radius: number }[] = [];
 
   private readonly mood: CampaignBackdropMood | null;
 
@@ -68,6 +69,12 @@ export class SpaceBackdrop {
       const scrollFactor = body?.scrollFactor ?? 0.04;
       const radius = placed.radiusArt !== undefined ? (placed.radiusArt + 10) * FLIGHT_ART_SCALE : (body?.standIn.size ?? 128) * FLIGHT_ART_SCALE / 2;
       const anchor = placed;
+      if (placed.textureKey !== undefined) {
+        const image = scene.add.image(snapToArtStep(anchor.x), snapToArtStep(anchor.y), placed.textureKey)
+          .setScale(placed.textureScale ?? FLIGHT_ART_SCALE).setScrollFactor(scrollFactor).setDepth(depth.parallax);
+        this.campaignBodies.push({ object: image, anchor, scrollFactor, radius, alpha: campaignPropStyle.alpha });
+        return [];
+      }
       if (placed.radiusArt !== undefined) {
         const g = scene.add.graphics().setPosition(snapToArtStep(anchor.x), snapToArtStep(anchor.y)).setScrollFactor(scrollFactor).setDepth(depth.parallax);
         drawMiniatureBody(g, placed.radiusArt, placed.id === "far-plum", colorNumber(placed.tint), colorNumber(mood.cosmos));
@@ -82,7 +89,7 @@ export class SpaceBackdrop {
   }
 
   /** Call every frame after the camera has moved. */
-  update(timeMs: number): void {
+  update(timeMs: number, hud: readonly ScreenRect[] = []): void {
     const camera = this.scene.cameras.main;
     const centredScrollY = (this.worldHeight - this.scene.scale.height) / 2;
 
@@ -94,7 +101,10 @@ export class SpaceBackdrop {
       sprite.tilePositionY = snapToScreenPixel((scrollY * definition.scrollFactorY) / FLIGHT_ART_SCALE);
     }
     for (const body of this.campaignBodies) {
-      body.object.setAlpha(parallaxBodyOpacity(body.anchor, body.scrollFactor, { x: camera.scrollX, y: camera.scrollY }, this.bodyKeepOuts, body.radius));
+      body.object.setAlpha((body.alpha ?? 1) * parallaxBodyOpacity(body.anchor, body.scrollFactor, { x: camera.scrollX, y: camera.scrollY }, this.bodyKeepOuts, body.radius));
+    }
+    for (const prop of this.campaignProps) {
+      prop.object.setVisible(backdropPropClearsHud({ x: prop.object.x - camera.scrollX * prop.scrollFactor, y: prop.object.y - camera.scrollY * prop.scrollFactor }, prop.radius, hud));
     }
   }
 
@@ -155,7 +165,8 @@ export class SpaceBackdrop {
       const x = Math.round(anchor.x / FLIGHT_ART_SCALE) * FLIGHT_ART_SCALE;
       const y = Math.round(anchor.y / FLIGHT_ART_SCALE) * FLIGHT_ART_SCALE;
       const g = this.scene.add.graphics().setPosition(x, y).setScrollFactor(style.scrollFactor).setDepth(depth.parallax + 0.5).setAlpha(style.alpha);
-      drawProp(g, mood.prop ?? "rain", shade, pale, colorNumber(mood.cosmos));
+      drawProp(g, mood.prop ?? "rain", shade, pale, colorNumber(colors.cosmosDeep));
+      this.campaignProps.push({ object: g, scrollFactor: style.scrollFactor, radius: style.radiusPx });
       if (!isReducedMotion()) {
         const drift = { offset: 0 };
         this.scene.tweens.add({ targets: drift, offset: 10, duration: 5200 + i * 1300, ease: "Sine.easeInOut", yoyo: true, repeat: -1, onUpdate: () => g.setY(y + snapToArtStep(drift.offset)) });
@@ -197,6 +208,7 @@ export class SpaceBackdrop {
         .setTint(colorNumber((this.mood?.debrisTints ?? debrisStyle.tints)[bit.tint % debrisStyle.tints.length] ?? colors.plum))
         .setAlpha(this.mood?.debrisAlpha ?? 1)
         .setDepth(depth.parallax + 1);
+      if (this.mood) this.campaignProps.push({ object: image, scrollFactor: bit.scrollFactor, radius: Math.max(image.displayWidth, image.displayHeight) / 2 });
 
       const drift = { t: 0 };
       this.scene.tweens.add({
@@ -232,20 +244,25 @@ function snapToArtStep(screenPx: number): number {
 
 const P = FLIGHT_ART_SCALE;
 
-/** Pixel silhouettes for far props (local px, art-grid aligned). One flat shade + one pale highlight. */
+/** Pixel silhouettes for far props (local px, art-grid aligned). */
 function drawProp(g: Phaser.GameObjects.Graphics, prop: NonNullable<CampaignBackdropMood["prop"]>, shade: number, pale: number, ink: number): void {
   if (prop === "lunch-crate") {
     // Three lacquer tiers, an overhanging lid and a folded cloth tied around the lunchbox.
+    const shadow = mixHexColor(`#${shade.toString(16).padStart(6, "0")}`, `#${ink.toString(16).padStart(6, "0")}`, 0.45);
     g.fillStyle(ink, 1).fillRect(-34, -20, 68, 46).fillRect(-40, -28, 80, 10);
-    g.fillStyle(shade, 1).fillRect(-32, -18, 64, 42).fillRect(-38, -26, 76, 6);
-    for (const y of [-8, 8]) {
-      g.fillStyle(ink, 1).fillRect(-32, y, 64, 4);
-      g.fillStyle(pale, 1).fillRect(-30, y + 4, 60, P);
+    for (const y of [-18, -4, 10]) {
+      g.fillStyle(shade, 1).fillRect(-32, y, 64, 12);
+      g.fillStyle(pale, 1).fillRect(-32, y, 4, 12).fillRect(-28, y, 56, P);
+      g.fillStyle(shadow, 1).fillRect(24, y + P, 8, 10).fillRect(-28, y + 10, 52, P);
     }
-    g.fillStyle(pale, 1).fillRect(-34, -26, 68, P).fillRect(-8, -20, 16, 44);
+    // The overhanging lacquer rim has a bright lip and a dark underside.
+    g.fillStyle(shade, 1).fillRect(-38, -26, 76, 6);
+    g.fillStyle(pale, 1).fillRect(-38, -26, 76, P).fillRect(-38, -24, P, 4).fillRect(-8, -20, 16, 44);
+    g.fillStyle(shadow, 1).fillRect(30, -24, 8, 4);
     g.fillStyle(shade, 1).fillRect(-4, -18, 8, 40);
     g.fillStyle(ink, 1).fillRect(-18, -40, 14, 12).fillRect(4, -40, 14, 12).fillRect(-6, -34, 12, 10);
-    g.fillStyle(pale, 1).fillRect(-16, -38, 10, 6).fillRect(6, -38, 10, 6).fillRect(-4, -32, 8, 6);
+    g.fillStyle(pale, 1).fillRect(-16, -38, 10, 8).fillRect(6, -38, 10, 8).fillRect(-4, -32, 8, 6);
+    g.fillStyle(colorNumber(colors.parchment), 1).fillRect(-14, -38, 6, P).fillRect(8, -38, 6, P).fillRect(-2, -32, 4, 4);
   } else if (prop === "tea-leaf") {
     // Large curled leaf drifting far away: tapered, curved, with a stem and vein.
     for (let x = -44; x <= 44; x += P) {

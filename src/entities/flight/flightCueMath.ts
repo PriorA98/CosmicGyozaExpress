@@ -142,6 +142,12 @@ export function parallaxBodyOpacity(anchor: Point, scrollFactor: number, camera:
 
 export type ScreenRect = { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
 
+/** Decorative parallax silhouettes yield to the full HUD footprint, with room for their idle drift. */
+export function backdropPropClearsHud(point: Point, radius: number, hud: readonly ScreenRect[]): boolean {
+  return hud.every((rect) => point.x + radius < rect.x || point.x - radius > rect.x + rect.width
+    || point.y + radius < rect.y || point.y - radius > rect.y + rect.height);
+}
+
 /** Slide a complete pin/label footprint along its clamped edge, preferring the closest clear spot. */
 export function clearIndicatorPosition(preferred: Point, vertical: boolean, min: number, max: number, footprint: ScreenRect, obstacles: readonly KeepOut[], hud: readonly ScreenRect[]): Point {
   const position = (along: number): Point => vertical ? { x: preferred.x, y: along } : { x: along, y: preferred.y };

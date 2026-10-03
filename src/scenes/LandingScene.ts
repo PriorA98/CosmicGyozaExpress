@@ -922,11 +922,11 @@ export class LandingScene extends Phaser.Scene {
       showNote: !this.theme.legacy,
     });
     const touchPads = this.touchLayout ? new LandingTouchPads(this, compactUiScale(this)) : undefined;
-    // Match Tea's bottom-centred hints; compact keyboard displays keep them above the berth to avoid overlap.
-    const hint = this.touchLayout ? undefined : createLandingControlsHint(this, uiScale, isCompactDisplay(this) ? "top-right" : "bottom");
+    // Campaign hints stay above every berth, including the sliding rail and raised home platform.
+    const hint = this.touchLayout ? undefined : createLandingControlsHint(this, uiScale, !this.theme.legacy || isCompactDisplay(this) ? "top-right" : "bottom");
     const retryChip = this.touchLayout ? this.createRetryChip(compactUiScale(this)) : undefined;
-    // Touch: dock left, below the dashboard. The right-side crown and the gauge's highest position stay clear.
-    const windAnchor = retryChip ? { right: dashboard.root.x + campaignLandingScenery.windIndicator.width * uiScale, top: snapToGrid(dashboard.root.y + dashboard.displayHeight + 8, CELL) } : undefined;
+    // Dock below the dashboard on every display, clear of the destination crown and descent lane.
+    const windAnchor = { right: dashboard.root.x + campaignLandingScenery.windIndicator.width * uiScale, top: snapToGrid(dashboard.root.y + dashboard.displayHeight + 8, CELL) };
     const wind = this.theme.legacy || this.definition.wind.kind === "none"
       ? undefined
       : new LandingWindIndicator(this, this.definition.wind, uiScale, isCompactDisplay(this), windAnchor);

@@ -81,7 +81,7 @@ export class LandingWindIndicator {
     if (key === this.key) return;
     this.key = key;
     this.word.setText(campaignLandingCopy.wind[word]);
-    this.arrow.setAlpha(alphaStep);
+    this.arrow.setAlpha(alphaStep).setVisible(word !== "sheltered");
   }
 
   setAlpha(alpha: number): void {
