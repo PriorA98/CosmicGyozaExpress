@@ -628,8 +628,9 @@
       },
       {
         "id": "D",
-        "status": "scheduled",
-        "notes": "Codex hit usage limit at r2 (fixes completed by Claude builders). Final-art wave: 5 Codex image jobs (destinations, characters, items, landing backdrops, space nebulae + cues) launch at the Codex reset; prompts in art-src/campaign/*/scripts/"
+        "status": "done",
+        "notes": "43 Codex image generations normalized into 31 files + 15 painted layer keys; provenance art-src/campaign/PROVENANCE.md",
+        "commit": "eb890cb"
       }
     ],
     "open": [
@@ -639,26 +640,29 @@
       "campaign-flight": {
         "rounds": [
           6.8,
-          7.4
+          7.4,
+          8.0
         ],
         "runtimeErrors": 0,
-        "status": "round-2 fixes landed (d3ac3de); critic round 3 after final art"
+        "status": "round-4 (final) fixes running on Codex"
       },
       "campaign-landing": {
         "rounds": [
           6.4,
-          7.3
+          7.3,
+          8.1
         ],
         "runtimeErrors": 0,
-        "status": "round-2 fixes landed (d3ac3de); critic round 3 after final art"
+        "status": "round-4 (final) fixes running on Codex"
       },
       "campaign-shell": {
         "rounds": [
           7.4,
-          8.1
+          8.1,
+          8.4
         ],
         "runtimeErrors": 0,
-        "status": "round-2 fixes landed (d3ac3de); critic round 3 after final art"
+        "status": "round-4 (final) fixes running on Codex"
       }
     },
     "criticNotes": "Round 1 critics: Claude Opus read-only, ~29-36 tool calls / ~87k tokens each; placeholder campaign art excluded from scores."
