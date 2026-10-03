@@ -93,5 +93,5 @@ export const homeDeliveryMission: MissionDefinitionV2 = {
     afterTouchdown: "Contents: snacks, gratitude, one unreasonable amount of ribbon.",
   },
   pilotHints: pilotHints([waypoint({ x: 850, y: 900 }), waypoint({ x: 1500, y: 820 }), waypoint(destination, PILOT_DEFAULTS.crossingSpeed)]),
-  closingLine: "You brought warmth to a small corner of the universe. There is some here for you, too.",
+  closingLine: "You brought warmth to a small corner of the universe. Welcome home.",
 };

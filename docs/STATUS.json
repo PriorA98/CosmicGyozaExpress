@@ -634,37 +634,72 @@
       }
     ],
     "open": [
-      "Atmosphere gap vs Tea Moon is largely art: Wave D adds painted per-theme landing backdrop layers + flight space layers alongside the 16 campaign keys"
+      "flight 8.3: bento backdrop prop + home Tea Moon callback lower fidelity; gust band edge line crosses storm planet; same indicator icon tint on every route; bakery steam puffs read as handles",
+      "landing 8.4: bento hint bar covers sliding-pad rail (regression of r3 hint move); matcha desktop wind chip over planet; portrait pixel density finer than 2x world; im-fine shelter story; tall home gantry; phone tilt buttons hide left props",
+      "whole-game: no per-mission music / ending stinger / gust whoosh (audio reuses 4 moods); bento hazards low contrast on brown nebula; result headlines repeat across missions; title barely marks campaign completion; ending card full-screen vs floating cards",
+      "shell nits: board quote clamped to 1 line on desktop; ending dead space under closing line; result left-column gap",
+      "fog.png still placeholder (unused by flight)",
+      "post-gate polish job (Codex) addresses landing #1/#2, flight bento prop/home moon, bento hazard contrast — NOT re-scored"
     ],
     "modules": {
       "campaign-flight": {
         "rounds": [
           6.8,
           7.4,
-          8.0
+          8.0,
+          8.3
         ],
         "runtimeErrors": 0,
-        "status": "round-4 (final) fixes running on Codex"
+        "status": "NOT PASSED at 4-round limit (8.3 < 8.5); 0 runtime errors"
       },
       "campaign-landing": {
         "rounds": [
           6.4,
           7.3,
-          8.1
+          8.1,
+          8.4
         ],
         "runtimeErrors": 0,
-        "status": "round-4 (final) fixes running on Codex"
+        "status": "NOT PASSED at 4-round limit (8.4 < 8.5); 0 runtime errors"
       },
       "campaign-shell": {
         "rounds": [
           7.4,
           8.1,
-          8.4
+          8.4,
+          8.5
         ],
         "runtimeErrors": 0,
-        "status": "round-4 (final) fixes running on Codex"
+        "status": "PASS (8.5, round 4); 0 runtime errors"
       }
     },
-    "criticNotes": "Round 1 critics: Claude Opus read-only, ~29-36 tool calls / ~87k tokens each; placeholder campaign art excluded from scores."
+    "criticNotes": "Round 1 critics: Claude Opus read-only, ~29-36 tool calls / ~87k tokens each; placeholder campaign art excluded from scores.",
+    "finalGate": {
+      "commit": "35d07e1",
+      "wholeGameCritic": {
+        "score": 8.6,
+        "verdict": "PASS",
+        "runtimeErrors": 0,
+        "evidence": [
+          "e2e/out/gate-tea",
+          "e2e/out/gate-nav",
+          "e2e/out/gate-soft",
+          "e2e/out/gate-bumpy"
+        ],
+        "steps": {
+          "freshJourney": "PASS (Tea loop 8/8, result -> Next delivery -> bento-belt, board flow)",
+          "missionsEndToEnd": "PASS (soft 45/45, bumpy 40/40 checks; 0 crashes; retries 1.09-1.14 s)",
+          "progressionPersistence": "PASS (5 thank-you notes, endingSeen, reload shows all 6 delivered)"
+        },
+        "difficultyCurve": "rises 1->4 (orient thrust, moving motion, steady current, radial pull), eases 5->6 (telegraphed gusts, homecoming); autopilot proves feasibility not human difficulty"
+      },
+      "checks": {
+        "typecheck": "PASS",
+        "tests": "368 PASS",
+        "build": "PASS",
+        "buildPages": "PASS"
+      }
+    },
+    "phase": "gate complete (2 of 3 module critics below bar at round limit; whole-game PASS)"
   }
 }
