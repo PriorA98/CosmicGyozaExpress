@@ -110,7 +110,7 @@ def flow_arrow() -> Image.Image:
 def windsock() -> Image.Image:
     img = Image.new("RGBA", (96, 32), CLEAR)
     d = ImageDraw.Draw(img)
-    for frame, angle in enumerate([80, 55, 30, 5]):
+    for frame, angle in enumerate([6, 30, 55, 84]):  # calm hangs limp; strong stands straight out
         ox = frame * 24
         d.rectangle((ox + 5, 4, ox + 6, 31), fill=INK)
         length = 16

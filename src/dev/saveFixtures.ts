@@ -30,6 +30,9 @@ export function applyShowcaseSaveFixture(fixture: ShowcaseSaveFixture): void {
       case "campaign-all-unlocked":
         globalThis.localStorage?.setItem(SAVE_KEY, JSON.stringify({ ...createDefaultSave(), unlockedMissions: [...MISSION_IDS] }));
         return;
+      case "campaign-before-home":
+        globalThis.localStorage?.setItem(SAVE_KEY, JSON.stringify(createCampaignSave(MISSION_IDS.length - 1)));
+        return;
       case "campaign-all-complete":
         globalThis.localStorage?.setItem(SAVE_KEY, JSON.stringify(createCampaignSave(MISSION_IDS.length)));
         return;

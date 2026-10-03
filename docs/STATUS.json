@@ -616,15 +616,41 @@
       },
       {
         "id": "AB",
-        "status": "running",
-        "packages": [
-          "flight",
-          "landing",
-          "results-save",
-          "board-ui"
-        ]
+        "status": "done",
+        "commit": "bd17d27",
+        "notes": "Claude builders hit usage limit mid-work (checkpoint ff322bb); finished by Codex gpt-6.1-sol builders"
+      },
+      {
+        "id": "C",
+        "status": "done",
+        "commit": "f67897c",
+        "notes": "campaign autopilot: all 5 new missions PASS soft+bumpy, 0 crashes, retry ~1.1 s; board layout + Tea next-delivery fix"
       }
     ],
-    "open": []
+    "open": [],
+    "modules": {
+      "campaign-flight": {
+        "rounds": [
+          6.8
+        ],
+        "runtimeErrors": 0,
+        "status": "fixing (Codex r1)"
+      },
+      "campaign-landing": {
+        "rounds": [
+          6.4
+        ],
+        "runtimeErrors": 0,
+        "status": "fixing (Codex r1)"
+      },
+      "campaign-shell": {
+        "rounds": [
+          7.4
+        ],
+        "runtimeErrors": 0,
+        "status": "fixing (Codex r1)"
+      }
+    },
+    "criticNotes": "Round 1 critics: Claude Opus read-only, ~29-36 tool calls / ~87k tokens each; placeholder campaign art excluded from scores."
   }
 }

@@ -25,6 +25,7 @@ export type ShowcaseSaveFixture =
   | "campaign-after-tea"
   | "campaign-midway"
   | "campaign-all-unlocked"
+  | "campaign-before-home"
   | "campaign-all-complete";
 
 export type ShowcaseStateDefinition = {
@@ -519,7 +520,7 @@ export const SHOWCASE_STATES: readonly ShowcaseStateDefinition[] = [
     sceneKey: "DeliveryResultScene",
     description: "Final delivery result / ending card",
     settleMs: 1800,
-    save: "campaign-all-unlocked",
+    save: "campaign-before-home",
     data: missionResult("home-delivery", softResult),
   },
 ];
