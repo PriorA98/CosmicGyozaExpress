@@ -14,6 +14,8 @@ This folder contains the official project documentation derived from the origina
   - Detailed implementation plan for the Phase 1 flight-feel prototype.
 - `implementation/phase-2-tea-moon-vertical-slice-plan.md`
   - Detailed implementation plan for the Phase 2 Tea Moon vertical slice and one-bottom-thruster landing sequence.
+- `implementation/phase-3-campaign-plan.md`
+  - Phase 3 six-mission campaign spec (Codex gpt-6-astra planning pass, adopted 2026-10-02): mechanics per level, data contracts, delivery board, save normalization, art stages, work packages, autopilot criteria.
 - `gameplay-decisions.md`
   - Locked gameplay decisions for Phase 1 and Phase 2.
 - `wiki/README.md`
@@ -41,9 +43,10 @@ This folder contains the official project documentation derived from the origina
 - `engineering/ARCHITECTURE.md`
   - Layer boundaries, shared contracts (events, asset manifest, pixel and ship-rotation contracts, save, audio), coordinates/units, reproducible showcase states, e2e harness, performance budget, and work ownership.
 - `STATUS.json`
-  - Tea Moon polish program status: per-module critic scores by round, open issues, final gate (whole-game critic + blind A/B), outage history, and usage notes.
+  - Tea Moon polish program status: per-module critic scores by round, open issues, final gate (whole-game critic + blind A/B), outage history, and usage notes. The `phase3` key tracks the campaign: waves, per-module critic rounds, final gate and open issues.
 - `evidence/`
   - `baseline/` and `final/` screenshot evidence, playtest reports, and the blind A/B pairs with their key.
+  - `phase3/` campaign overview sheet and the final-gate autopilot summaries (soft + bumpy, all missions).
 - `engineering/development-standards.md`
   - Clean code, architecture, TypeScript, Phaser, browser platform, asset, and testing standards.
 - `engineering/implementation-checklist.md`

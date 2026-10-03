@@ -1,0 +1,60 @@
+{
+  "label": "gate-bumpy",
+  "profile": "bumpy",
+  "incidentFirst": false,
+  "phase": 0,
+  "viewport": "desktop",
+  "passed": true,
+  "missions": [
+    {
+      "missionId": "bento-belt",
+      "passed": true,
+      "arrivalSeconds": 40.859,
+      "crashes": 0,
+      "retrySeconds": null,
+      "result": "bumpy",
+      "avgFps": 60.12933745247205,
+      "failures": []
+    },
+    {
+      "missionId": "matcha-nebula",
+      "passed": true,
+      "arrivalSeconds": 43.006,
+      "crashes": 0,
+      "retrySeconds": null,
+      "result": "bumpy",
+      "avgFps": 60.25122859795238,
+      "failures": []
+    },
+    {
+      "missionId": "black-hole-bakery",
+      "passed": true,
+      "arrivalSeconds": 41.11,
+      "crashes": 0,
+      "retrySeconds": null,
+      "result": "bumpy",
+      "avgFps": 60.35076263656606,
+      "failures": []
+    },
+    {
+      "missionId": "im-fine",
+      "passed": true,
+      "arrivalSeconds": 36.364,
+      "crashes": 0,
+      "retrySeconds": null,
+      "result": "bumpy",
+      "avgFps": 60.254878201209046,
+      "failures": []
+    },
+    {
+      "missionId": "home-delivery",
+      "passed": true,
+      "arrivalSeconds": 18.082,
+      "crashes": 0,
+      "retrySeconds": null,
+      "result": "bumpy",
+      "avgFps": 60.25583713940225,
+      "failures": []
+    }
+  ]
+}
