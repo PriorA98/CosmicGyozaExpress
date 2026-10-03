@@ -7,6 +7,7 @@ import { addUiIcon } from "./icons";
 import { uiIconScale, uiPixelLabelSize, uiScaled } from "./layout";
 import { fillSteppedRect, STEPPED_CORNER } from "./surfaces";
 import { pixelLabelStyle } from "./textStyles";
+import { ButtonPress } from "./buttonPress";
 
 export type ButtonVariant = "primary" | "secondary" | "ink";
 export type ButtonVisualState = "idle" | "hover" | "pressed" | "disabled";
@@ -120,7 +121,7 @@ export class Button extends Phaser.GameObjects.Container {
   private readonly keyCleanups: (() => void)[] = [];
   private visualState: ButtonVisualState = "idle";
   private hovered = false;
-  private pointerPressed = false;
+  private readonly pointerPress = new ButtonPress();
   private focused = false;
   private enabled = true;
   private focusTween: Phaser.Tweens.Tween | undefined;
@@ -193,7 +194,7 @@ export class Button extends Phaser.GameObjects.Container {
     this.enabled = enabled;
     if (enabled) this.hitZone.setInteractive({ useHandCursor: true });
     else this.hitZone.disableInteractive();
-    this.pointerPressed = false;
+    this.pointerPress.reset();
     this.applyState(enabled ? (this.hovered ? "hover" : "idle") : "disabled");
     return this;
   }
@@ -242,26 +243,35 @@ export class Button extends Phaser.GameObjects.Container {
     this.hitZone.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OVER, () => {
       if (!this.enabled) return;
       this.hovered = true;
-      if (!this.pointerPressed) this.applyState("hover");
+      if (!this.pointerPress.isPressed) this.applyState("hover");
       emitGameEvent(this.scene, { type: "ui:hover" });
     });
-    this.hitZone.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OUT, () => {
+    this.hitZone.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OUT, (pointer: Phaser.Input.Pointer) => {
       this.hovered = false;
-      this.pointerPressed = false;
+      this.pointerPress.out(pointer);
       if (this.enabled) this.applyState("idle");
     });
-    this.hitZone.on(Phaser.Input.Events.GAMEOBJECT_POINTER_DOWN, () => {
+    this.hitZone.on(Phaser.Input.Events.GAMEOBJECT_POINTER_DOWN, (pointer: Phaser.Input.Pointer) => {
       if (!this.enabled) return;
-      this.pointerPressed = true;
+      this.pointerPress.down(pointer);
       this.applyState("pressed");
     });
     this.hitZone.on(Phaser.Input.Events.GAMEOBJECT_POINTER_UP, (pointer: Phaser.Input.Pointer) => {
-      if (!this.enabled || !this.pointerPressed) return;
-      this.pointerPressed = false;
+      if (!this.enabled || !this.pointerPress.up(pointer) || pointer.event.type === "touchcancel") return;
       // Touch has no hover: return to idle after a tap.
       this.hovered = this.hovered && !pointer.wasTouch;
       this.applyState(this.hovered ? "hover" : "idle");
       this.confirm();
+    });
+    const release = (pointer: Phaser.Input.Pointer): void => {
+      this.pointerPress.reset(pointer);
+    };
+    const input = this.scene.input;
+    input.on(Phaser.Input.Events.POINTER_UP, release);
+    input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, release);
+    this.keyCleanups.push(() => {
+      input.off(Phaser.Input.Events.POINTER_UP, release);
+      input.off(Phaser.Input.Events.POINTER_UP_OUTSIDE, release);
     });
   }
 

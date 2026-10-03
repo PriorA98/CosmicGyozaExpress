@@ -130,6 +130,7 @@ New event variants are added **only by the integrator**.
 Import shared HUD/menu components from the barrel: `Button` (`primary | secondary | ink`), `DashboardTicker`, `HudPanel`, `Keycap`, `Meter`, `ParchmentCard`, `StatePill`, `TouchControls` / `detectTouchDevice`, `Modal`, `SettingsPanel` (+ pure `settingsModel`), `RouteLogPanel`, `installSoundToast` (+ pure `soundToastModel`), `touchGlyphCells`, `addUiIcon` / `setUiIcon`, the text style helpers, `SURFACE` / `UI_ART_SCALE`, `stateSwatch` / `meterAccentColor`, and the pure layout helpers in `layout.ts` (`truncateToChars`, `monoCharsThatFit`, `hitTestZones`, `formatReadout`, `compactUiScale`, ...).
 
 - `Button`, `Keycap`, `StatePill`, `HudPanel` and `TouchControls` take a `uiScale` option (text renders at the larger size instead of `setScale`); phones use `compactUiScale`.
+- Button input (2026-10-03 JST): shared `Button` and result-footer buttons use `ButtonPress` to track the pressing pointer independently of artwork. Touch's down-then-over sequence must not clear a press; hover exit on release must not cancel it. Moving off while held cancels, unrelated fingers cannot activate it, and scene-level release clears pending presses. Cancelled touches do not activate buttons. Input listeners are removed when the button is destroyed.
 - Flight and Landing HUDs are built from the kit (`HudPanel`, `Meter`, `StatePill`, `DashboardTicker`, a `Keycap` hint strip, `TouchControls`).
 - Icons come straight from the authored `ui-icons` strip; the wave-1 runtime patch of the package and sound frames was retired once the strip was re-exported. The `ICON_OVERRIDES` bitmaps remain only for the DOM mute toast.
 
@@ -168,7 +169,10 @@ node e2e/capture.mjs --states=all --viewports=desktop,phoneLandscape --label=my-
 node e2e/capture.mjs --states=landing-descent,flight-cruise --viewports=phoneLandscapeTouch --label=my-touch-run
 node e2e/playtest.mjs --landing=soft --incident-first=true --label=my-run
 node e2e/playtest.mjs --landing=bumpy --incident-first=false --label=my-run
+node e2e/button-input.mjs
 ```
+
+`button-input.mjs` checks all three delivery-result actions, drag-off cancellation, and title/menu buttons using desktop mouse clicks and emulated touch at 844×390 and 667×375. Result/title dev probes expose button bounds for these coordinate-based checks.
 
 Output lands in `e2e/out/<label>/` (gitignored): PNG + JSON per capture (console errors, page errors, failed requests, asset/font failures, recent game events, fps), plus `summary.json`.
 

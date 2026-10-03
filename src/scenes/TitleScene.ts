@@ -240,6 +240,7 @@ export class TitleScene extends Phaser.Scene {
       keyboardNav: this.keyboardNav,
       buttonFocused: this.focusables[0]?.isFocused ?? false,
       ctaLabel: this.primaryLabel,
+      buttons: this.focusables.map((button) => ({ name: button.name, bounds: button.getBounds() })),
       settingsOpen: this.settingsPanel?.isOpen ?? false,
       settingsRow: this.settingsPanel?.selectedRow ?? null,
       routeLogOpen: this.routeLog?.isOpen ?? false,

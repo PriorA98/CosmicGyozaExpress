@@ -37,6 +37,7 @@ import type { MissionSelectSceneData } from "../types/campaign";
 import type { SceneKey } from "../game/events";
 import type { DeliveryResultSceneData } from "../types/landing";
 import { KEYCAP_HEIGHT, Keycap, addUiIcon } from "../ui";
+import { ButtonPress } from "../ui/buttonPress";
 
 type TypeToken = keyof typeof typeScale;
 
@@ -328,6 +329,7 @@ export class DeliveryResultScene extends Phaser.Scene {
       missionId: this.view?.missionId,
       isEnding: this.view?.isEnding,
       actions: this.view?.actions.map((action) => action.kind),
+      buttons: this.buttons.map(({ action, button }) => ({ action: action.kind, bounds: button.root.getBounds() })),
       endingMarked: this.endingMarked,
     }));
     registerDevState("save", () => SaveSystem.diagnostics());
@@ -1317,22 +1319,33 @@ export class DeliveryResultScene extends Phaser.Scene {
     const button: ResultButton = { root, face, graphics, variant, width, height, state: "idle" };
     this.drawButton(button);
 
+    const press = new ButtonPress();
     zone.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OVER, () => {
       if (!this.revealComplete || this.leaving) return;
-      this.setButtonState(button, "hover");
+      if (!press.isPressed) this.setButtonState(button, "hover");
       emitGameEvent(this, { type: "ui:hover" });
     });
-    zone.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OUT, () => {
+    zone.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OUT, (pointer: Phaser.Input.Pointer) => {
+      press.out(pointer);
       if (this.leaving) return;
       this.setButtonState(button, "idle");
     });
-    zone.on(Phaser.Input.Events.GAMEOBJECT_POINTER_DOWN, () => {
+    zone.on(Phaser.Input.Events.GAMEOBJECT_POINTER_DOWN, (pointer: Phaser.Input.Pointer) => {
       if (!this.revealComplete || this.leaving) return;
+      press.down(pointer);
       this.setButtonState(button, "pressed");
     });
-    zone.on(Phaser.Input.Events.GAMEOBJECT_POINTER_UP, () => {
-      if (!this.revealComplete || this.leaving || button.state !== "pressed") return;
+    zone.on(Phaser.Input.Events.GAMEOBJECT_POINTER_UP, (pointer: Phaser.Input.Pointer) => {
+      if (!this.revealComplete || this.leaving || !press.up(pointer) || pointer.event.type === "touchcancel") return;
       onActivate();
+    });
+    const release = (pointer: Phaser.Input.Pointer): void => press.reset(pointer);
+    this.input.on(Phaser.Input.Events.POINTER_UP, release);
+    this.input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, release);
+    const input = this.input;
+    zone.once(Phaser.GameObjects.Events.DESTROY, () => {
+      input.off(Phaser.Input.Events.POINTER_UP, release);
+      input.off(Phaser.Input.Events.POINTER_UP_OUTSIDE, release);
     });
 
     return button;
