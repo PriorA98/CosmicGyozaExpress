@@ -4,9 +4,11 @@ import { MISSION_IDS } from "../src/data/campaign";
 import { missionBoard, normalizeCampaignProgress } from "../src/systems/CampaignSystem";
 import {
   BOARD_GRID,
+  BOARD_TOKEN,
   boardLegDots,
   boardNodeCentres,
   boardRouteLegs,
+  boardTokenCaption,
   initialBoardSelection,
   navigateBoard,
   pixelRingRects,
@@ -48,14 +50,31 @@ describe("board layout", () => {
     }
   });
 
-  it("keeps compact node windows below the header and their labels above the details", () => {
+  it("keeps integer-scale tokens, labels and chips separate from adjacent rows and the details", () => {
     const centres = boardNodeCentres("compact");
-    for (const centre of centres.slice(0, 3)) expect(centre.y - 96).toBeGreaterThanOrEqual(88);
-    for (const centre of centres.slice(3)) expect(centre.y + 90 + 30).toBeLessThanOrEqual(520);
-    // Each 168x192 logical node hit box exceeds 44 CSS px at 844x390 Scale.FIT.
+    expect(BOARD_TOKEN.artScale).toBe(1);
+    expect(BOARD_TOKEN.artSize).toBe(160);
+    for (const kind of ["desktop", "compact"] as const) {
+      const points = boardNodeCentres(kind);
+      const labelHeight = kind === "compact" ? 32 : 22;
+      const chipHeight = kind === "compact" ? 36 : 28;
+      for (const centre of points.slice(0, 3)) {
+        const caption = boardTokenCaption(centre, labelHeight, chipHeight);
+        expect(caption.labelY).toBeGreaterThanOrEqual(centre.y + BOARD_TOKEN.selectRadius);
+        expect(caption.chipY).toBeGreaterThan(caption.labelY + labelHeight);
+        expect(caption.bottom).toBeLessThan((points[3]?.y ?? 0) - BOARD_TOKEN.artSize / 2);
+      }
+      for (const centre of points.slice(3)) {
+        expect(boardTokenCaption(centre, labelHeight, chipHeight).bottom).toBeLessThanOrEqual(568);
+      }
+    }
+    for (const centre of centres.slice(0, 3)) expect(centre.y - BOARD_TOKEN.selectRadius).toBeGreaterThanOrEqual(72);
+    // Node tap zones exceed 44 CSS px in landscape and portrait without crossing neighbours.
     const fit = Math.min(844 / 1280, 390 / 720);
-    expect(168 * fit).toBeGreaterThanOrEqual(44);
-    expect(192 * fit).toBeGreaterThanOrEqual(44);
+    for (const scale of [fit, 390 / 1280]) {
+      expect(BOARD_TOKEN.hitWidth * scale).toBeGreaterThanOrEqual(44);
+      expect(BOARD_TOKEN.hitHeight * scale).toBeGreaterThanOrEqual(44);
+    }
     expect(touchTargetPx(44, fit, 88) * fit).toBeGreaterThanOrEqual(44);
   });
 

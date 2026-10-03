@@ -45,16 +45,34 @@ describe("mission-aware result presentation", () => {
     expect(view.postcardTitle).toBe(missionResultCopy[id].postcardTitle);
     expect(view.recipientCaption).toBe(missionResultCopy[id].recipientCaption);
     expect(view.closingLine).toBe(mission.closingLine);
-    expect(view.deliveryNote).toBe(missionResultCopy[id].deliveryNote.first);
+    expect(view.deliveryNote).toBe(id === "tea-moon" ? resultCopy.deliveryNote.first
+      : `first delivery ${view.isEnding ? "home" : `to ${mission.shortTitle}`}`);
   });
 
-  it("keeps Tea Moon on the slice copy and actions", () => {
+  it("keeps Tea Moon's slice copy and offers the next unlocked delivery", () => {
     const view = createDeliveryResultPresentation(data("tea-moon"), fresh);
     expect(view.legacy).toBe(true);
     expect(view.postcardTitle).toBe(resultCopy.postcard.title);
     expect(view.recipientCaption).toBe(resultCopy.recipientCaption);
     expect(view.kickerPlace).toBe("tea moon");
-    expect(view.actions.map((action) => action.kind)).toEqual(["back-to-title", "fly-again"]);
+    expect(view.actions.map((action) => [action.kind, action.missionId])).toEqual([
+      ["fly-again", "tea-moon"], ["delivery-board", "bento-belt"], ["next-delivery", "bento-belt"],
+    ]);
+  });
+
+  it.each(["soft", "bumpy"] as const)("offers Bento after Tea is already saved on the %s result", (landingResult) => {
+    const progress = normalizeCampaignProgress(["tea-moon"], []);
+    const view = createDeliveryResultPresentation(data("tea-moon", { landingResult }), { ...fresh, progress });
+    expect(view.actions.find((action) => action.kind === "next-delivery")?.missionId).toBe("bento-belt");
+    expect(view.actions.find((action) => action.kind === "delivery-board")?.missionId).toBe("bento-belt");
+  });
+
+  it("phrases repeat destinations naturally and retains the Tea footer", () => {
+    for (const id of ["im-fine", "home-delivery"] as const) {
+      const view = createDeliveryResultPresentation(data(id), { ...fresh, previousDeliveries: 1 });
+      expect(view.deliveryNote).toBe(id === "home-delivery" ? "delivery no. 2 home" : "delivery no. 2 to Planet I'm Fine");
+    }
+    expect(createDeliveryResultPresentation(data("tea-moon"), fresh).deliveryNote).toBe("first delivery to the tea moon");
   });
 
   it("falls back to Tea Moon for unknown missions", () => {

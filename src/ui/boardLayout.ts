@@ -23,9 +23,27 @@ export const BOARD_NODE_COUNT = BOARD_GRID.length;
 
 const COLUMN_X: readonly number[] = [280, 640, 1000];
 const ROW_Y: Readonly<Record<BoardLayoutKind, readonly [number, number]>> = {
-  desktop: [204, 410],
-  compact: [184, 400],
+  desktop: [184, 416],
+  compact: [160, 404],
 };
+
+/** One integer-scale illustration, with a separate label and status area below it. */
+export const BOARD_TOKEN = {
+  artSize: 160,
+  artScale: 1,
+  ringRadius: 84,
+  selectRadius: 88,
+  labelOffset: 88,
+  hitWidth: 200,
+  hitHeight: 224,
+} as const;
+
+/** Measured text/chip heights keep the state below the label on every display tier. */
+export function boardTokenCaption(centre: Point, labelHeight: number, chipHeight: number): { labelY: number; chipY: number; bottom: number } {
+  const labelY = centre.y + BOARD_TOKEN.labelOffset;
+  const chipY = Math.ceil(labelY + labelHeight + 4);
+  return { labelY, chipY, bottom: chipY + chipHeight };
+}
 
 /** Node centres in board order for a layout. */
 export function boardNodeCentres(kind: BoardLayoutKind): Point[] {

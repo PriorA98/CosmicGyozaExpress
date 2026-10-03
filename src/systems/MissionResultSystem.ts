@@ -168,8 +168,8 @@ export function createDeliveryResultPresentation(
     deliveryNote: isNewWarmest
       ? resultCopy.deliveryNote.warmestPage
       : deliveryNumber <= 1
-        ? copy.deliveryNote.first
-        : copy.deliveryNote.repeat.replace("{n}", String(deliveryNumber)),
+        ? deliveryNoteFor(mission, 1)
+        : deliveryNoteFor(mission, deliveryNumber),
     isNewWarmest,
     missionId: mission.id,
     themeId: mission.themeId,
@@ -261,19 +261,13 @@ const ENTER_CODES = ["Enter", "NumpadEnter"] as const;
 
 /**
  * Footer actions for a finished delivery, left to right. `progress` is the campaign state after this
- * delivery. Tea Moon keeps the slice pair (back to title, fly again); campaign cards offer a replay,
- * the delivery board and the next delivery; the final card offers the notes, the board and the flight home.
+ * delivery. All cards offer a replay, the board and the next unlocked delivery;
+ * the final card offers the notes, the board and the flight home.
  */
 export function resultActionsFor(missionId: MissionId, progress: CampaignProgress): readonly ResultAction[] {
   const mission = resolveMission(missionId);
   const buttons = campaignResultCopy.buttons;
   const id = mission.id;
-  if (themeFor(mission.themeId).legacy) {
-    return [
-      { kind: "back-to-title", ...resultCopy.buttons.backToTitle, codes: ["Escape"], variant: "secondary", missionId: id },
-      { kind: "fly-again", ...resultCopy.buttons.flyAgain, codes: ENTER_CODES, variant: "primary", missionId: id },
-    ];
-  }
   const boardAsPrimary: ResultAction = {
     kind: "delivery-board",
     label: buttons.deliveryBoard.label,
@@ -297,6 +291,16 @@ export function resultActionsFor(missionId: MissionId, progress: CampaignProgres
     { kind: "delivery-board", ...buttons.deliveryBoard, codes: ["Escape"], variant: "secondary", missionId: next.id },
     { kind: "next-delivery", ...buttons.nextDelivery, codes: ENTER_CODES, variant: "primary", missionId: next.id },
   ];
+}
+
+/** Preserve the slice's authored footer; campaign destinations use their natural display names. */
+function deliveryNoteFor(mission: MissionDefinitionV2, deliveryNumber: number): string {
+  const copy = missionResultCopy[mission.id].deliveryNote;
+  if (themeFor(mission.themeId).legacy) {
+    return deliveryNumber === 1 ? copy.first : copy.repeat.replace("{n}", String(deliveryNumber));
+  }
+  const destination = isEndingMission(mission) ? "home" : `to ${mission.shortTitle}`;
+  return deliveryNumber === 1 ? `first delivery ${destination}` : `delivery no. ${deliveryNumber} ${destination}`;
 }
 
 function reactionLineFor(

@@ -1152,7 +1152,7 @@ export class DeliveryResultScene extends Phaser.Scene {
     drawDashedLine(divider, frame.innerLeft, frame.footerY, frame.innerRight, colors.borderStrong);
 
     // Actions read left to right; they are laid out from the right edge so the primary keeps its slot.
-    const minWidth = view.legacy ? layout.buttonMinWidth : layout.campaignButtonMinWidth;
+    const minWidth = view.actions.length > 2 ? layout.campaignButtonMinWidth : layout.buttonMinWidth;
     const footer: FooterButton[] = view.actions.map((action) => {
       const button = this.createButton(layout, action.variant, action, () => this.activate(action), minWidth);
       return { action, button };
@@ -1168,7 +1168,7 @@ export class DeliveryResultScene extends Phaser.Scene {
     // Note column: the delivery note plus, when progress can't be kept, a kind footnote.
     const noteX = frame.innerLeft + SPACING.notePadX;
     const noteWidth = leftmost - layout.buttonGap - noteX;
-    const roomForNotes = view.legacy || noteWidth >= CAMPAIGN_ART.minNoteWidth;
+    const roomForNotes = noteWidth >= CAMPAIGN_ART.minNoteWidth;
     const lines: Phaser.GameObjects.Text[] = [];
     if (layout.showDeliveryNote && roomForNotes) {
       lines.push(

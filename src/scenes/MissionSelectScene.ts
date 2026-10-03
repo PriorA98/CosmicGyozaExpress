@@ -16,8 +16,10 @@ import type { MissionId, MissionSelectSceneData } from "../types/campaign";
 import type { FlightSceneData } from "../types/flight";
 import {
   boardLegDots,
+  BOARD_TOKEN,
   boardNodeCentres,
   boardRouteLegs,
+  boardTokenCaption,
   initialBoardSelection,
   isSelectable,
   navigateBoard,
@@ -36,17 +38,13 @@ import { bodyStyle, displayTitleStyle, headingStyle, monoStyle } from "../ui/tex
 import { detectTouchDevice } from "../ui/TouchControls";
 import { hasAuthoredTexture } from "../ui/uiTextures";
 
-/** Board look in logical pixels. Destination art keeps its authored 2x scale inside small windows. */
+/** Board illustrations are 1x tokens; scenery elsewhere retains its authored 2x scale. */
 const NODE = {
-  /** Half-size of the node's tap zone around its centre (art is ~150 px tall). */
-  hitHalf: 84,
-  ringRadius: 86,
-  selectRadius: 96,
+  ringRadius: BOARD_TOKEN.ringRadius,
+  selectRadius: BOARD_TOKEN.selectRadius,
   ringBand: 4,
-  clearRadius: 104,
-  artScale: 2,
-  artRadius: 76,
-  labelGap: 6,
+  clearRadius: 100,
+  artScale: BOARD_TOKEN.artScale,
   lockedAlpha: 0.38,
 } as const;
 const ROUTE = { spacing: 16, dot: 4, openAlpha: 0.85, closedAlpha: 0.32 } as const;
@@ -260,44 +258,38 @@ export class MissionSelectScene extends Phaser.Scene {
     drawRing(selectRing, centre, NODE.selectRadius, NODE.ringBand, NODE.ringBand);
 
     const theme = themeFor(node.mission.themeId);
-    // Like illustrations cut into a delivery notice: crop the loaded art with a pixel window,
-    // rather than shrinking it below the asset contract. Final art uses exactly the same window.
-    const window = this.make.graphics({}, false);
-    window.fillStyle(colorNumber(theme.palette.ground), 1);
-    drawRing(window, centre, NODE.artRadius, NODE.artRadius, NODE.ringBand);
-    const mask = window.createGeometryMask();
     const art = this.add.image(centre.x, centre.y, theme.destinationTexture)
-      .setScale(NODE.artScale).setMask(mask).setDepth(depth.world);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      art.clearMask();
-      mask.destroy();
-      window.destroy();
-    });
+      .setScale(NODE.artScale).setDepth(depth.world);
+    // Tea's older 192px texture uses a centred 160px crop; campaign art fits at native size.
+    const cropX = Math.max(0, Math.floor((art.width - BOARD_TOKEN.artSize) / 2));
+    const cropY = Math.max(0, Math.floor((art.height - BOARD_TOKEN.artSize) / 2));
+    art.setCrop(cropX, cropY, BOARD_TOKEN.artSize, BOARD_TOKEN.artSize);
     if (locked) art.setAlpha(NODE.lockedAlpha).setTint(colorNumber(colors.duskBlue));
 
-    const labelY = centre.y + NODE.hitHalf + NODE.labelGap;
+    const labelY = centre.y + BOARD_TOKEN.labelOffset;
     const label = this.add
-      .text(centre.x, labelY, node.mission.shortTitle, headingStyle({ size: uiTextSize(18, s), color: locked ? colors.parchmentDeep : colors.plaster }))
+      .text(centre.x, labelY, node.mission.shortTitle, headingStyle({ size: uiTextSize(16, s), color: locked ? colors.parchmentDeep : colors.plaster }))
       .setOrigin(0.5, 0)
       .setAlpha(locked ? 0.6 : 1)
       .setDepth(depth.hud);
     let lock: Phaser.GameObjects.Container | null = null;
-    if (locked) lock = this.createLock(centre, node.unlockedBy ? boardCopy.lockedAfter(node.unlockedBy.shortTitle) : null);
+    const chipY = boardTokenCaption(centre, label.height, 0).chipY;
+    if (locked) lock = this.createLock(centre, chipY, node.unlockedBy ? boardCopy.lockedAfter(node.unlockedBy.shortTitle) : null);
     if (node.state === "completed") {
-      const stamp = new CollectedStamp(this, { x: 0, y: 0, label: boardCopy.deliveredStamp, uiScale: s });
-      stamp.setPosition(Math.round(centre.x + 52 - stamp.stampWidth / 2), Math.round(centre.y - NODE.hitHalf + 2)).setDepth(depth.hud).setName(`stamp-${node.mission.id}`);
+      const stamp = new CollectedStamp(this, { x: 0, y: 0, label: boardCopy.deliveredStamp, uiScale: Math.min(s, 1.3) });
+      stamp.setPosition(Math.round(centre.x - stamp.stampWidth / 2), chipY).setDepth(depth.hud).setName(`stamp-${node.mission.id}`);
     }
 
     const hit = this.add
-      .zone(centre.x, centre.y + 12, NODE.hitHalf * 2, NODE.hitHalf * 2 + 24)
+      .zone(centre.x, centre.y + 24, BOARD_TOKEN.hitWidth, BOARD_TOKEN.hitHeight)
       .setInteractive({ useHandCursor: !locked })
       .setDepth(depth.hud);
     hit.on(Phaser.Input.Events.GAMEOBJECT_POINTER_DOWN, () => this.onNodePointer(index));
     this.nodes.push({ node, centre, selectRing, label, hit, lock });
   }
 
-  /** Pixel padlock on a dark disc over the dimmed art, with the "After …" note on a chip below it. */
-  private createLock(centre: Point, note: string | null): Phaser.GameObjects.Container {
+  /** Pixel padlock over the art; the "After …" chip sits below the destination label. */
+  private createLock(centre: Point, chipTop: number, note: string | null): Phaser.GameObjects.Container {
     const parts: Phaser.GameObjects.GameObject[] = [];
     if (note) {
       const text = this.add
@@ -306,7 +298,7 @@ export class MissionSelectScene extends Phaser.Scene {
       const padX = 8;
       const chipW = Math.ceil(text.width / 2) * 2 + padX * 2;
       const chipH = Math.ceil(text.height / 2) * 2 + 6;
-      const chipY = 30 + chipH / 2;
+      const chipY = chipTop - centre.y + 12 + chipH / 2;
       const chip = this.add.graphics();
       chip.fillStyle(colorNumber(colors.cosmosDeep), 0.82);
       fillSteppedRect(chip, -chipW / 2, chipY - chipH / 2, chipW, chipH, STEPPED_CORNER.soft, 2);
@@ -337,7 +329,7 @@ export class MissionSelectScene extends Phaser.Scene {
     const s = this.uiScale;
     const mission = node.mission;
     const width = this.scale.width - 80;
-    const pad = uiScaled(this.compact ? 14 : 18, s);
+    const pad = uiScaled(this.compact ? 8 : 18, s);
     const buttonHeight = Math.max(uiScaled(56, s), this.compact ? touchTargetPx(TOUCH_TARGET_CSS, displayScale(this.game), uiScaled(64, s)) : 0);
     // Button can grow to fit a pixel-font label. Reserve its measured width before wrapping copy.
     const launch = new Button(this, {
@@ -359,7 +351,7 @@ export class MissionSelectScene extends Phaser.Scene {
     const recipient = this.add.text(0, 0, mission.recipientName, headingStyle({ size: uiTextSize(this.compact ? 19 : 22, s), color: colors.ink, wrapWidth: textWidth }));
     const item = this.add.text(0, 0, `${boardCopy.carrying} · ${mission.deliveryItemName}`, monoStyle({ size: uiSecondaryTextSize(typeScale.sm, s), bold: true, color: colors.sageDeep, wrapWidth: textWidth }));
     const request = this.add.text(0, 0, `“${mission.requestText}”`, bodyStyle({ size: uiTextSize(this.compact ? 14 : 15, s), color: colors.inkSoft, wrapWidth: textWidth }));
-    const gap = uiScaled(4, s);
+    const gap = uiScaled(this.compact ? 2 : 4, s);
     const top = this.compact ? pad : uiScaled(CARD_HEADER_HEIGHT, s) + uiScaled(12, s);
     const textHeight = recipient.height + gap + item.height + gap * 2 + request.height;
     const height = Math.ceil(top + Math.max(textHeight, buttonHeight) + pad);
