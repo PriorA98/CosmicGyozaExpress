@@ -24,6 +24,19 @@ export function titleDeliveryAction(progress: CampaignProgress): TitleDeliveryAc
   };
 }
 
+/** Card and launch share the same suggested stop; the fresh Tea card keeps its slice copy. */
+export function titleMissionPresentation(progress: CampaignProgress) {
+  const mission = nextSuggestedMission(progress);
+  const theme = themeFor(mission.themeId);
+  const delivered = progress.completedMissions.includes(mission.id);
+  return {
+    mission,
+    theme,
+    delivered,
+    pillLabel: delivered ? titleCopy.deliveredPill : theme.legacy ? titleCopy.awaitingPill : titleCopy.awaitingDeliveryPill,
+  };
+}
+
 type RouteLogPresentation = Omit<RouteLogPanelOptions, "stats" | "uiScale" | "onClose"> & {
   readonly missionId: MissionId;
 };

@@ -1,13 +1,14 @@
-import type Phaser from "phaser";
+import Phaser from "phaser";
 import { ASSET } from "../../data/assetManifest";
 import type { CampaignThemeDefinition } from "../../data/campaign/themes";
-import { FLIGHT_ART_SCALE, campaignFlightStyle } from "../../data/flightScenery";
+import { FLIGHT_ART_SCALE, campaignFlightStyle, campaignCuePalette } from "../../data/flightScenery";
 import { colorNumber, depth } from "../../game/designTokens";
 import type { ForceSample } from "../../systems/ForceFieldSystem";
 import { motionPathTrack } from "../../systems/MotionPathSystem";
 import type { ForceZoneDefinition, MovingObstacleDefinition, VisibilityDefinition } from "../../types/campaign";
 import type { Point } from "../../types/flight";
-import { quarterTurnRotation, windsockFrame, wrap, zoneBounds } from "./flightCueMath";
+import { cueIsClear, flowCueBases, quarterTurnRotation, windsockFrame, wrap, zoneBounds } from "./flightCueMath";
+import type { HudScreenRect } from "./FlightDashboard";
 import { ensurePixelHalo } from "./pixelArt";
 
 /**
@@ -52,7 +53,7 @@ function plotDashed(g: Phaser.GameObjects.Graphics, points: readonly Point[], do
 export function drawMotionTracks(scene: Phaser.Scene, definitions: readonly MovingObstacleDefinition[], theme: CampaignThemeDefinition): Phaser.GameObjects.Graphics {
   const style = campaignFlightStyle.track;
   const g = scene.add.graphics().setDepth(TRACK_DEPTH);
-  const color = colorNumber(theme.palette.light);
+  const color = colorNumber(theme.palette.accent);
   for (const definition of definitions) {
     const path = definition.path;
     if (path.kind === "ping-pong") {
@@ -68,6 +69,16 @@ export function drawMotionTracks(scene: Phaser.Scene, definitions: readonly Movi
       g.fillStyle(color, style.orbitAlpha);
       plotDashed(g, motionPathTrack(path, 96), style.dotPx, style.dashPx, style.gapPx);
     }
+    const points = motionPathTrack(path, 24);
+    g.fillStyle(colorNumber(theme.palette.light), 0.75);
+    for (let i = 1; i < points.length; i += 4) {
+      const a = points[i - 1]; const b = points[i];
+      if (!a || !b) continue;
+      const angle = Math.atan2(b.y - a.y, b.x - a.x);
+      for (let t = 0; t <= 8; t += 2) for (const side of [-1, 1]) {
+        g.fillRect(snap(b.x - Math.cos(angle) * t - Math.sin(angle) * side * t), snap(b.y - Math.sin(angle) * t + Math.cos(angle) * side * t), 2, 2);
+      }
+    }
   }
   return g;
 }
@@ -78,6 +89,8 @@ type ArrowField = {
   readonly direction: Point;
   readonly bounds: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
   readonly windsock: Phaser.GameObjects.Image | undefined;
+  readonly sockSilhouettes: readonly Phaser.GameObjects.Graphics[];
+  readonly activeKey: string;
   offset: number;
   lastKey: string;
 };
@@ -104,7 +117,7 @@ export class ForceZoneCues {
   }
 
   /** `samples` are `ForceFieldSample.zones` for this frame (same order as the route's zones). */
-  update(simTimeMs: number, samples: readonly ForceSample[]): void {
+  update(simTimeMs: number, samples: readonly ForceSample[], ship: Point, avoid: readonly HudScreenRect[]): void {
     const dtSeconds = this.lastSimMs === undefined ? 0 : Math.max(0, simTimeMs - this.lastSimMs) / 1000;
     this.lastSimMs = simTimeMs;
     const style = campaignFlightStyle;
@@ -112,13 +125,14 @@ export class ForceZoneCues {
       const sample = samples.find((candidate) => candidate.zoneId === field.zone.id);
       let alpha: number = style.flow.alpha;
       let speed: number = style.flow.speedPxPerSecond;
-      let tint = this.theme.palette.accent;
+      let tint: string = campaignCuePalette.matcha;
+      const warning = sample?.phase === "warning" && field.zone.kind === "gust";
       if (field.zone.kind === "gust") {
         const phase = sample?.phase ?? "calm";
         const envelope = sample?.envelope ?? 0;
         speed = style.gust.speedPxPerSecond * envelope;
         if (phase === "warning") {
-          alpha = style.gust.warningAlpha;
+          alpha = this.reducedMotion ? style.gust.warningAlpha : 0.55 + 0.3 * (0.5 + 0.5 * Math.sin(simTimeMs / 260));
           tint = this.theme.palette.light;
         } else if (phase === "calm") {
           alpha = style.gust.calmAlpha;
@@ -126,18 +140,22 @@ export class ForceZoneCues {
           alpha = style.gust.calmAlpha + (style.gust.activeAlpha - style.gust.calmAlpha + 0.2) * envelope;
           tint = this.theme.palette.light;
         }
-        if (field.windsock) field.windsock.setFrame(windsockFrame(phase, envelope));
+        const frame = windsockFrame(phase, envelope);
+        if (field.windsock) field.windsock.setFrame(frame);
+        field.sockSilhouettes.forEach((sock, index) => sock.setVisible(index === frame));
       }
       if (!this.reducedMotion) field.offset = wrap(field.offset + speed * dtSeconds, style.flow.spacingPx);
-      const key = `${alpha.toFixed(2)}:${tint}`;
+      const key = `${alpha.toFixed(2)}:${tint}:${warning}`;
       const restyle = key !== field.lastKey;
       field.lastKey = key;
       for (const arrow of field.arrows) {
         const x = arrow.base.x + field.direction.x * field.offset;
         const y = arrow.base.y + field.direction.y * field.offset;
         const inside = x >= field.bounds.x && x <= field.bounds.x + field.bounds.width && y >= field.bounds.y && y <= field.bounds.y + field.bounds.height;
-        arrow.image.setPosition(snap(x), snap(y)).setVisible(inside);
-        if (restyle) arrow.image.setAlpha(alpha).setTint(colorNumber(tint));
+        const camera = this.scene.cameras.main;
+        const clear = cueIsClear({ x, y }, ship, { x: x - camera.scrollX, y: y - camera.scrollY }, this.scene.scale.width, this.scene.scale.height, avoid);
+        arrow.image.setPosition(snap(x), snap(y)).setVisible(inside && clear);
+        if (restyle) arrow.image.setTexture(warning ? "flight-gust-outline" : field.activeKey).setAlpha(alpha).setTint(colorNumber(tint));
       }
     }
   }
@@ -146,6 +164,7 @@ export class ForceZoneCues {
     for (const field of this.fields) {
       for (const arrow of field.arrows) arrow.image.destroy();
       field.windsock?.destroy();
+      for (const sock of field.sockSilhouettes) sock.destroy();
     }
     for (const object of this.statics) object.destroy();
   }
@@ -160,35 +179,64 @@ export class ForceZoneCues {
     const bounds = { x: outer.x + inset, y: outer.y + inset, width: Math.max(0, outer.width - inset * 2), height: Math.max(0, outer.height - inset * 2) };
     const arrows: { image: Phaser.GameObjects.Image; base: Point }[] = [];
     const spacing = style.spacingPx;
-    // Back the grid off by one spacing upstream so arrows flow in from the zone edge.
-    const startX = bounds.x - (direction.x > 0 ? spacing : 0);
-    const startY = bounds.y - (direction.y > 0 ? spacing : 0);
-    let row = 0;
-    const endX = bounds.x + bounds.width + (direction.x < 0 ? spacing : 0);
-    const endY = bounds.y + bounds.height + (direction.y < 0 ? spacing : 0);
-    for (let y = startY; y <= endY; y += spacing, row += 1) {
-      const stagger = row % 2 === 0 ? 0 : spacing / 2;
-      for (let x = startX + stagger; x <= endX; x += spacing) {
+    this.ensureFlowTextures();
+    const activeKey = zone.kind === "gust" ? ASSET.campaignFlowArrow : "flight-current-wisp";
+    for (const { x, y } of flowCueBases(bounds, direction.y !== 0, spacing)) {
         const image = this.scene.add
-          .image(snap(x), snap(y), ASSET.campaignFlowArrow)
+          .image(snap(x), snap(y), activeKey)
           .setScale(FLIGHT_ART_SCALE)
           .setRotation(rotation)
           .setDepth(CUE_DEPTH)
           .setAlpha(style.alpha)
           .setVisible(false);
         arrows.push({ image, base: { x, y } });
-      }
     }
     let windsock: Phaser.GameObjects.Image | undefined;
+    const sockSilhouettes: Phaser.GameObjects.Graphics[] = [];
     if (zone.kind === "gust") {
-      const gust = campaignFlightStyle.gust;
       windsock = this.scene.add
-        .image(snap(outer.x + gust.windsockInsetPx), snap(outer.y + outer.height / 2), ASSET.campaignWindsock, 0)
+        .image(snap(outer.x + outer.width / 2), snap(outer.y + outer.height / 2), ASSET.campaignWindsock, 0)
         .setScale(FLIGHT_ART_SCALE)
         .setFlipX(push.x < 0)
         .setDepth(WINDSOCK_DEPTH);
+      const post = this.scene.add.graphics().setDepth(WINDSOCK_DEPTH - 0.01);
+      post.fillStyle(colorNumber(this.theme.palette.light), 1).fillRect(windsock.x - 24, windsock.y - 20, 4, 92);
+      post.fillStyle(colorNumber(this.theme.palette.accent), 1).fillRect(windsock.x - 36, windsock.y + 70, 28, 6);
+      this.statics.push(post);
+      for (let frame = 0; frame < 4; frame += 1) {
+        const sock = this.scene.add.graphics().setPosition(windsock.x - 20, windsock.y - 20).setDepth(WINDSOCK_DEPTH).setVisible(false);
+        const droop = [32, 20, 8, 0][frame] ?? 0;
+        for (let t = 0; t < 48; t += 2) {
+          const y = snap(droop * t / 48);
+          const half = snap(12 - t / 8);
+          sock.fillStyle(colorNumber(this.theme.palette.light), 1).fillRect(t, y - half, 2, half * 2);
+          sock.fillStyle(colorNumber(this.theme.palette.skyTop), 1).fillRect(t, y - half + 2, 2, Math.max(2, half * 2 - 4));
+          if (Math.floor(t / 10) % 2 === 0) sock.fillStyle(colorNumber(this.theme.palette.light), 1).fillRect(t, y - half + 4, 2, Math.max(2, half * 2 - 8));
+        }
+        sockSilhouettes.push(sock);
+      }
     }
-    return { zone, arrows, direction, bounds, windsock, offset: 0, lastKey: "" };
+    return { zone, arrows, direction, bounds, windsock, sockSilhouettes, activeKey, offset: 0, lastKey: "" };
+  }
+
+  private ensureFlowTextures(): void {
+    for (const key of ["flight-current-wisp", "flight-gust-outline"]) {
+      if (this.scene.textures.exists(key)) continue;
+      const g = this.scene.add.graphics();
+      g.fillStyle(0xffffff, 1);
+      if (key === "flight-current-wisp") {
+        for (let x = 2; x < 40; x += 2) {
+          const y = 9 + Math.round(Math.sin(x / 7) * 2);
+          g.fillRect(x, y, 2, 1);
+          if (x > 10 && x < 32) g.fillRect(x - 4, y + 5, 2, 1);
+        }
+        g.fillRect(35, 7, 2, 2).fillRect(37, 8, 2, 2).fillRect(35, 11, 2, 2);
+      } else {
+        g.fillRect(3, 6, 18, 1).fillRect(3, 10, 18, 1).fillRect(3, 6, 1, 5);
+        for (let t = 0; t <= 6; t += 1) { g.fillRect(26 - t, 8 - t, 1, 1); g.fillRect(26 - t, 8 + t, 1, 1); }
+      }
+      g.generateTexture(key, 44, 20); g.destroy();
+    }
   }
 
   private drawGravity(zone: Extract<ForceZoneDefinition, { kind: "radial-gravity" }>): void {
@@ -233,8 +281,17 @@ export class ForceZoneCues {
     });
     const core = this.scene.add.image(snap(cx), snap(cy), coreKey).setScale(FLIGHT_ART_SCALE).setDepth(CUE_DEPTH);
     this.statics.push(core);
+    // The oven is decorative and non-colliding; its centre remains a safe zero-force sample.
+    const oven = this.scene.add.graphics().setPosition(snap(cx), snap(cy)).setDepth(depth.world - 0.4);
+    oven.fillStyle(light, 0.24); fillPixelDisc(oven, 0, 0, 62);
+    oven.fillStyle(light, 1); fillPixelDisc(oven, 0, 0, 52);
+    oven.fillStyle(colorNumber(this.theme.palette.skyTop), 1); fillPixelDisc(oven, 0, 0, 46);
+    oven.fillStyle(light, 0.9).fillRect(-26, 16, 52, 4).fillRect(-20, 22, 40, 4);
+    oven.fillStyle(light, 1).fillRect(-14, -12, 4, 4).fillRect(12, -12, 4, 4);
+    this.statics.push(oven);
     if (!this.reducedMotion) {
       this.scene.tweens.add({ targets: g, alpha: 1 - style.breathAlpha, duration: style.breathMs, ease: "Sine.easeInOut", yoyo: true, repeat: -1 });
+      this.scene.tweens.add({ targets: oven, alpha: 0.78, duration: style.breathMs, ease: "Sine.easeInOut", yoyo: true, repeat: -1 });
     }
   }
 }
@@ -261,10 +318,27 @@ export class FogLayer {
         .tileSprite(snap(outer.x + inset), snap(outer.y + inset), snap(width), snap(height), visibility.textureKey)
         .setOrigin(0, 0)
         .setTileScale(FLIGHT_ART_SCALE)
+        .setTint(colorNumber(i % 2 === 0 ? campaignCuePalette.fog : campaignCuePalette.matcha))
+        .setTintMode(Phaser.TintModes.SCREEN)
         .setAlpha(bandAlpha)
         .setDepth(FOG_DEPTH + i * 0.01);
       band.tilePositionX = i * 37;
       band.tilePositionY = i * 19;
+      const maskKey = `flight-fog-fringe-${i}-${width}-${height}`;
+      if (!scene.textures.exists(maskKey)) {
+        const fringe = scene.add.graphics();
+        fringe.fillStyle(0xffffff, 1);
+        // Static mask in art pixels; Phaser 4's internal filter maps it to the whole band.
+        for (let row = 0; row < height; row += 16) {
+          const edge = 30 + Math.round((1 + Math.sin(row / 45 + i)) * 20 / 2) * 2;
+          const topBottom = Math.max(0, 60 - Math.min(row, height - row));
+          fringe.fillRect((edge + topBottom) / FLIGHT_ART_SCALE, row / FLIGHT_ART_SCALE, (width - 2 * (edge + topBottom)) / FLIGHT_ART_SCALE, Math.min(16, height - row) / FLIGHT_ART_SCALE);
+        }
+        fringe.generateTexture(maskKey, width / FLIGHT_ART_SCALE, height / FLIGHT_ART_SCALE);
+        fringe.destroy();
+      }
+      band.enableFilters();
+      band.filters?.internal.addMask(maskKey);
       this.bands.push(band);
     }
   }

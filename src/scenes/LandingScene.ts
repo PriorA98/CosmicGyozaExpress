@@ -233,7 +233,7 @@ export class LandingScene extends Phaser.Scene {
       this.rabbit = scenery;
       this.padSite = new CampaignBerth(this, this.pad, this.theme);
     }
-    this.aids = new LandingAids(this, this.pad, this.contactY, this.definition.tuning);
+    this.aids = new LandingAids(this, this.pad, this.contactY, this.definition.tuning, !this.theme.legacy);
 
     this.shipLayout = resolveShipLayout(this, landingScenery.ship.fallbackFootRatio);
     this.ship = new GyozaShip(this, this.toShipState(this.landingState));
@@ -366,7 +366,7 @@ export class LandingScene extends Phaser.Scene {
     this.updateShipVisual();
 
     const card = new LandingIntroCard(this, this.hudScale(), this.theme.legacy ? undefined : {
-      title: this.mission.title + campaignLandingCopy.titleSuffix,
+      title: this.mission.title.toLowerCase() + campaignLandingCopy.titleSuffix,
       subtitle: this.theme.portraitTexture === null ? campaignLandingCopy.homeSubtitle : this.mission.recipientName + campaignLandingCopy.wavingSuffix,
       portrait: this.theme.portraitTexture === null ? null : { key: this.theme.portraitTexture, frame: CAMPAIGN_PORTRAIT_FRAME.welcome },
     });
@@ -921,7 +921,7 @@ export class LandingScene extends Phaser.Scene {
       showNote: !this.theme.legacy,
     });
     const touchPads = this.touchLayout ? new LandingTouchPads(this, compactUiScale(this)) : undefined;
-    const hint = this.touchLayout ? undefined : createLandingControlsHint(this, uiScale, isCompactDisplay(this) ? "top-right" : "bottom");
+    const hint = this.touchLayout ? undefined : createLandingControlsHint(this, uiScale, !this.theme.legacy || isCompactDisplay(this) ? "top-right" : "bottom");
     const retryChip = this.touchLayout ? this.createRetryChip(compactUiScale(this)) : undefined;
     const wind = this.theme.legacy || this.definition.wind.kind === "none" ? undefined : new LandingWindIndicator(this, this.definition.wind, uiScale, isCompactDisplay(this));
     this.hud = { dashboard, hint, touchPads, retryChip, uiScale, wind };
@@ -991,7 +991,7 @@ export class LandingScene extends Phaser.Scene {
     if (!this.theme.legacy) {
       if (this.time.now - this.lastCampaignHudMs < 100) return;
       this.lastCampaignHudMs = this.time.now;
-      hud.wind?.update(this.environment.wind);
+      hud.wind?.update(this.environment.wind, this.landingClockMs);
     }
     const readouts = this.readouts;
     hud.dashboard.update(

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MISSION_IDS, campaignMissions, resolveMission } from "../src/data/campaign";
-import { missionResultCopy, resultCopy, resultCopyBannedWords } from "../src/data/resultCopy";
+import { campaignResultCopy, endingRevealTiming, missionResultCopy, resultCopy, resultCopyBannedWords } from "../src/data/resultCopy";
 import { normalizeCampaignProgress } from "../src/systems/CampaignSystem";
 import {
   createDeliveryResultContent,
@@ -120,12 +120,23 @@ describe("final delivery card", () => {
     expect(view.isEnding).toBe(true);
     expect(view.thankYouNotes).toHaveLength(5);
     expect(view.closingLine).toBe(resolveMission("home-delivery").closingLine);
-    expect(view.actions.map((action) => action.kind)).toEqual(["read-notes", "delivery-board", "fly-again"]);
+    expect(view.actions.map((action) => action.kind)).toEqual(["read-notes", "fly-again", "delivery-board"]);
+    expect(view.actions.at(-1)?.variant).toBe("primary");
+    expect(view.kicker).toBe(campaignResultCopy.endingKicker);
+    expect(view.kickerPlace).toBe(campaignResultCopy.endingPlace);
+    expect(view.content.headline).toBe(campaignResultCopy.endingHeadline);
   });
 
   it("has no notes when nothing else was completed", () => {
     const view = createDeliveryResultPresentation(data("home-delivery"), fresh);
     expect(view.thankYouNotes).toEqual([]);
+  });
+
+  it("gives every note a beat and holds the closing line before the buttons", () => {
+    const lastNote = endingRevealTiming.firstNote + 4 * endingRevealTiming.noteGap;
+    expect(lastNote + 320).toBeLessThan(endingRevealTiming.closing);
+    expect(endingRevealTiming.footer - endingRevealTiming.closing).toBeGreaterThan(1000);
+    expect(endingRevealTiming.footer + 200).toBeLessThan(endingRevealTiming.complete);
   });
 });
 

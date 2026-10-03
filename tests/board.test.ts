@@ -6,9 +6,11 @@ import {
   BOARD_GRID,
   BOARD_TOKEN,
   boardLegDots,
+  boardLegArrow,
   boardNodeCentres,
   boardRouteLegs,
   boardTokenCaption,
+  boardUnlockCaptionTop,
   initialBoardSelection,
   navigateBoard,
   pixelRingRects,
@@ -18,6 +20,35 @@ import {
 
 const states = (completed: readonly string[], unlocked: readonly string[] = []): BoardNodeState[] =>
   missionBoard(normalizeCampaignProgress(completed, unlocked)).map((node) => node.state);
+
+describe("board direction cues", () => {
+  it("keeps compact lower-row unlock hints above labels and the taller detail panel", () => {
+    const centres = boardNodeCentres("compact");
+    centres.forEach((centre, index) => {
+      const caption = boardTokenCaption(centre, 30, 30);
+      const top = boardUnlockCaptionTop(centre, caption.chipY, "compact", index);
+      if (index >= 3) {
+        expect(top + 30).toBeLessThan(caption.labelY);
+        expect(top + 30).toBeLessThan(540);
+      } else expect(top).toBe(caption.chipY + 12);
+      expect(boardUnlockCaptionTop(centre, caption.chipY, "desktop", index)).toBe(caption.chipY + 12);
+    });
+  });
+  it("points right, down around the bend, then left on an integer pixel grid", () => {
+    const legs = boardRouteLegs(boardNodeCentres("desktop"), 220);
+    for (const [index, leg] of legs.entries()) {
+      const [tip, ...wings] = boardLegArrow(leg);
+      expect(tip).toBeDefined();
+      if (!tip) continue;
+      expect(wings.every((point) => index < 2 ? point.x < tip.x : index === 2 ? point.y < tip.y : point.x > tip.x)).toBe(true);
+      expect([tip, ...wings].every((point) => point.x % 2 === 0 && point.y % 2 === 0)).toBe(true);
+    }
+  });
+
+  it("authors one new-idea hint for every stop", () => {
+    for (const id of MISSION_IDS) expect(boardCopy.newIdea[id]).toMatch(/^new: /);
+  });
+});
 
 describe("board layout", () => {
   it("places six nodes in a U: top row left→right, bottom row right→left", () => {

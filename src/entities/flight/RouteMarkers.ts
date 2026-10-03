@@ -2,7 +2,7 @@ import type Phaser from "phaser";
 import type { CampaignThemeDefinition } from "../../data/campaign/themes";
 import { FLIGHT_ART_SCALE, campaignFlightStyle } from "../../data/flightScenery";
 import { colorNumber, depth } from "../../game/designTokens";
-import type { CollectibleDefinition, RouteBeaconDefinition } from "../../types/campaign";
+import type { CheckpointDefinition, CollectibleDefinition, RouteBeaconDefinition } from "../../types/campaign";
 import { ensurePixelHalo } from "./pixelArt";
 
 const TAU = Math.PI * 2;
@@ -66,6 +66,31 @@ export class RoutePickups {
 }
 
 /** Small glowing lanterns at the home route's thank-you beacons; a beacon brightens once its note was shown. */
+export class RouteCheckpoints {
+  private readonly markers = new Map<string, Phaser.GameObjects.Graphics>();
+
+  constructor(scene: Phaser.Scene, checkpoints: readonly CheckpointDefinition[], theme: CampaignThemeDefinition) {
+    for (const checkpoint of checkpoints) {
+      const strip = checkpoint.activation;
+      const x = Math.round((strip.x + strip.width / 2) / 2) * 2;
+      const y = Math.round(checkpoint.respawn.y / 2) * 2;
+      const g = scene.add.graphics().setDepth(depth.world - 0.2).setAlpha(0.45);
+      g.fillStyle(colorNumber(theme.palette.light), 1);
+      for (let dy = -120; dy <= 120; dy += 12) g.fillRect(x - 2, y + dy, 4, 4);
+      for (const dy of [-136, 136]) {
+        g.fillStyle(colorNumber(theme.palette.skyTop), 1).fillRect(x - 10, y + dy - 10, 20, 20);
+        g.fillStyle(colorNumber(theme.palette.accent), 1).fillRect(x - 8, y + dy - 8, 16, 16);
+        g.fillStyle(colorNumber(theme.palette.light), 1).fillRect(x - 4, y + dy - 4, 8, 8);
+      }
+      this.markers.set(checkpoint.id, g);
+    }
+  }
+
+  activate(id: string): void { this.markers.get(id)?.setAlpha(1); }
+  reset(): void { for (const marker of this.markers.values()) marker.setAlpha(0.45); }
+  destroy(): void { for (const marker of this.markers.values()) marker.destroy(); this.markers.clear(); }
+}
+
 export class RouteLanterns {
   private readonly lanterns = new Map<string, { readonly glow: Phaser.GameObjects.Image; readonly body: Phaser.GameObjects.Graphics }>();
 

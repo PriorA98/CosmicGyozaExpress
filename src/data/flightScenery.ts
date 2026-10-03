@@ -1,6 +1,7 @@
 import { ASSET, type AssetKey } from "./assetManifest";
 import { colors } from "../game/designTokens";
 import type { DockingStateKind } from "../types/flight";
+import type { ThemeId } from "../types/campaign";
 
 /**
  * Authored scenery, visual tuning, and copy for the Tea Moon route flight.
@@ -504,8 +505,8 @@ export const campaignFlightStyle = {
     breathAlpha: 0.3,
   },
   rockBob: { bobArtPx: 2, basePeriodMs: 3400, periodStepMs: 380 },
-  track: { alpha: 0.42, orbitAlpha: 0.26, dashPx: 8, gapPx: 10, dotPx: 4, bulbRadiusPx: 7, bulbAlpha: 0.7 },
-  flow: { spacingPx: 200, alpha: 0.38, speedPxPerSecond: 34, edgeInsetPx: 40 },
+  track: { alpha: 0.75, orbitAlpha: 0.55, dashPx: 16, gapPx: 8, dotPx: 6, bulbRadiusPx: 10, bulbAlpha: 0.9 },
+  flow: { spacingPx: 300, alpha: 0.72, speedPxPerSecond: 34, edgeInsetPx: 54 },
   gust: { calmAlpha: 0.14, warningAlpha: 0.78, activeAlpha: 0.5, speedPxPerSecond: 90, windsockInsetPx: 70 },
   gravity: {
     ringFractions: [0.92, 0.64, 0.38] as const,
@@ -522,6 +523,12 @@ export const campaignFlightStyle = {
   lantern: { bodyColor: "#3A2E2A", glowRadiusArt: 10, glowSteps: [3, 7, 12] as const, glowAlpha: 0.08, idleAlpha: 0.7 },
   gauge: { width: 164, height: 68, gap: 6, arrowPx: 9 },
 } as const;
+
+export type CampaignBackdropProp = "lunch-crate" | "tea-leaf" | "flour-comet" | "rain" | "ribbon-lantern";
+export const campaignBackdropProps: Readonly<Record<ThemeId, CampaignBackdropProp | null>> = {
+  teaMoon: null, bentoBelt: "lunch-crate", matchaNebula: "tea-leaf", blackHoleBakery: "flour-comet", imFine: "rain", home: "ribbon-lantern",
+};
+export const campaignCuePalette = { matcha: "#B7C69A", cream: "#F4E6C8", fog: "#80966B" } as const;
 
 /** Static rock look for a campaign route obstacle: deterministic texture by size, gentle bob. */
 export function campaignAsteroidVisual(obstacleId: string, radius: number, index: number, textureKey: AssetKey): AsteroidVisualDefinition {

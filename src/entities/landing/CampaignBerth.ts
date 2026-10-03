@@ -39,7 +39,7 @@ export class CampaignBerth {
     if (groundGap > CELL * 4) children.push(this.createUnderside(left, bottom, groundGap));
 
     for (const tile of layoutBerthTiles(pad.width, config.tileArtWidth, CELL)) {
-      const image = scene.add.image(left + tile.x, top, config.key, tile.frame).setOrigin(0, 0).setScale(CELL);
+      const image = scene.add.image(left + tile.x, top, config.key, tile.frame).setOrigin(0, 0).setScale(CELL).setTint(colorNumber(theme.palette.light));
       if (tile.artWidth < config.tileArtWidth) image.setCrop(0, 0, tile.artWidth, config.tileArtHeight);
       children.push(image);
     }

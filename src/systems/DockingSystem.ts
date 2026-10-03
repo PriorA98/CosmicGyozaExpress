@@ -92,14 +92,14 @@ export function dockingStatusLabel(state: DockingState): string {
   }
 }
 
-export function dockingHint(state: DockingState): string {
+export function dockingHint(state: DockingState, destinationLabel?: string): string {
   switch (state.kind) {
     case "too-far":
-      return "tea moon beacon is waiting";
+      return destinationLabel === undefined ? "tea moon beacon is waiting" : `${destinationLabel.toLowerCase()} beacon is waiting`;
     case "approaching":
       return "delivery ring ahead";
     case "slow-down":
-      return "too spicy for docking";
+      return destinationLabel === undefined ? "too spicy for docking" : "dock ahead. tiny brakes, please";
     case "align":
       return "point bottom at the landing guide";
     case "ready":

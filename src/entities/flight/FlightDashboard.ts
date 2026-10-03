@@ -67,6 +67,9 @@ type ForceGauge = {
   readonly text: Phaser.GameObjects.Text;
   readonly arrowX: number;
   readonly arrowY: number;
+  readonly meter: Phaser.GameObjects.Graphics;
+  readonly width: number;
+  readonly height: number;
 };
 
 const DEFAULT_COPY: FlightDashboardCopy = { title: flightHudCopy.title, distance: flightHudCopy.distance };
@@ -194,14 +197,15 @@ export class FlightDashboard {
     const windsock = this.scene.textures.exists(ASSET.campaignWindsock)
       ? this.scene.add.image(arrowX, arrowY, ASSET.campaignWindsock, 0).setVisible(false)
       : undefined;
-    if (windsock) windsock.setScale(FLIGHT_ART_SCALE);
+    if (windsock) windsock.setScale(FLIGHT_ART_SCALE).setTint(colorNumber(colors.parchment));
     const text = this.scene.add
       .text(Math.round(height + 2 * s), Math.round(height / 2), "", monoStyle({ size: Math.round(typeScale.sm * s), bold: true, color: colors.plaster }))
       .setOrigin(0, 0.5);
-    const parts: Phaser.GameObjects.GameObject[] = [bg, arrow, text];
+    const meter = this.scene.add.graphics();
+    const parts: Phaser.GameObjects.GameObject[] = [bg, arrow, text, meter];
     if (windsock) parts.push(windsock);
     const container = this.scene.add.container(x, y, parts).setScrollFactor(0).setDepth(depth.hud).setVisible(false);
-    return { container, arrow, windsock, text, arrowX, arrowY };
+    return { container, arrow, windsock, text, arrowX, arrowY, meter, width, height };
   }
 
   private renderGauge(): void {
@@ -214,7 +218,7 @@ export class FlightDashboard {
       return;
     }
     const octant = Math.abs(cue.directionX) + Math.abs(cue.directionY) > 0 ? ((Math.round(Math.atan2(cue.directionY, cue.directionX) / (Math.PI / 4)) % 8) + 8) % 8 : -1;
-    const level = Math.min(3, Math.round(cue.strength * 3));
+    const level = Math.min(10, Math.round(cue.strength * 10));
     const key = `${cue.label}:${octant}:${level}:${cue.windsockFrame ?? "-"}`;
     if (key === this.lastGaugeKey) return;
     this.lastGaugeKey = key;
@@ -222,14 +226,29 @@ export class FlightDashboard {
     gauge.text.setText(cue.label);
     const g = gauge.arrow;
     g.clear();
+    const meter = gauge.meter;
+    meter.clear();
+    const meterWidth = gauge.width - 20;
+    meter.fillStyle(colorNumber(colors.duskBlue), 0.4).fillRect(10, gauge.height - 10, meterWidth, 4);
+    meter.fillStyle(colorNumber(colors.amber), 1).fillRect(10, gauge.height - 10, Math.round(meterWidth * Math.min(1, Math.max(0, cue.strength)) / 2) * 2, 4);
     if (cue.windsockFrame !== null && gauge.windsock) {
       gauge.windsock.setVisible(true).setFrame(cue.windsockFrame);
+      // Large post + striped pennant reads even when the art frame's sock is small.
+      const droop = [10, 6, 2, 0][cue.windsockFrame] ?? 0;
+      const x = gauge.arrowX - 16;
+      const y = gauge.arrowY - 14;
+      g.fillStyle(colorNumber(colors.parchment), 1).fillRect(x, y, 2, 28);
+      for (let t = 0; t < 26; t += 2) {
+        const sy = Math.round((y + t * droop / 26) / 2) * 2;
+        const half = t < 14 ? 6 : 4;
+        g.fillStyle(colorNumber(Math.floor(t / 6) % 2 === 0 ? colors.amber : colors.parchment), 1).fillRect(x + 2 + t, sy - half, 2, half * 2);
+      }
       return;
     }
     gauge.windsock?.setVisible(false);
     // Pixel arrow: a 2px-dot shaft and head along the octant direction, brighter as the push grows.
     const size = campaignFlightStyle.gauge.arrowPx;
-    const alpha = 0.45 + 0.18 * level;
+    const alpha = 0.45 + 0.05 * level;
     g.fillStyle(colorNumber(colors.amber), alpha);
     if (octant < 0) {
       g.fillRect(gauge.arrowX - 2, gauge.arrowY - 2, 4, 4);
@@ -274,7 +293,7 @@ export class FlightDashboard {
       { kind: "meter", id: ROW.package, label: flightHudCopy.package, value: 1, accent: "sage", segments: 10 },
     ];
     // Kit widgets take `uiScale` natively (crisp text sizes, pixel font snapped to its grid).
-    const panelWidth = Math.round((compact ? layout.compactPanelWidth : layout.panelWidth) * s);
+    const panelWidth = Math.round((compact ? layout.compactPanelWidth : layout.panelWidth) * s) + (compact && this.copy !== DEFAULT_COPY ? 32 : 0);
     const panel = new HudPanel(scene, { x: margin, y: margin, width: panelWidth, title: this.copy.title, icon: "radar", rows, fixed: true, uiScale: s });
     panel.setDepth(depth.hud);
     this.panel = panel;
@@ -292,7 +311,7 @@ export class FlightDashboard {
 
     // Ticker: top centre on desktop; beside the panel on compact displays.
     const panelRight = margin + panelWidth;
-    const tickerX = compact ? Math.round(panelRight + margin) : Math.round((width - layout.tickerWidth * s) / 2);
+    const tickerX = compact ? Math.round(panelRight + margin + (this.copy !== DEFAULT_COPY ? 12 : 0)) : Math.round((width - layout.tickerWidth * s) / 2);
     const tickerWidth = compact
       ? Math.min(layout.tickerWidth, Math.floor((width - margin - tickerX) / s))
       : layout.tickerWidth;
@@ -309,6 +328,10 @@ export class FlightDashboard {
     this.renderGauge();
 
     const avoid: HudScreenRect[] = [];
+    if (this.copy !== DEFAULT_COPY) {
+      avoid.push({ x: margin, y: margin, width: panelWidth, height: panel.panelHeight + pill.pillHeight + campaignFlightStyle.gauge.height * s + 24 });
+      avoid.push({ x: ticker.x, y: margin, width: tickerWidth * s, height: 72 * s });
+    }
     // Keyboard devices always get the keycap strip (phones included), so keys stay discoverable.
     if (!touchDevice) {
       const hints = this.buildHints(width, height, s);

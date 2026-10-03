@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { landingCopy } from "../../data/landingCopy";
 import { LANDING_ART_SCALE, landingScenery, landingZoneTextColors } from "../../data/landingScenery";
 import { colorNumber, colors, depth, typeScale } from "../../game/designTokens";
-import { DashboardTicker, HudPanel, KEYCAP_HEIGHT, Keycap, dashboardTickerHeight, monoStyle, type HudRow } from "../../ui";
+import { DashboardTicker, HudPanel, KEYCAP_HEIGHT, Keycap, ParchmentCard, dashboardTickerHeight, monoStyle, type HudRow } from "../../ui";
 import type { LandingReadout } from "./landingReadouts";
 import { fillNotchedRect } from "./pixelShapes";
 
@@ -43,6 +43,8 @@ export class LandingDashboard {
   readonly root: Phaser.GameObjects.Container;
   private readonly panel: HudPanel;
   private readonly ticker: DashboardTicker | undefined;
+  private readonly campaignNote: Phaser.GameObjects.Text | undefined;
+  private readonly noteHeight: number;
   private readonly rows: readonly ReadoutRowId[];
   private shownNote = "";
   private pendingNote = "";
@@ -63,7 +65,14 @@ export class LandingDashboard {
     const inset = config.backingInsetPx;
     backing.fillRect(inset, inset, width - inset * 2, this.panel.panelHeight - inset * 2);
     const children: Phaser.GameObjects.GameObject[] = [backing, this.panel];
-    if (!options.compact || options.showNote) {
+    this.noteHeight = options.showNote ? Math.round((options.compact ? 72 : 62) * options.scale) : dashboardTickerHeight(config.tickerLines);
+    if (options.showNote) {
+      const y = this.panel.panelHeight + config.tickerGap;
+      const card = new ParchmentCard(scene, { x: 0, y, width, height: this.noteHeight, padding: 12 });
+      this.campaignNote = scene.add.text(14, y + 10, "", monoStyle({ size: Math.round(typeScale.sm * options.scale), color: colors.ink, bold: true }))
+        .setWordWrapWidth(width - 28, true).setOrigin(0, 0);
+      children.push(card, this.campaignNote);
+    } else if (!options.compact) {
       const tickerY = this.panel.panelHeight + config.tickerGap;
       backing.fillRect(inset, tickerY + inset, width - inset * 2, dashboardTickerHeight(config.tickerLines) - inset * 2);
       this.ticker = new DashboardTicker(scene, { x: 0, y: tickerY, width, maxLines: config.tickerLines });
@@ -78,7 +87,7 @@ export class LandingDashboard {
   /** Height on screen, including the ticker (for laying out other overlays below it). */
   get displayHeight(): number {
     const config = landingScenery.hud;
-    const height = this.panel.panelHeight + (this.ticker ? config.tickerGap + dashboardTickerHeight(config.tickerLines) : 0);
+    const height = this.panel.panelHeight + (this.ticker || this.campaignNote ? config.tickerGap + this.noteHeight : 0);
     return height;
   }
 
@@ -102,7 +111,7 @@ export class LandingDashboard {
 
   /** Retypes the chatter only once a new line has held for a moment, so tapping thrust never stutters it. */
   private updateNote(note: string, timeMs: number, immediate: boolean): void {
-    if (!this.ticker) return;
+    if (!this.ticker && !this.campaignNote) return;
     if (note !== this.pendingNote) {
       this.pendingNote = note;
       this.pendingSinceMs = timeMs;
@@ -111,7 +120,8 @@ export class LandingDashboard {
     if (note === this.shownNote) return;
     if (!first && !immediate && timeMs - this.pendingSinceMs < landingScenery.hud.noteDebounceMs) return;
     this.shownNote = note;
-    this.ticker.say(note);
+    this.ticker?.say(note);
+    this.campaignNote?.setText(note);
   }
 }
 

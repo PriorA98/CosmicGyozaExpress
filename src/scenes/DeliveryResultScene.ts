@@ -3,6 +3,8 @@ import { ASSET, CAMPAIGN_PORTRAIT_FRAME, RABBIT_PORTRAIT_FRAME } from "../data/a
 import { themeFor, type CampaignThemeDefinition } from "../data/campaign/themes";
 import {
   campaignResultCopy,
+  endingCardLayout,
+  endingRevealTiming,
   resultCardLayouts,
   resultCopy,
   resultRevealTiming,
@@ -160,7 +162,7 @@ const ENTRY = {
 } as const;
 const DASH = { length: 8, gap: 6, width: 2, alpha: 0.8 } as const;
 /** Campaign (non-legacy) card art: recipient portraits are 48 art px, cargo 32, postcards 48x32 (half the slice postcard). */
-const CAMPAIGN_ART = { portraitExtraScale: 1, homeFill: 0.78, postcardScaleFactor: 2, minNoteWidth: 120 } as const;
+const CAMPAIGN_ART = { portraitExtraScale: 1, postcardScaleFactor: 2, minNoteWidth: 120 } as const;
 /** Thank-you notes on the final card. */
 const NOTES = { titleGap: 8, lineGap: 6, bullet: "✦ " } as const;
 
@@ -331,7 +333,7 @@ export class DeliveryResultScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     // The scene clock smooths over long frames (tab stalls, busy devices); the reveal promise is
     // in real time, so settle it once the wall-clock budget is spent.
-    if (!this.revealComplete && performance.now() - this.revealStartedAt >= resultRevealTiming.maxRealMs) {
+    if (!this.revealComplete && performance.now() - this.revealStartedAt >= (this.view?.isEnding ? endingRevealTiming.maxRealMs : resultRevealTiming.maxRealMs)) {
       this.finishReveal();
     }
     if (this.stars && !this.reducedMotion) {
@@ -491,7 +493,10 @@ export class DeliveryResultScene extends Phaser.Scene {
   }
 
   private buildCard(view: DeliveryResultPresentation): void {
-    const layout = resultCardLayouts[this.tier];
+    const baseLayout = resultCardLayouts[this.tier];
+    const layout: ResultCardLayout = view.isEnding
+      ? { ...baseLayout, ...endingCardLayout, type: { ...baseLayout.type, caption: "md" } }
+      : baseLayout;
     const frame = this.cardFrame(layout);
     const card = this.add.container(CANVAS_CENTER_X, layout.cardCenterY).setDepth(depth.hud);
     this.card = card;
@@ -627,7 +632,7 @@ export class DeliveryResultScene extends Phaser.Scene {
       figure = sprite;
     } else {
       const ship = this.add.image(x, centerY, ASSET.shipIdle);
-      scale = Math.max(1, Math.floor((size * CAMPAIGN_ART.homeFill) / Math.max(ship.width, ship.height, 1)));
+      scale = ART_SCALE;
       figure = ship.setScale(scale);
     }
 
@@ -817,7 +822,7 @@ export class DeliveryResultScene extends Phaser.Scene {
 
     let kicker: Phaser.GameObjects.Text | undefined;
     if (layout.showKicker) {
-      const kickerSize = typeScale[layout.type.kicker];
+      const kickerSize = view.legacy ? typeScale[layout.type.kicker] : this.tier === "full" ? 16 : 24;
       const onGrid = kickerSize % PIXEL_FONT_GRID === 0;
       kicker = this.add
         .text(x, cursor, `${view.kicker}  ·  ${view.kickerPlace}`, {
@@ -839,6 +844,15 @@ export class DeliveryResultScene extends Phaser.Scene {
     });
     fitFontSize(headline, layout.type.headline, width);
     cursor += Math.round(headline.height) + layout.blockGap;
+
+    if (view.isEnding) {
+      card.add([...parts, headline]);
+      this.stage(resultRevealTiming.headline, motion.slow, "Cubic.easeOut", [
+        ...parts.map((part) => this.part(part, { alpha: 0, dx: -10 })),
+        this.part(headline, { alpha: 0, dy: 10 }),
+      ]);
+      return cursor + SPACING.reportGap;
+    }
 
     const reaction = this.add.text(x, cursor, view.content.reactionLine, {
       color: colors.ink,
@@ -1012,13 +1026,12 @@ export class DeliveryResultScene extends Phaser.Scene {
     top: number,
     postcard: Rect,
   ): void {
-    const layout = frame.layout;
     const x = frame.rightX;
     const width = Math.max(CAMPAIGN_ART.minNoteWidth, postcard.left - SPACING.postcardClearance - x);
     const title = this.add.text(x, Math.round(top), campaignResultCopy.notesTitle, {
       color: colors.terracottaDeep,
       fontFamily: fontStacks.mono,
-      fontSize: `${typeScale[layout.type.caption]}px`,
+      fontSize: "16px",
       fontStyle: "700",
     });
     let cursor = Math.round(top + title.height + NOTES.titleGap);
@@ -1028,23 +1041,30 @@ export class DeliveryResultScene extends Phaser.Scene {
       const line = this.add.text(x, cursor, `${NOTES.bullet}${note}`, {
         color: colors.ink,
         fontFamily: fontStacks.ui,
-        fontSize: `${typeScale[layout.type.stat]}px`,
+        fontSize: `${this.tier === "full" ? 20 : 26}px`,
         wordWrap: { width },
       });
-      if (cursor + line.height > frame.contentBottom) {
-        line.destroy();
-        break;
-      }
       cursor += Math.round(line.height) + NOTES.lineGap;
       lines.push(line);
     }
 
     card.add([title, ...lines]);
-    this.stage(resultRevealTiming.landingStamp, motion.slow, "Cubic.easeOut", [this.part(title, { alpha: 0, dy: 6 })]);
+    this.stage(endingRevealTiming.notesTitle, motion.slow, "Cubic.easeOut", [this.part(title, { alpha: 0, dy: 6 })]);
     lines.forEach((line, index) => {
-      const at = Math.min(resultRevealTiming.stats, resultRevealTiming.conditionStamp + index * 60);
+      const at = endingRevealTiming.firstNote + index * endingRevealTiming.noteGap;
       this.stage(at, motion.slow, "Cubic.easeOut", [this.part(line, { alpha: 0, dx: -8 })]);
     });
+    if (view.closingLine) {
+      const closing = this.add.text(x, cursor + 12, view.closingLine, {
+        color: colors.terracottaDeep,
+        fontFamily: fontStacks.display,
+        fontSize: `${this.tier === "full" ? 24 : 26}px`,
+        fontStyle: "600",
+        wordWrap: { width },
+      });
+      card.add(closing);
+      this.stage(endingRevealTiming.closing, motion.slow, "Cubic.easeOut", [this.part(closing, { alpha: 0, dy: 8 })]);
+    }
   }
 
   private createPostcard(card: Phaser.GameObjects.Container, frame: CardFrame, view: DeliveryResultPresentation): Rect {
@@ -1163,12 +1183,12 @@ export class DeliveryResultScene extends Phaser.Scene {
       right -= button.width + layout.buttonGap;
     }
     this.buttons = footer;
-    const leftmost = footer[0]?.button.root.x ?? frame.innerRight;
+    const leftmost = Math.min(...footer.map(({ button }) => button.root.x));
 
     // Note column: the delivery note plus, when progress can't be kept, a kind footnote.
     const noteX = frame.innerLeft + SPACING.notePadX;
-    const noteWidth = leftmost - layout.buttonGap - noteX;
-    const roomForNotes = noteWidth >= CAMPAIGN_ART.minNoteWidth;
+    const noteWidth = view.isEnding ? frame.rightX - noteX + frame.rightWidth - 240 : leftmost - layout.buttonGap - noteX;
+    const roomForNotes = view.isEnding || noteWidth >= CAMPAIGN_ART.minNoteWidth;
     const lines: Phaser.GameObjects.Text[] = [];
     if (layout.showDeliveryNote && roomForNotes) {
       lines.push(
@@ -1196,14 +1216,14 @@ export class DeliveryResultScene extends Phaser.Scene {
     }
     const faceCenter = frame.buttonTop + ((layout.buttonHeight / ART_SCALE - BUTTON_ART.lip) / 2) * ART_SCALE;
     const blockHeight = lines.reduce((sum, line) => sum + line.height, 0) + Math.max(0, lines.length - 1) * SPACING.noteGap;
-    let y = Math.round(faceCenter - blockHeight / 2);
+    let y = view.isEnding ? Math.round(frame.footerY - blockHeight - 8) : Math.round(faceCenter - blockHeight / 2);
     for (const line of lines) {
       line.setY(y);
       y += Math.round(line.height) + SPACING.noteGap;
     }
 
     card.add([divider, ...lines, ...footer.map(({ button }) => button.root)]);
-    this.stage(resultRevealTiming.footer, motion.base, "Cubic.easeOut", [
+    this.stage(view.isEnding ? endingRevealTiming.footer : resultRevealTiming.footer, motion.base, "Cubic.easeOut", [
       this.part(divider, { alpha: 0 }),
       ...lines.map((line) => this.part(line, { alpha: 0 })),
       ...footer.map(({ button }) => this.part(button.root, { alpha: 0, dy: 12 })),
@@ -1220,17 +1240,19 @@ export class DeliveryResultScene extends Phaser.Scene {
   ): ResultButton {
     const palette = BUTTON_PALETTE[variant];
     const height = layout.buttonHeight;
-    const pixel = layout.buttonFont === "pixel";
+    const legacy = this.view?.legacy ?? true;
+    const pixel = !legacy || layout.buttonFont === "pixel";
+    const labelSize = legacy ? typeScale[layout.type.button] : this.view?.isEnding || this.tier === "full" ? 16 : 24;
     const label = this.add
       .text(0, 0, copy.label, {
         color: palette.label,
         fontFamily: pixel ? fontStacks.pixel : fontStacks.ui,
-        fontSize: `${typeScale[layout.type.button]}px`,
+        fontSize: `${labelSize}px`,
         fontStyle: pixel ? "400" : "600",
       })
       .setOrigin(0, 0.5);
     label.setShadow(0, ART_SCALE, palette.labelShadow, 0, false, true);
-    const keycap = layout.showKeycaps ? new Keycap(this, { x: 0, y: 0, label: copy.key }) : undefined;
+    const keycap = !legacy || layout.showKeycaps ? new Keycap(this, { x: 0, y: 0, label: copy.key }) : undefined;
     const border = BUTTON_ART.border * ART_SCALE;
     const keycapSpace = keycap ? keycap.keyWidth + SPACING.keycapPadRight + SPACING.buttonLabelPad : 0;
     const width = evenCeil(Math.max(minWidth, label.width + keycapSpace + (border + SPACING.buttonLabelPad) * 2));
@@ -1361,7 +1383,7 @@ export class DeliveryResultScene extends Phaser.Scene {
     for (const step of this.steps) {
       this.stepTimers.push(this.time.delayedCall(step.at, () => this.playStep(step)));
     }
-    this.stepTimers.push(this.time.delayedCall(resultRevealTiming.complete, () => this.finishReveal()));
+    this.stepTimers.push(this.time.delayedCall(this.view?.isEnding ? endingRevealTiming.complete : resultRevealTiming.complete, () => this.finishReveal()));
   }
 
   private playStep(step: RevealStep): void {

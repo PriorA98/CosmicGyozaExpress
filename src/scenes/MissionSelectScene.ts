@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { ASSET } from "../data/assetManifest";
+import { ASSET, CAMPAIGN_PORTRAIT_FRAME, RABBIT_PORTRAIT_FRAME } from "../data/assetManifest";
 import { isMissionId } from "../data/campaign";
 import { themeFor } from "../data/campaign/themes";
 import { boardCopy } from "../data/uiCopy";
@@ -16,10 +16,12 @@ import type { MissionId, MissionSelectSceneData } from "../types/campaign";
 import type { FlightSceneData } from "../types/flight";
 import {
   boardLegDots,
+  boardLegArrow,
   BOARD_TOKEN,
   boardNodeCentres,
   boardRouteLegs,
   boardTokenCaption,
+  boardUnlockCaptionTop,
   initialBoardSelection,
   isSelectable,
   navigateBoard,
@@ -82,6 +84,7 @@ export class MissionSelectScene extends Phaser.Scene {
   private pulse: Phaser.Tweens.Tween | undefined;
   private starsFar: Phaser.GameObjects.TileSprite | undefined;
   private starsNear: Phaser.GameObjects.TileSprite | undefined;
+  private shipMarker: Phaser.GameObjects.Container | undefined;
 
   constructor() {
     super("MissionSelectScene");
@@ -97,6 +100,7 @@ export class MissionSelectScene extends Phaser.Scene {
     this.panel = undefined;
     this.launchButton = undefined;
     this.pulse = undefined;
+    this.shipMarker = undefined;
     this.compact = isCompactDisplay(this);
     this.uiScale = this.compact ? compactUiScale(this) : 1;
     this.layoutKey = layoutKeyFor(this.compact, this.uiScale);
@@ -239,6 +243,7 @@ export class MissionSelectScene extends Phaser.Scene {
       for (const dot of boardLegDots(leg, ROUTE.spacing, NODE.clearRadius)) {
         g.fillRect(dot.x - ROUTE.dot / 2, dot.y - ROUTE.dot / 2, ROUTE.dot, ROUTE.dot);
       }
+      for (const pixel of boardLegArrow(leg)) g.fillRect(pixel.x, pixel.y, 4, 4);
     });
   }
 
@@ -274,7 +279,7 @@ export class MissionSelectScene extends Phaser.Scene {
       .setDepth(depth.hud);
     let lock: Phaser.GameObjects.Container | null = null;
     const chipY = boardTokenCaption(centre, label.height, 0).chipY;
-    if (locked) lock = this.createLock(centre, chipY, node.unlockedBy ? boardCopy.lockedAfter(node.unlockedBy.shortTitle) : null);
+    if (locked) lock = this.createLock(centre, boardUnlockCaptionTop(centre, chipY, this.compact ? "compact" : "desktop", index), node.unlockedBy ? boardCopy.lockedAfter(node.unlockedBy.shortTitle) : null);
     if (node.state === "completed") {
       const stamp = new CollectedStamp(this, { x: 0, y: 0, label: boardCopy.deliveredStamp, uiScale: Math.min(s, 1.3) });
       stamp.setPosition(Math.round(centre.x - stamp.stampWidth / 2), chipY).setDepth(depth.hud).setName(`stamp-${node.mission.id}`);
@@ -298,7 +303,7 @@ export class MissionSelectScene extends Phaser.Scene {
       const padX = 8;
       const chipW = Math.ceil(text.width / 2) * 2 + padX * 2;
       const chipH = Math.ceil(text.height / 2) * 2 + 6;
-      const chipY = chipTop - centre.y + 12 + chipH / 2;
+      const chipY = chipTop - centre.y + chipH / 2;
       const chip = this.add.graphics();
       chip.fillStyle(colorNumber(colors.cosmosDeep), 0.82);
       fillSteppedRect(chip, -chipW / 2, chipY - chipH / 2, chipW, chipH, STEPPED_CORNER.soft, 2);
@@ -345,15 +350,17 @@ export class MissionSelectScene extends Phaser.Scene {
     launch.setName("launch").setDepth(depth.hud + 1);
     this.launchButton = launch;
     const buttonWidth = launch.buttonWidth;
-    const textWidth = width - pad * 3 - buttonWidth;
+    const artWidth = 172;
+    const textWidth = width - pad * 3 - buttonWidth - artWidth;
 
     // Measure first so the card is exactly as tall as its copy.
     const recipient = this.add.text(0, 0, mission.recipientName, headingStyle({ size: uiTextSize(this.compact ? 19 : 22, s), color: colors.ink, wrapWidth: textWidth }));
     const item = this.add.text(0, 0, `${boardCopy.carrying} · ${mission.deliveryItemName}`, monoStyle({ size: uiSecondaryTextSize(typeScale.sm, s), bold: true, color: colors.sageDeep, wrapWidth: textWidth }));
     const request = this.add.text(0, 0, `“${mission.requestText}”`, bodyStyle({ size: uiTextSize(this.compact ? 14 : 15, s), color: colors.inkSoft, wrapWidth: textWidth }));
+    const idea = this.add.text(0, 0, boardCopy.newIdea[mission.id], monoStyle({ size: uiSecondaryTextSize(typeScale.sm, s), bold: true, color: colors.terracottaDeep, wrapWidth: textWidth }));
     const gap = uiScaled(this.compact ? 2 : 4, s);
     const top = this.compact ? pad : uiScaled(CARD_HEADER_HEIGHT, s) + uiScaled(12, s);
-    const textHeight = recipient.height + gap + item.height + gap * 2 + request.height;
+    const textHeight = recipient.height + gap + item.height + gap * 2 + request.height + gap + idea.height;
     const height = Math.ceil(top + Math.max(textHeight, buttonHeight) + pad);
 
     const y = this.scale.height - 12 - height;
@@ -368,10 +375,21 @@ export class MissionSelectScene extends Phaser.Scene {
     });
     panel.setDepth(depth.hud).setName("detail-panel");
     const contentTop = panel.contentTop;
-    recipient.setPosition(pad, contentTop - 2);
-    item.setPosition(pad, recipient.y + recipient.height + gap);
-    request.setPosition(pad, item.y + item.height + gap * 2);
-    panel.addContent(recipient, item, request);
+    recipient.setPosition(pad + artWidth, contentTop - 2);
+    item.setPosition(pad + artWidth, recipient.y + recipient.height + gap);
+    request.setPosition(pad + artWidth, item.y + item.height + gap * 2);
+    idea.setPosition(pad + artWidth, request.y + request.height + gap);
+    const theme = themeFor(mission.themeId);
+    const artY = Math.round(contentTop + Math.max(textHeight, 96) / 2);
+    const portrait = theme.portraitTexture
+      ? this.add.image(pad + 48, artY, theme.portraitTexture, theme.legacy ? RABBIT_PORTRAIT_FRAME.idle : CAMPAIGN_PORTRAIT_FRAME.idle).setScale(2)
+      : this.add.image(pad + 48, artY, ASSET.shipIdle).setScale(2);
+    // Tea's 64px portrait is cropped to the same 48px art window as campaign portraits.
+    if (theme.legacy) portrait.setCrop(8, 8, 48, 48);
+    const cargo = theme.cargoFrame === null
+      ? this.add.image(pad + 132, artY, ASSET.itemTea).setScale(2)
+      : this.add.image(pad + 132, artY, ASSET.campaignCargo, theme.cargoFrame).setScale(2);
+    panel.addContent(portrait, cargo, recipient, item, request, idea);
     this.panel = panel;
 
     launch.setPosition(40 + width - pad - buttonWidth, Math.round(y + contentTop + (height - contentTop - pad - buttonHeight) / 2));
@@ -389,6 +407,13 @@ export class MissionSelectScene extends Phaser.Scene {
       view.selectRing.setVisible(on).setAlpha(1);
       if (view.node.state !== "locked") view.label.setColor(on ? colors.amber : colors.plaster);
     });
+    this.shipMarker?.destroy();
+    const selected = this.nodes[this.selected];
+    if (selected) {
+      const ship = this.add.image(0, 0, ASSET.shipIdle).setScale(2);
+      const caption = this.add.text(0, 62, boardCopy.here, monoStyle({ size: typeScale.sm, color: colors.amber, bold: true })).setOrigin(0.5, 0);
+      this.shipMarker = this.add.container(selected.centre.x - 164, selected.centre.y - 16, [ship, caption]).setDepth(depth.worldFx);
+    }
     const ring = this.nodes[this.selected]?.selectRing;
     if (ring && !isReducedMotion()) {
       this.pulse = this.tweens.add({ targets: ring, alpha: 0.45, duration: motion.breath / 2, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });

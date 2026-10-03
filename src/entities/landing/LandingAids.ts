@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { campaignGaugeY } from "./campaignPresentation";
 import { ASSET } from "../../data/assetManifest";
 import { landingTuning, type LandingTuning } from "../../data/landingTuning";
 import { LANDING_ART_SCALE, landingScenery, landingZoneColors } from "../../data/landingScenery";
@@ -82,7 +83,7 @@ export class LandingAids {
   private lastDustMs = 0;
   private visible = true;
 
-  constructor(scene: Phaser.Scene, pad: LandingPadDefinition, contactY: number, tuning: LandingTuning = landingTuning) {
+  constructor(scene: Phaser.Scene, pad: LandingPadDefinition, contactY: number, tuning: LandingTuning = landingTuning, private readonly campaign = false) {
     this.scene = scene;
     this.pad = pad;
     this.tuning = tuning;
@@ -309,7 +310,7 @@ export class LandingAids {
     const side = frame.shipX > width - offsetX - config.edgeMarginX ? -1 : 1;
     // Never let the gauge or its chip sink into the pad or the control hints.
     const maxY = this.pad.surfaceY - config.surfaceMarginPx - this.instrumentBottom * scale;
-    const y = Math.min(frame.shipY + config.offsetY, maxY);
+    const y = this.campaign ? campaignGaugeY(frame.shipY, scale, this.pad.surfaceY, this.instrumentBottom) : Math.min(frame.shipY + config.offsetY, maxY);
     this.instrument.setPosition(snapToGrid(frame.shipX + side * offsetX, CELL), snapToGrid(y, CELL));
 
     this.gaugeValue = Phaser.Math.Linear(this.gaugeValue, frame.readouts.gauge, config.smoothing);

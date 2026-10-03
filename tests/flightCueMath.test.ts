@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CAMPAIGN_WINDSOCK_FRAME } from "../src/data/assetManifest";
-import { advanceSimClock, simulationSteps, windsockFrame, quarterTurnRotation, octantIndex, wrap, zoneBounds, pickRockTexture } from "../src/entities/flight/flightCueMath";
+import { advanceSimClock, simulationSteps, windsockFrame, quarterTurnRotation, octantIndex, wrap, zoneBounds, pickRockTexture, flowCueBases, cueIsClear } from "../src/entities/flight/flightCueMath";
 
 describe("campaign flight clock", () => {
   it("consumes at most 50 ms, split into steps no larger than 1/120 s", () => {
@@ -21,6 +21,15 @@ describe("campaign flight clock", () => {
 });
 
 describe("force telegraphs", () => {
+  it("uses three lanes and hides cues near the ship or HUD", () => {
+    const bases = flowCueBases({ x: 100, y: 200, width: 600, height: 900 }, true, 300);
+    expect(new Set(bases.map((p) => p.x))).toEqual(new Set([100, 400, 700]));
+    const point = { x: 500, y: 300 };
+    expect(cueIsClear(point, point, point, 1280, 720, [])).toBe(false);
+    expect(cueIsClear(point, { x: 900, y: 400 }, { x: 500, y: 40 }, 1280, 720, [])).toBe(false);
+    expect(cueIsClear(point, { x: 900, y: 400 }, point, 1280, 720, [{ x: 480, y: 270, width: 100, height: 100 }])).toBe(false);
+    expect(cueIsClear(point, { x: 900, y: 400 }, point, 1280, 720, [])).toBe(true);
+  });
   it("shows warning before force, strong at sustain, and settles on release", () => {
     expect(windsockFrame("warning", 0)).toBe(CAMPAIGN_WINDSOCK_FRAME.warning);
     expect(windsockFrame("calm", 0)).toBe(CAMPAIGN_WINDSOCK_FRAME.calm);

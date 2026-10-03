@@ -1,9 +1,9 @@
 import Phaser from "phaser";
 import { ASSET, SHIP_ROTATION } from "../../data/assetManifest";
-import { FLIGHT_ART_SCALE, arrivalBeaconStyle, dockingStateColors, flightHudCopy } from "../../data/flightScenery";
+import { FLIGHT_ART_SCALE, arrivalBeaconStyle, campaignFlightStyle, dockingStateColors, flightHudCopy } from "../../data/flightScenery";
 import { colorNumber, colors, depth } from "../../game/designTokens";
 import { directionVector } from "../../systems/ShipMovementSystem";
-import type { DockingState, DockingStateKind, FlightDestinationDefinition } from "../../types/flight";
+import type { DockingState, DockingStateKind, FlightDestinationDefinition, Point } from "../../types/flight";
 import { StatePill, type UiState } from "../../ui";
 import { rotationCellIndex, type ShipArtLayout } from "../GyozaShip";
 import type { HudScreenRect } from "./FlightDashboard";
@@ -66,6 +66,7 @@ export class ArrivalBeacon {
     shipLayout: ShipArtLayout,
     private readonly beaconLabel: string = flightHudCopy.beaconLabel,
     texturePrefix: string = KEY_PREFIX,
+    bodyCenter?: Point,
   ) {
     const style = arrivalBeaconStyle;
     const bottom = directionVector(destination.requiredBottomFacingRadians);
@@ -141,8 +142,8 @@ export class ArrivalBeacon {
       fillAlpha: style.ghostFillAlpha,
       detailAlpha: style.ghostDetailAlpha,
     });
-    const ghostX = x - Math.round(bottom.x * style.ghostBackArt) * ART;
-    const ghostY = y - Math.round(bottom.y * style.ghostBackArt) * ART;
+    const ghostX = bodyCenter ? bodyCenter.x - campaignFlightStyle.destination.halfSizePx - 54 : x - Math.round(bottom.x * style.ghostBackArt) * ART;
+    const ghostY = bodyCenter ? bodyCenter.y - 36 : y - Math.round(bottom.y * style.ghostBackArt) * ART;
     this.ghost = scene.add.image(ghostX, ghostY, ghostKey).setScale(shipLayout.scale).setDepth(depth.world + 0.5);
     if (rotated) this.ghost.setOrigin(0.5, 0.5);
     else this.ghost.setOrigin(shipLayout.originX, shipLayout.originY).setRotation(ghostRotation);

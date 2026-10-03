@@ -63,6 +63,7 @@ export class DestinationIndicator {
     const half = destinationIndicatorStyle.footprintHalfWidth * this.uiScale;
     let top = Number.POSITIVE_INFINITY;
     for (const rect of this.avoidRects) {
+      if (this.readoutIntervalMs > 0 && rect.y < this.scene.scale.height / 2) continue;
       if (x + half > rect.x && x - half < rect.x + rect.width) top = Math.min(top, rect.y);
     }
     return top;
@@ -83,9 +84,11 @@ export class DestinationIndicator {
     this.container.setVisible(!onScreen);
     if (onScreen) return;
 
-    const x = clamp(screenX, margin, width - margin);
+    const labelMargin = this.readoutIntervalMs > 0 ? Math.max(margin, (this.name.width / 2 + style.pillPaddingX + 8) * this.uiScale) : margin;
+    const x = clamp(screenX, labelMargin, width - labelMargin);
     const avoidTop = this.avoidTopAt(x);
-    const y = clamp(screenY, margin, Math.min(maxY, avoidTop - style.avoidClearance * this.uiScale));
+    const topMargin = this.readoutIntervalMs > 0 ? Math.max(margin, 110 * this.uiScale) : margin;
+    const y = clamp(screenY, topMargin, Math.min(maxY, avoidTop - style.avoidClearance * this.uiScale));
     const angle = Math.atan2(screenY - y, screenX - x) || Math.atan2(screenY - height / 2, screenX - width / 2);
     const pulse = 0.5 + 0.5 * Math.sin((timeMs / style.pulseMs) * TAU);
     const color = colorNumber(docking.kind === "too-far" ? colors.ember : dockingStateColors[docking.kind]);

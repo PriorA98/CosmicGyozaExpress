@@ -23,7 +23,7 @@ import { ShipEngine } from "../entities/flight/ShipEngine";
 import { SpaceBackdrop } from "../entities/flight/SpaceBackdrop";
 import { TeaMoon } from "../entities/flight/TeaMoon";
 import { CampaignDestination } from "../entities/flight/CampaignDestination";
-import { RoutePickups, RouteLanterns } from "../entities/flight/RouteMarkers";
+import { RoutePickups, RouteLanterns, RouteCheckpoints } from "../entities/flight/RouteMarkers";
 import { ForceZoneCues, FogLayer, drawMotionTracks } from "../entities/flight/RouteMechanicsCues";
 import { advanceSimClock, pickRockTexture, windsockFrame, simulationSteps } from "../entities/flight/flightCueMath";
 import { GyozaShip, resolveShipArtLayout } from "../entities/GyozaShip";
@@ -124,6 +124,7 @@ export class FlightScene extends Phaser.Scene {
   private gustPhases = new Map<string, GustPhase>();
   private pickups: RoutePickups | undefined;
   private lanterns: RouteLanterns | undefined;
+  private checkpointMarkers: RouteCheckpoints | undefined;
   private forceCues: ForceZoneCues | undefined;
   private fog: FogLayer | undefined;
   private mechanicIntroduced = false;
@@ -174,9 +175,9 @@ export class FlightScene extends Phaser.Scene {
     this.lookAhead.set(0, 0);
 
     const shipLayout = resolveShipArtLayout(this, shipVisualStyle.legacyFlightScale);
-    this.backdrop = new SpaceBackdrop(this, this.route.world.height);
+    this.backdrop = new SpaceBackdrop(this, this.route.world.height, this.theme.legacy ? undefined : this.theme, this.route.start);
     this.moon = this.theme.legacy ? new TeaMoon(this) : new CampaignDestination(this, this.route.destination, this.theme);
-    this.beacon = new ArrivalBeacon(this, this.route.destination, shipLayout, this.theme.legacy ? flightHudCopy.beaconLabel : campaignFlightCopy.beaconLabel, this.theme.legacy ? undefined : `flight-beacon-${this.theme.id}`);
+    this.beacon = new ArrivalBeacon(this, this.route.destination, shipLayout, this.theme.legacy ? flightHudCopy.beaconLabel : campaignFlightCopy.beaconLabel, this.theme.legacy ? undefined : `flight-beacon-${this.theme.id}`, this.theme.legacy ? undefined : this.moon.bodyCenter);
     this.createAsteroids();
     this.createRouteMechanics();
 
@@ -236,6 +237,7 @@ export class FlightScene extends Phaser.Scene {
       this.asteroids.clear();
       this.pickups?.destroy();
       this.lanterns?.destroy();
+      this.checkpointMarkers?.destroy();
       this.forceCues?.destroy();
       this.fog?.destroy();
       if (this.moon instanceof CampaignDestination) this.moon.destroy();
@@ -525,6 +527,7 @@ export class FlightScene extends Phaser.Scene {
     if (!this.theme.legacy) time = 0;
     this.checkpoint = null;
     this.reachedCheckpointIds.clear();
+    this.checkpointMarkers?.reset();
     this.movingContacts.clear();
     this.gustPhases.clear();
     this.mechanicIntroduced = false;
@@ -627,7 +630,7 @@ export class FlightScene extends Phaser.Scene {
     this.engine.update(this.ship.visualX, this.ship.visualY, this.ship.visualRotation, controls.thrust, speed, time, !incident);
 
     for (const asteroid of this.asteroids.values()) asteroid.update(time);
-    this.forceCues?.update(this.simTimeMs, this.environment.zones);
+    this.forceCues?.update(this.simTimeMs, this.environment.zones, this.ship.kinematics, this.hud.labelAvoidRects);
     this.fog?.update(this.simTimeMs);
     this.pickups?.update(this.simTimeMs);
 
@@ -676,7 +679,7 @@ export class FlightScene extends Phaser.Scene {
     let note: string;
     if (time < this.dashboardLineUntilMs) note = this.lastDashboardLine;
     else if (docking.kind === "ready") note = flightHudCopy.ready;
-    else note = dockingHint(docking);
+    else note = dockingHint(docking, this.theme.legacy ? undefined : this.mission.shortTitle);
 
     const mode: FlightDashboardMode = this.flightMode.kind;
     this.hud.update({
@@ -732,6 +735,7 @@ export class FlightScene extends Phaser.Scene {
   private createRouteMechanics(): void {
     this.pickups = undefined;
     this.lanterns = undefined;
+    this.checkpointMarkers = undefined;
     this.forceCues = undefined;
     this.fog = undefined;
     this.environment = { acceleration: { x: 0, y: 0 }, magnitude: 0, zones: [], dominant: null };
@@ -749,11 +753,12 @@ export class FlightScene extends Phaser.Scene {
     const reducedMotion = isReducedMotion();
     this.pickups = new RoutePickups(this, this.route.collectibles, this.collectedIds, this.theme, reducedMotion);
     this.lanterns = new RouteLanterns(this, this.route.beacons, this.theme);
+    this.checkpointMarkers = new RouteCheckpoints(this, this.route.checkpoints, this.theme);
     this.forceCues = new ForceZoneCues(this, this.route.forceZones, this.theme, reducedMotion);
     if (this.route.visibility.kind === "fog") this.fog = new FogLayer(this, this.route.visibility, reducedMotion);
     drawMotionTracks(this, this.route.movingObstacles, this.theme);
     this.movingObstacles.forEach((obstacle, index) => {
-      this.asteroids.set(obstacle.id, new Asteroid(this, { ...obstacle.position, id: obstacle.id, label: obstacle.label, radius: obstacle.radius }, undefined, this.route.obstacles.length + index, obstacle.textureKey));
+      this.asteroids.set(obstacle.id, new Asteroid(this, { ...obstacle.position, id: obstacle.id, label: obstacle.label, radius: obstacle.radius }, undefined, this.route.obstacles.length + index, obstacle.textureKey, this.theme.palette.accent));
     });
   }
 
@@ -810,6 +815,7 @@ export class FlightScene extends Phaser.Scene {
     if (checkpoint && !this.reachedCheckpointIds.has(checkpoint.id)) {
       this.reachedCheckpointIds.add(checkpoint.id);
       this.checkpoint = checkpoint;
+      this.checkpointMarkers?.activate(checkpoint.id);
       emitGameEvent(this, { type: "flight:checkpoint", checkpointId: checkpoint.id });
       this.setDashboardLine(this.mission.dashboard.checkpoint, time, campaignFlightTuning.checkpointNoteMs);
     }

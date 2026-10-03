@@ -1,6 +1,6 @@
 import Phaser from "phaser";
-import { ASSET, RABBIT_PORTRAIT_FRAME, SHIP_ART } from "../data/assetManifest";
-import { TEA_MOON_MISSION_ID, teaMoonMission } from "../data/missions";
+import { ASSET, CAMPAIGN_PORTRAIT_FRAME, RABBIT_PORTRAIT_FRAME, SHIP_ART } from "../data/assetManifest";
+import { TEA_MOON_MISSION_ID } from "../data/missions";
 import { routeLogCopy, settingsCopy, titleCopy } from "../data/uiCopy";
 import { createDevSceneLauncherPanel, installDevSceneHotkeys } from "../dev/DevSceneLauncher";
 import { registerDevState } from "../dev/devProbe";
@@ -14,7 +14,7 @@ import { SaveSystem } from "../systems/SaveSystem";
 import type { MissionSelectSceneData } from "../types/campaign";
 import type { FlightSceneData } from "../types/flight";
 import { Button } from "../ui/Button";
-import { campaignRouteLog, titleDeliveryAction } from "../ui/campaignMenu";
+import { campaignRouteLog, titleDeliveryAction, titleMissionPresentation } from "../ui/campaignMenu";
 import { addUiIcon } from "../ui/icons";
 import { Keycap } from "../ui/Keycap";
 import { dotsAlongQuadratic, quadraticPoint, uiScaled, uiSecondaryTextSize, uiTextSize, type Point } from "../ui/layout";
@@ -637,21 +637,21 @@ export class TitleScene extends Phaser.Scene {
   // ---------------------------------------------------------------------------------------------
 
   private createMissionCard(): void {
+    const { mission, theme, delivered, pillLabel } = titleMissionPresentation(this.progress);
     const s = this.uiScale;
-    const spec = this.layout.card;
+    const spec = !theme.legacy && !this.compact ? { ...this.layout.card, y: 376, height: 316 } : this.layout.card;
     const card = new ParchmentCard(this, { x: spec.x, y: spec.y, width: spec.width, height: spec.height, title: titleCopy.missionHeader, uiScale: s });
     card.setDepth(depth.hud);
     const pad = card.padding;
 
-    const pillState = this.teaMoonDelivered ? "idle" : "docking";
-    const pillLabel = this.teaMoonDelivered ? titleCopy.deliveredPill : titleCopy.awaitingPill;
-    if (this.teaMoonDelivered) {
+    const pillState = delivered ? "idle" : "docking";
+    if (delivered && theme.legacy) {
       // Completion lives inside the card: a perforated "collected" stamp replaces the header meta.
       this.addCollectedStamp(card, this.layout.cardMeta ? titleCopy.collectedStamp : titleCopy.collectedStampCompact);
     } else if (this.layout.cardMeta) {
       card.addContent(
         this.add
-          .text(spec.width - pad, Math.round(card.headerHeight / 2) + 2, teaMoonMission.title.toLowerCase(), monoStyle({ size: typeScale.sm, color: colors.sageDeep, bold: true }))
+          .text(spec.width - pad, Math.round(card.headerHeight / 2) + 2, (theme.legacy ? mission.title : mission.shortTitle).toLowerCase(), monoStyle({ size: typeScale.sm, color: colors.sageDeep, bold: true }))
           .setOrigin(1, 0.5),
       );
     } else {
@@ -675,8 +675,8 @@ export class TitleScene extends Phaser.Scene {
     // Request copy column.
     const columnX = pad + PORTRAIT_FRAME + uiScaled(18, s);
     const columnWidth = spec.width - columnX - pad;
-    const name = this.add.text(columnX, frameY - 2, teaMoonMission.recipientName, headingStyle({ size: uiTextSize(22, s), color: colors.ink }));
-    const request = this.add.text(columnX, name.y + name.height + uiScaled(6, s), `“${teaMoonMission.requestText}”`, bodyStyle({ size: uiTextSize(15, s), color: colors.inkSoft, wrapWidth: columnWidth }));
+    const name = this.add.text(columnX, frameY - 2, mission.recipientName, headingStyle({ size: uiTextSize(theme.legacy ? 22 : 20, s), color: colors.ink, ...(!theme.legacy ? { wrapWidth: columnWidth } : {}) }));
+    const request = this.add.text(columnX, name.y + name.height + uiScaled(6, s), `“${mission.requestText}”`, bodyStyle({ size: uiTextSize(15, s), color: colors.inkSoft, wrapWidth: columnWidth }));
     card.addContent(name, request);
 
     const itemsY = spec.height - pad - ITEM_TRAY_HEIGHT;
@@ -684,6 +684,12 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private createPortrait(x: number, y: number): Phaser.GameObjects.GameObject[] {
+    const { theme, delivered } = titleMissionPresentation(this.progress);
+    if (!theme.legacy) {
+      return [theme.portraitTexture
+        ? this.add.sprite(x, y, theme.portraitTexture, delivered ? CAMPAIGN_PORTRAIT_FRAME.welcome : CAMPAIGN_PORTRAIT_FRAME.idle).setScale(UI_ART_SCALE)
+        : this.add.image(x, y, ASSET.shipIdle).setScale(UI_ART_SCALE)];
+    }
     if (!hasAuthoredTexture(this, ASSET.rabbitPortrait)) {
       // Monogram portrait (design-system NPC portrait pattern) until the rabbit art lands.
       const g = this.add.graphics();
@@ -710,6 +716,7 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private createItems(x: number, y: number, width: number): Phaser.GameObjects.GameObject[] {
+    const { mission, theme } = titleMissionPresentation(this.progress);
     const s = this.uiScale;
     const objects: Phaser.GameObjects.GameObject[] = [];
     const tray = this.add.graphics();
@@ -718,6 +725,14 @@ export class TitleScene extends Phaser.Scene {
 
     // Art sits ITEM_INSET inside the tray, side by side with an ITEM_ART_GAP breath.
     const cy = y + ITEM_TRAY_HEIGHT / 2;
+    if (!theme.legacy && theme.cargoFrame !== null) {
+      const labelX = x + ITEM_INSET + ITEM_ART + ITEM_LABEL_GAP;
+      objects.push(
+        this.add.image(x + ITEM_INSET + ITEM_ART / 2, cy, ASSET.campaignCargo, theme.cargoFrame).setScale(UI_ART_SCALE),
+        this.add.text(labelX, cy, mission.deliveryItemName, monoStyle({ size: uiSecondaryTextSize(typeScale.sm, s), bold: true, color: colors.inkSoft, wrapWidth: width - (labelX - x) - ITEM_LABEL_GAP })).setOrigin(0, 0.5),
+      );
+      return objects;
+    }
     const itemArt: readonly { key: string; icon: "tea" | "package" }[] = [
       { key: ASSET.itemTea, icon: "tea" },
       { key: ASSET.itemMochi, icon: "package" },
@@ -728,7 +743,7 @@ export class TitleScene extends Phaser.Scene {
     });
 
     const labelX = x + ITEM_INSET + ITEM_ART * 2 + ITEM_ART_GAP + ITEM_LABEL_GAP;
-    const label = this.compact ? titleCopy.itemsCompact : teaMoonMission.deliveryItemName;
+    const label = this.compact ? titleCopy.itemsCompact : mission.deliveryItemName;
     objects.push(
       this.add
         .text(labelX, cy, label, monoStyle({ size: uiSecondaryTextSize(typeScale.sm, s), bold: true, color: colors.inkSoft, wrapWidth: width - (labelX - x) - ITEM_LABEL_GAP }))
@@ -867,7 +882,7 @@ export class TitleScene extends Phaser.Scene {
     if (this.starting) return;
     this.starting = true;
     this.focusables[0]?.setEnabled(false).showState("pressed");
-    const data: FlightSceneData = { missionId: TEA_MOON_MISSION_ID };
+    const data: FlightSceneData = { missionId: nextSuggestedMission(this.progress).id };
     transitionToScene(this, "FlightScene", data, { kind: "warm-fade" });
   }
 }

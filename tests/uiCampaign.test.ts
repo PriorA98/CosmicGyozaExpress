@@ -3,7 +3,7 @@ import { ASSET, CAMPAIGN_POSTCARD_FRAME } from "../src/data/assetManifest";
 import { MISSION_IDS } from "../src/data/campaign";
 import { routeLogCopy, titleCopy } from "../src/data/uiCopy";
 import { normalizeCampaignProgress } from "../src/systems/CampaignSystem";
-import { campaignRouteLog, titleDeliveryAction } from "../src/ui/campaignMenu";
+import { campaignRouteLog, titleDeliveryAction, titleMissionPresentation } from "../src/ui/campaignMenu";
 
 describe("campaign title actions", () => {
   it("keeps the original Tea Moon launch on a fresh save, including an unlocked-only save", () => {
@@ -59,5 +59,31 @@ describe("campaign route log", () => {
     const log = campaignRouteLog(normalizeCampaignProgress(["im-fine"], []));
     expect(log.missionId).toBe("im-fine");
     expect(log.history).toBeUndefined();
+  });
+});
+
+describe("suggested title delivery card", () => {
+  it("keeps the fresh Tea portrait and awaiting copy", () => {
+    const card = titleMissionPresentation(normalizeCampaignProgress([], []));
+    expect(card.mission.id).toBe("tea-moon");
+    expect(card.theme.portraitTexture).toBe(ASSET.rabbitPortrait);
+    expect(card.pillLabel).toBe(titleCopy.awaitingPill);
+    expect(card.delivered).toBe(false);
+  });
+
+  it("matches the CTA at every stage instead of repeating the Tea recipient", () => {
+    for (let count = 1; count < MISSION_IDS.length; count += 1) {
+      const progress = normalizeCampaignProgress(MISSION_IDS.slice(0, count), []);
+      const card = titleMissionPresentation(progress);
+      const action = titleDeliveryAction(progress);
+      expect(card.mission.id).toBe(MISSION_IDS[count]);
+      if (action.kind === "board") expect(card.mission.id).toBe(action.focusMissionId);
+      expect(card.theme.legacy).toBe(false);
+      expect(card.theme.cargoFrame).not.toBeNull();
+      expect(card.delivered).toBe(false);
+    }
+    const complete = titleMissionPresentation(normalizeCampaignProgress(MISSION_IDS, []));
+    expect(complete.mission.recipientName).toBe("You");
+    expect(complete.delivered).toBe(true);
   });
 });

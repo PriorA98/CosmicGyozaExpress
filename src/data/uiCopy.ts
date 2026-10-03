@@ -21,7 +21,8 @@ export const titleCopy = {
   awaitingPill: "awaiting tea",
   deliveredPill: "delivered",
   /** Tiny footer credit (the full font list lives in docs/assets). */
-  credits: "handmade slice · ofl type",
+  credits: "handmade deliveries · ofl type",
+  awaitingDeliveryPill: "ready to fly",
   itemsLabel: "in the hold",
   deliveredBadge: "delivered · postcard collected",
   /** Perforated stamp in the mission card header once delivered (desktop: the pill says "delivered"). */
@@ -108,6 +109,15 @@ export const boardCopy = {
   replay: "fly it again",
   carrying: "carrying",
   deliveredStamp: "✓ delivered",
+  here: "you are here",
+  newIdea: {
+    "tea-moon": "new: turn to aim your thruster",
+    "bento-belt": "new: rocks and the pad move",
+    "matcha-nebula": "new: a steady current carries you",
+    "black-hole-bakery": "new: the oven pulls",
+    "im-fine": "new: the wind warns before it blows",
+    "home-delivery": "new: this parcel is for you",
+  } satisfies Readonly<Record<MissionId, string>>,
   /** Locked node caption: "After <previous delivery>". */
   lockedAfter: (shortTitle: string): string => `After ${shortTitle}`,
   hints: [

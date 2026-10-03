@@ -6,6 +6,8 @@ import type { LandingWindSample } from "../../systems/LandingEnvironmentSystem";
 import type { LandingWindDefinition } from "../../types/campaign";
 import { monoStyle } from "../../ui";
 import { fillNotchedRect } from "./pixelShapes";
+import { isReducedMotion } from "../../fx/feedback";
+import { gustWarningAlpha } from "./campaignPresentation";
 
 const CELL = LANDING_ART_SCALE;
 
@@ -29,6 +31,7 @@ export class LandingWindIndicator {
   private readonly root: Phaser.GameObjects.Container;
   private readonly arrow: Phaser.GameObjects.Graphics;
   private readonly word: Phaser.GameObjects.Text;
+  private readonly highlight: Phaser.GameObjects.Graphics;
   private readonly wind: LandingWindDefinition;
   private readonly peak: number;
   private key = "";
@@ -43,6 +46,10 @@ export class LandingWindIndicator {
     fillNotchedRect(panel, -config.width / 2, CELL, config.width, config.height, CELL);
     panel.fillStyle(colorNumber(colors.cosmosPanel), 0.88);
     fillNotchedRect(panel, -config.width / 2, 0, config.width, config.height, CELL);
+    this.highlight = scene.add.graphics().setVisible(false);
+    this.highlight.fillStyle(colorNumber(colors.amber), 0.8);
+    this.highlight.fillRect(-config.width / 2 + CELL, 0, config.width - CELL * 2, CELL);
+    this.highlight.fillRect(-config.width / 2 + CELL, config.height - CELL, config.width - CELL * 2, CELL);
     const label = scene.add
       .text(-config.width / 2 + 10, config.height / 2, campaignLandingCopy.wind.label, monoStyle({ size: typeScale.xs, color: colors.plaster }))
       .setOrigin(0, 0.5);
@@ -55,17 +62,18 @@ export class LandingWindIndicator {
       .setOrigin(1, 0.5);
     this.root = scene.add
       .container(
-        Math.round(compact ? scene.scale.width - config.topPx - config.width * uiScale / 2 : scene.scale.width / 2),
+        Math.round(scene.scale.width - 22 - config.width * uiScale / 2),
         Math.round((compact ? config.compactTopPx : config.topPx) * uiScale),
-        [panel, label, this.arrow, this.word],
+        [panel, this.highlight, label, this.arrow, this.word],
       )
       .setScrollFactor(0, 0, true)
       .setScale(uiScale)
       .setDepth(depth.hud);
   }
 
-  update(sample: LandingWindSample): void {
+  update(sample: LandingWindSample, clockMs = 0): void {
     const word = windIndicatorWord(this.wind, sample);
+    this.highlight.setVisible(word === "gathering").setAlpha(gustWarningAlpha(clockMs, isReducedMotion()));
     const strength = this.peak > 0 ? Math.min(1, Math.abs(sample.acceleration.x) / this.peak) : 0;
     const alphaStep = Math.round((word === "gathering" ? 0.6 : 0.3 + strength * 0.7) * 4) / 4;
     const key = `${word}:${alphaStep}`;

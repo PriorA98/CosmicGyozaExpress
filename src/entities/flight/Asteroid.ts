@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { FLIGHT_ART_SCALE, asteroidArt, type AsteroidVisualDefinition } from "../../data/flightScenery";
 import { colorNumber, depth } from "../../game/designTokens";
 import type { CollisionSeverity, StaticObstacleDefinition } from "../../types/flight";
-import { contractScale } from "./pixelArt";
+import { contractScale, ensurePixelRing } from "./pixelArt";
 
 type BumpSeverity = Exclude<CollisionSeverity, "none">;
 
@@ -29,6 +29,7 @@ export class Asteroid {
   private reactionTween: Phaser.Tweens.Tween | undefined;
   private baseX: number;
   private baseY: number;
+  private readonly motionRing: Phaser.GameObjects.Image | undefined;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -36,6 +37,7 @@ export class Asteroid {
     private readonly visual: AsteroidVisualDefinition | undefined,
     index: number,
     textureKey: string = visual?.textureKey ?? asteroidArt.fallbackTextureKey,
+    motionAccent?: string,
   ) {
     this.id = obstacle.id;
     this.baseX = obstacle.x;
@@ -49,6 +51,10 @@ export class Asteroid {
       .setScale(this.baseScale)
       .setFlipX(visual?.flipX ?? false)
       .setDepth(depth.world + index * 0.01);
+    if (motionAccent) {
+      const key = ensurePixelRing(scene, { key: `flight-moving-rock-${obstacle.radius}-${motionAccent}`, radius: Math.round(obstacle.radius / FLIGHT_ART_SCALE) + 4, thickness: 2, dashCount: 1, dashFill: 1, color: motionAccent });
+      this.motionRing = scene.add.image(obstacle.x, obstacle.y, key).setScale(FLIGHT_ART_SCALE).setAlpha(0.7).setDepth(depth.world - 0.05);
+    }
   }
 
   /** Visual-only idle motion and reaction easing. Never moves the collision circle. */
@@ -58,6 +64,7 @@ export class Asteroid {
     const bob = Math.round(Math.sin((timeMs / bobPeriod + this.phase) * TAU) * bobArtPx) * FLIGHT_ART_SCALE;
 
     this.image.setPosition(this.baseX + Math.round(this.nudgeX), this.baseY + bob + Math.round(this.nudgeY));
+    this.motionRing?.setPosition(this.baseX, this.baseY);
     if (this.squash !== 0) {
       this.image.setScale(this.baseScale * (1 + this.squash), this.baseScale * (1 - this.squash));
     } else if (this.image.scaleX !== this.baseScale || this.image.scaleY !== this.baseScale) {
@@ -114,5 +121,6 @@ export class Asteroid {
   destroy(): void {
     this.reactionTween?.stop();
     this.image.destroy();
+    this.motionRing?.destroy();
   }
 }

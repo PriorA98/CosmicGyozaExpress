@@ -419,7 +419,7 @@ export const landingZoneTextColors = {
 export const campaignLandingScenery = {
   /** Top of the ground band (world y); pads at y 612 sit on it, the raised home berth stands above it on legs. */
   groundTopY: 648,
-  skyBands: 9,
+  skyBands: 32,
   starCount: 26,
   landmark: { x: 1040, y: 250, scrollFactor: 0.45 },
   silhouette: { scrollFactor: 0.7, baseOffsetPx: 10, stepPx: 8 },
@@ -443,10 +443,10 @@ export const campaignLandingScenery = {
   homeBanner: { width: 132, height: 36, postHeight: 54 },
   windsock: { key: ASSET.campaignWindsock, poleWidthPx: 4 },
   awning: { overhangPastPadPx: 20, depthPx: 18, stripePx: 16, postSpacingPx: 36 },
-  flour: { count: 28, riseSpeedPx: 9, swayPx: 10, sizePx: 4, alpha: 0.6, topY: 90 },
+  flour: { count: 12, riseSpeedPx: 14, swayPx: 28, sizePx: 16, alpha: 0.7, topY: 504 },
   /** Light-gravity landings (gravity below this, px/s²) show floating flour specks. */
   lowGravityBelow: 120,
-  windIndicator: { topPx: 14, compactTopPx: 60, width: 178, height: 34 },
+  windIndicator: { topPx: 90, compactTopPx: 116, width: 178, height: 34 },
   introCard: { width: 540, height: 164, figureWidth: 96 },
   /** Dashboard: the mission's landingIntro line shows for this long after descent starts. */
   introNoteMs: 3600,
@@ -458,24 +458,64 @@ export const campaignLandingScenery = {
 export type CampaignLandingDecor = {
   /** Far silhouette hump heights (px), repeated across the width. */
   readonly silhouette: readonly number[];
+  readonly ridgeShape: "rounded" | "crag" | "terraced";
+  readonly nearHills: readonly number[];
+  readonly porch: { readonly width: number; readonly height: number; readonly roof: "flat" | "pitched"; readonly window: "round" | "square" };
+  readonly props: readonly LandingDecorProp[];
+  readonly rocks: readonly { readonly x: number; readonly y: number; readonly size: number }[];
+  readonly flour: boolean;
   readonly windsocks: readonly { readonly x: number; readonly altitude: number }[];
   /** Porch awning + windbreak on the windward side (shelter landings). */
   readonly shelter: { readonly windbreakX: number; readonly windbreakWidth: number } | null;
   readonly canopy: { readonly x0: number; readonly x1: number; readonly y: number } | null;
 };
 
+export type LandingDecorProp = {
+  readonly kind: "crate" | "bolts" | "lamp" | "chair" | "lantern" | "bush" | "mist" | "chimney" | "bread-rack" | "oven" | "puddle" | "bunting" | "mailbox";
+  readonly x: number;
+  readonly y: number;
+};
+
 export const campaignLandingDecor: Readonly<Record<Exclude<ThemeId, "teaMoon">, CampaignLandingDecor>> = {
-  bentoBelt: { silhouette: [46, 70, 38, 88, 54, 30, 76, 44], windsocks: [], shelter: null, canopy: null },
-  matchaNebula: { silhouette: [60, 92, 70, 40, 84, 110, 52, 66], windsocks: [{ x: 300, altitude: 150 }], shelter: null, canopy: null },
-  blackHoleBakery: { silhouette: [36, 36, 64, 64, 30, 96, 40, 40], windsocks: [], shelter: null, canopy: null },
+  bentoBelt: {
+    silhouette: [116, 174, 110, 196, 134, 100, 166, 114], ridgeShape: "crag", nearHills: [94, 66, 38, 48, 72, 100, 58],
+    porch: { width: 168, height: 138, roof: "flat", window: "square" },
+    props: [{ kind: "crate", x: 146, y: 648 }, { kind: "crate", x: 214, y: 648 }, { kind: "bolts", x: 258, y: 662 }, { kind: "lamp", x: 270, y: 648 }, { kind: "chair", x: 916, y: 648 }],
+    rocks: [{ x: 70, y: 678, size: 36 }, { x: 316, y: 692, size: 24 }, { x: 1198, y: 686, size: 40 }], flour: false,
+    windsocks: [], shelter: null, canopy: null,
+  },
+  matchaNebula: {
+    silhouette: [160, 212, 170, 140, 184, 220, 152, 166], ridgeShape: "rounded", nearHills: [108, 72, 50, 36, 72, 116, 90],
+    porch: { width: 172, height: 144, roof: "pitched", window: "round" },
+    props: [{ kind: "lantern", x: 152, y: 648 }, { kind: "lantern", x: 258, y: 648 }, { kind: "bush", x: 108, y: 652 }, { kind: "bush", x: 220, y: 658 }, { kind: "bush", x: 1184, y: 650 }, { kind: "mist", x: 170, y: 564 }, { kind: "mist", x: 910, y: 574 }],
+    rocks: [{ x: 54, y: 680, size: 24 }, { x: 336, y: 694, size: 28 }, { x: 1220, y: 692, size: 30 }], flour: false,
+    windsocks: [{ x: 300, altitude: 150 }], shelter: null, canopy: null,
+  },
+  blackHoleBakery: {
+    silhouette: [106, 106, 174, 174, 100, 186, 120, 120], ridgeShape: "terraced", nearHills: [60, 96, 38, 30, 42, 96, 70],
+    porch: { width: 184, height: 154, roof: "pitched", window: "round" },
+    props: [{ kind: "chimney", x: 1110, y: 508 }, { kind: "bread-rack", x: 182, y: 648 }, { kind: "bread-rack", x: 292, y: 648 }, { kind: "oven", x: 112, y: 648 }, { kind: "lamp", x: 916, y: 648 }],
+    rocks: [{ x: 40, y: 688, size: 28 }, { x: 354, y: 696, size: 20 }, { x: 1202, y: 680, size: 32 }], flour: true,
+    windsocks: [], shelter: null, canopy: null,
+  },
   imFine: {
-    silhouette: [50, 64, 44, 72, 58, 48, 80, 54],
+    silhouette: [150, 184, 144, 192, 158, 148, 210, 174], ridgeShape: "crag",
+    nearHills: [110, 80, 52, 40, 64, 112, 76],
+    porch: { width: 180, height: 158, roof: "pitched", window: "square" },
+    props: [{ kind: "puddle", x: 156, y: 680 }, { kind: "puddle", x: 970, y: 682 }, { kind: "chair", x: 908, y: 648 }, { kind: "lamp", x: 1196, y: 648 }],
+    rocks: [{ x: 70, y: 658, size: 54 }, { x: 240, y: 694, size: 38 }, { x: 1212, y: 690, size: 46 }], flour: false,
     windsocks: [
-      { x: 1000, altitude: 236 },
+      { x: 1120, altitude: 236 },
       { x: 382, altitude: 44 },
     ],
     shelter: { windbreakX: 300, windbreakWidth: 120 },
     canopy: null,
   },
-  home: { silhouette: [40, 56, 72, 48, 64, 36, 58, 44], windsocks: [], shelter: null, canopy: { x0: 120, x1: 380, y: 300 } },
+  home: {
+    silhouette: [130, 166, 182, 148, 174, 136, 158, 144], ridgeShape: "rounded", nearHills: [78, 56, 42, 30, 54, 92, 68],
+    porch: { width: 176, height: 140, roof: "flat", window: "square" },
+    props: [{ kind: "bunting", x: 120, y: 344 }, { kind: "lamp", x: 160, y: 648 }, { kind: "lamp", x: 332, y: 648 }, { kind: "lamp", x: 906, y: 648 }, { kind: "mailbox", x: 1188, y: 648 }, { kind: "bunting", x: 930, y: 472 }],
+    rocks: [{ x: 74, y: 690, size: 24 }, { x: 292, y: 684, size: 26 }, { x: 1226, y: 686, size: 24 }], flour: false,
+    windsocks: [], shelter: null, canopy: { x0: 120, x1: 380, y: 300 },
+  },
 };

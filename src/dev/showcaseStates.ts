@@ -99,6 +99,14 @@ export const SHOWCASE_STATES: readonly ShowcaseStateDefinition[] = [
     data: title({ openPanel: "route-log" }),
   },
   {
+    id: "title-campaign-route-log",
+    sceneKey: "TitleScene",
+    description: "Title after the whole campaign with the route log open (every stop listed)",
+    settleMs: 1800,
+    save: "campaign-all-complete",
+    data: title({ openPanel: "route-log" }),
+  },
+  {
     id: "flight-start",
     sceneKey: "FlightScene",
     description: "Route start, ship idle at launch",
@@ -519,7 +527,7 @@ export const SHOWCASE_STATES: readonly ShowcaseStateDefinition[] = [
     id: "home-ending",
     sceneKey: "DeliveryResultScene",
     description: "Final delivery result / ending card",
-    settleMs: 1800,
+    settleMs: 5500,
     save: "campaign-before-home",
     data: missionResult("home-delivery", softResult),
   },

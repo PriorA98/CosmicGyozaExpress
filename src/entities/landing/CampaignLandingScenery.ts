@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { CAMPAIGN_PORTRAIT_FRAME, CAMPAIGN_WINDSOCK_FRAME } from "../../data/assetManifest";
 import type { CampaignThemeDefinition } from "../../data/campaign/themes";
 import { campaignLandingCopy } from "../../data/landingCopy";
-import { campaignLandingDecor, campaignLandingScenery, LANDING_ART_SCALE } from "../../data/landingScenery";
+import { campaignLandingDecor, campaignLandingScenery, LANDING_ART_SCALE, type CampaignLandingDecor } from "../../data/landingScenery";
 import { colorNumber, colors, depth, typeScale } from "../../game/designTokens";
 import { monoStyle } from "../../ui";
 import {
@@ -13,7 +13,10 @@ import {
 } from "../../systems/LandingEnvironmentSystem";
 import { sampleMotionPath } from "../../systems/MotionPathSystem";
 import type { LandingDefinition } from "../../types/campaign";
-import { snapToGrid } from "./pixelShapes";
+import { drawSpans, filledEllipseSpans, snapToGrid } from "./pixelShapes";
+import { isReducedMotion } from "../../fx/feedback";
+import { createCampaignPorchDecor } from "./CampaignPorchDecor";
+import { flourPosition, gustWarningAlpha } from "./campaignPresentation";
 
 const CELL = LANDING_ART_SCALE;
 const VIEW_WIDTH = 1280;
@@ -28,7 +31,7 @@ export type CampaignSceneryOptions = {
 };
 
 type Windsock = { readonly sprite: Phaser.GameObjects.Sprite; readonly altitude: number; frame: number };
-type Speck = { readonly shape: Phaser.GameObjects.Rectangle; readonly x: number; readonly phase: number; readonly speed: number };
+type Speck = { readonly shape: Phaser.GameObjects.Graphics; readonly x: number; readonly phase: number; readonly speed: number };
 
 /** Mixes two `#RRGGBB` colours (t 0 → a, 1 → b) into a Phaser colour number. */
 export function mixHex(a: string, b: string, t: number): number {
@@ -73,15 +76,20 @@ export class CampaignLandingScenery implements LandingGreeter {
 
     this.createSky(options.riseAbovePx);
     this.createLandmark();
-    if (decor) this.createSilhouette(decor.silhouette);
+    if (decor) {
+      this.createSilhouette(decor.silhouette, decor.ridgeShape);
+      this.createNearHills(decor.nearHills);
+    }
     this.createGround();
+    const recipientX = options.touchLayout ? config.recipient.touchX : config.recipient.x;
+    if (decor) this.track(createCampaignPorchDecor(scene, this.theme, decor, recipientX));
     if (decor?.canopy) this.createCanopy(decor.canopy);
     if (options.definition.padMotion.kind === "path") this.createRail();
     if (decor?.shelter && options.definition.wind.kind === "gust") this.createShelter(decor.shelter);
     if (options.definition.wind.kind !== "none" && decor) {
       for (const sock of decor.windsocks) this.createWindsock(sock.x, sock.altitude);
     }
-    if (options.definition.tuning.gravityAcceleration < config.lowGravityBelow) this.createFlour();
+    if (decor?.flour) this.createFlour();
 
     const recipient = config.recipient;
     const x = options.touchLayout ? recipient.touchX : recipient.x;
@@ -108,6 +116,9 @@ export class CampaignLandingScenery implements LandingGreeter {
         sock.frame = frame;
         sock.sprite.setFrame(frame);
       }
+      const warning = sample.phase === "warning" && sample.exposure > 0;
+      sock.sprite.setAlpha(warning ? gustWarningAlpha(clockMs, isReducedMotion()) : 1);
+      sock.sprite.setTint(colorNumber(warning ? this.theme.palette.light : "#FFFFFF"));
     }
     if (this.specks.length > 0) this.updateFlour(timeMs);
   }
@@ -194,11 +205,10 @@ export class CampaignLandingScenery implements LandingGreeter {
     );
   }
 
-  private createSilhouette(heights: readonly number[]): void {
+  private createSilhouette(heights: readonly number[], shape: CampaignLandingDecor["ridgeShape"]): void {
     const config = campaignLandingScenery.silhouette;
     const base = campaignLandingScenery.groundTopY + config.baseOffsetPx;
     const g = this.track(this.scene.add.graphics().setDepth(depth.parallax + 1).setScrollFactor(config.scrollFactor));
-    g.fillStyle(mixHex(this.theme.palette.skyBottom, this.theme.palette.ground, 0.45), 1);
     const humpWidth = VIEW_WIDTH / heights.length;
     for (let i = 0; i < heights.length + 1; i += 1) {
       const height = heights[i % heights.length] ?? 40;
@@ -206,8 +216,17 @@ export class CampaignLandingScenery implements LandingGreeter {
       // Stepped rounded hump: rows narrow towards the top in whole art px.
       for (let y = 0; y < height; y += config.stepPx) {
         const t = y / height;
-        const half = snapToGrid((humpWidth * 0.62 * Math.sqrt(1 - t * t)) | 0, CELL);
+        const profile = shape === "crag" ? 1 - t * 0.85 : shape === "terraced" ? 1 - Math.floor(t * 4) / 5 : Math.sqrt(1 - t * t);
+        const half = snapToGrid(humpWidth * 0.62 * profile, CELL);
+        g.fillStyle(mixHex(this.theme.palette.skyBottom, this.theme.palette.ground, 0.45), 1);
         g.fillRect(snapToGrid(cx - half, CELL), base - y - config.stepPx, half * 2, config.stepPx);
+        // Narrow dusk-lit contour, with sparse mineral seams down the near-facing slope.
+        g.fillStyle(mixHex(this.theme.palette.ground, this.theme.palette.light, 0.2), 0.8);
+        g.fillRect(snapToGrid(cx - half, CELL), base - y - config.stepPx, CELL * 2, config.stepPx);
+        if (y % 32 === 0) {
+          g.fillStyle(colorNumber(this.theme.palette.accent), 0.12);
+          g.fillRect(snapToGrid(cx - half / 2, CELL), base - y, snapToGrid(half * 0.6, CELL), CELL * 2);
+        }
       }
     }
   }
@@ -224,6 +243,24 @@ export class CampaignLandingScenery implements LandingGreeter {
     for (let x = 0; x < VIEW_WIDTH; x += CELL * 22) {
       g.fillRect(x + ((x / (CELL * 22)) % 2) * CELL * 8, top + CELL * 8, CELL * 6, CELL);
       g.fillRect(x + CELL * 12, top + CELL * 18, CELL * 4, CELL);
+    }
+  }
+
+  /** A nearer, rim-lit ridge behind the pad gives the inhabited apron depth. Drawn once. */
+  private createNearHills(heights: readonly number[]): void {
+    const base = campaignLandingScenery.groundTopY + 16;
+    const g = this.track(this.scene.add.graphics().setDepth(depth.parallax + 2));
+    const width = VIEW_WIDTH / heights.length;
+    for (let i = 0; i <= heights.length; i += 1) {
+      const height = heights[i % heights.length] ?? 60;
+      const cx = snapToGrid(i * width + width / 2, CELL);
+      for (let y = 0; y < height; y += 4) {
+        const half = snapToGrid(width * 0.7 * Math.sqrt(1 - (y / height) ** 2), CELL);
+        g.fillStyle(mixHex(this.theme.palette.ground, this.theme.palette.light, 0.24), 1);
+        g.fillRect(cx - half, base - y - 4, half * 2, 4);
+        g.fillStyle(mixHex(this.theme.palette.ground, this.theme.palette.skyBottom, 0.12), 1);
+        g.fillRect(cx - half + 4, base - y, Math.max(0, half * 2 - 8), 4);
+      }
     }
   }
 
@@ -282,7 +319,7 @@ export class CampaignLandingScenery implements LandingGreeter {
         .setOrigin(0, 0.15)
         .setScale(CELL)
         .setFlipX(direction < 0)
-        .setDepth(depth.world + 2),
+        .setDepth(depth.world + 4),
     );
     if (direction < 0) sprite.setOrigin(1, 0.15);
     this.windsocks.push({ sprite, altitude, frame: CAMPAIGN_WINDSOCK_FRAME.calm });
@@ -319,6 +356,12 @@ export class CampaignLandingScenery implements LandingGreeter {
     }
     g.fillStyle(colorNumber(palette.light), 0.9);
     for (let x = left; x < right; x += config.stripePx) g.fillRect(x, eaveY, config.stripePx / 2, CELL * 2);
+    // The physical wind reaches zero at this line, across the entire berth approach.
+    const padLeft = snapToGrid(pad.centerX - pad.width / 2, CELL);
+    g.fillStyle(colorNumber(palette.accent), 0.09);
+    g.fillRect(padLeft, eaveY + CELL, pad.width, pad.surfaceY - eaveY);
+    g.fillStyle(colorNumber(palette.light), 0.45);
+    for (let x = padLeft; x < padLeft + pad.width; x += 20) g.fillRect(x, eaveY, 10, CELL);
   }
 
   private createCanopy(canopy: { readonly x0: number; readonly x1: number; readonly y: number }): void {
@@ -375,26 +418,23 @@ export class CampaignLandingScenery implements LandingGreeter {
       return seed / 233280;
     };
     for (let i = 0; i < config.count; i += 1) {
-      const shape = this.track(
-        this.scene.add
-          .rectangle(0, 0, config.sizePx, config.sizePx, colorNumber(colors.plaster), config.alpha * (0.5 + next() * 0.5))
-          .setOrigin(0, 0)
-          .setDepth(depth.worldFx),
-      );
-      this.specks.push({ shape, x: next() * VIEW_WIDTH, phase: next(), speed: 0.6 + next() * 0.8 });
+      const shape = this.track(this.scene.add.graphics().setDepth(depth.worldFx));
+      const size = config.sizePx + (i % 3) * CELL;
+      shape.fillStyle(colorNumber(this.theme.palette.light), config.alpha * (0.6 + next() * 0.4));
+      drawSpans(shape, 0, 0, filledEllipseSpans(size / 2, 4, CELL), CELL);
+      drawSpans(shape, -4, -2, filledEllipseSpans(4, 4, CELL), CELL);
+      drawSpans(shape, 4, -4, filledEllipseSpans(4, 4, CELL), CELL);
+      shape.fillStyle(colorNumber(colors.parchment), 0.35);
+      shape.fillRect(-CELL * 2, -CELL * 2, CELL * 3, CELL);
+      this.specks.push({ shape, x: 80 + next() * 1120, phase: next() ** 2, speed: 0.6 + next() * 0.8 });
     }
     this.updateFlour(0);
   }
 
   /** Flour rises slowly and sways: in light gravity it never quite falls. */
   private updateFlour(timeMs: number): void {
-    const config = campaignLandingScenery.flour;
-    const span = campaignLandingScenery.groundTopY - config.topY;
-    const seconds = timeMs / 1000;
     for (const speck of this.specks) {
-      const travel = (speck.phase * span + seconds * config.riseSpeedPx * speck.speed) % span;
-      const y = campaignLandingScenery.groundTopY - travel;
-      const x = speck.x + Math.sin(seconds * 0.5 * speck.speed + speck.phase * 6.28) * config.swayPx;
+      const { x, y } = flourPosition(speck.x, speck.phase, speck.speed, timeMs);
       speck.shape.setPosition(snapToGrid(x, CELL), snapToGrid(y, CELL));
     }
   }

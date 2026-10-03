@@ -507,6 +507,9 @@ export const missionResultCopy: Readonly<Record<MissionId, MissionResultCopy>> =
 
 /** Campaign-only result card copy (non-legacy themes and the final card). */
 export const campaignResultCopy = {
+  endingKicker: "for you",
+  endingPlace: "welcome home",
+  endingHeadline: "there is warmth here for you, too",
   notesTitle: "thank-you notes",
   /** Shown on the final card when no earlier delivery has been completed yet. */
   noNotes: "the notes are still on their way",
@@ -518,3 +521,25 @@ export const campaignResultCopy = {
     flyHome: { label: "fly home again", key: "r" },
   },
 } as const;
+
+/** The homecoming gives each completed stop a reading beat, then holds the closing line. */
+export const endingRevealTiming = {
+  notesTitle: 580,
+  firstNote: 800,
+  noteGap: 480,
+  closing: 3340,
+  footer: 4660,
+  complete: 5000,
+  maxRealMs: 5300,
+} as const;
+
+/** Larger paper for the homecoming; the legacy Tea result keeps its existing dimensions. */
+export const endingCardLayout = {
+  cardWidth: 1240,
+  cardHeight: 688,
+  cardCenterY: 360,
+  leftColumnWidth: 240,
+  columnGap: 30,
+  portraitFrame: 172,
+  portraitScale: 2,
+} satisfies Partial<ResultCardLayout>;

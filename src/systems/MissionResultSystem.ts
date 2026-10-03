@@ -105,7 +105,7 @@ export function createDeliveryResultContent(data: DeliveryResultSceneData): Deli
 
   return {
     missionId: mission.id,
-    headline: resultCopy.headlines[safe.landingResult],
+    headline: isEndingMission(mission) ? campaignResultCopy.endingHeadline : resultCopy.headlines[safe.landingResult],
     deliveryItemName: mission.deliveryItemName,
     recipientName: mission.recipientName,
     conditionLabel,
@@ -148,7 +148,7 @@ export function createDeliveryResultPresentation(
   return {
     content,
     landingResult: safe.landingResult,
-    kicker: resultCopy.kicker,
+    kicker: isEnding ? campaignResultCopy.endingKicker : resultCopy.kicker,
     landingStamp: resultCopy.landingStamps[safe.landingResult],
     conditionStamp: {
       label: content.conditionLabel.toLowerCase(),
@@ -174,7 +174,7 @@ export function createDeliveryResultPresentation(
     missionId: mission.id,
     themeId: mission.themeId,
     legacy: theme.legacy,
-    kickerPlace: copy.place,
+    kickerPlace: isEnding ? campaignResultCopy.endingPlace : copy.place,
     recipientCaption: copy.recipientCaption,
     closingLine: mission.closingLine,
     isEnding,
@@ -279,8 +279,8 @@ export function resultActionsFor(missionId: MissionId, progress: CampaignProgres
   if (isEndingMission(mission)) {
     return [
       { kind: "read-notes", ...buttons.readNotes, codes: ["KeyN"], variant: "secondary", missionId: id },
-      boardAsPrimary,
       { kind: "fly-again", ...buttons.flyHome, codes: ["KeyR"], variant: "secondary", missionId: id },
+      boardAsPrimary,
     ];
   }
   const flyAgain: ResultAction = { kind: "fly-again", ...buttons.flyAgain, codes: ["KeyR"], variant: "secondary", missionId: id };

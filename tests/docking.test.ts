@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dockingTuning } from "../src/data/tuning";
-import { evaluateDocking } from "../src/systems/DockingSystem";
+import { dockingHint, evaluateDocking } from "../src/systems/DockingSystem";
 import type { FlightDestinationDefinition, ShipKinematicState } from "../src/types/flight";
 
 const destination: FlightDestinationDefinition = {
@@ -25,6 +25,14 @@ function ship(overrides: Partial<ShipKinematicState>): ShipKinematicState {
 }
 
 describe("docking readiness", () => {
+  it("preserves Tea Moon hints and uses the campaign destination when supplied", () => {
+    const far = evaluateDocking(ship({ x: 400 }), destination);
+    expect(dockingHint(far)).toBe("tea moon beacon is waiting");
+    expect(dockingHint(far, "Planet I'm Fine")).toBe("planet i'm fine beacon is waiting");
+    const fast = evaluateDocking(ship({ velocityX: dockingTuning.maxSpeed + 1 }), destination);
+    expect(dockingHint(fast)).toBe("too spicy for docking");
+    expect(dockingHint(fast, "Bakery")).toBe("dock ahead. tiny brakes, please");
+  });
   it("reports too far outside the approach radius", () => {
     expect(evaluateDocking(ship({ x: 400 }), destination).kind).toBe("too-far");
   });

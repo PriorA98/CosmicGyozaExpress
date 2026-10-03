@@ -7,9 +7,13 @@ import {
   flightCelestialBodies,
   flightDebris,
   flightParallaxLayers,
+  campaignBackdropProps,
   type ParallaxLayerDefinition,
 } from "../../data/flightScenery";
 import { colorNumber, colors, depth } from "../../game/designTokens";
+import type { CampaignThemeDefinition } from "../../data/campaign/themes";
+import type { Point } from "../../types/flight";
+import { isReducedMotion } from "../../fx/feedback";
 import { ensureVerticalMirrorTile } from "./pixelArt";
 import { ensureStandInStarTile, isFallbackTexture, planetTextureOrStandIn } from "./textureFallbacks";
 
@@ -34,11 +38,13 @@ export class SpaceBackdrop {
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly worldHeight: number,
+    private readonly theme?: CampaignThemeDefinition,
+    start?: Point,
   ) {
     scene.cameras.main.setBackgroundColor(colors.cosmos);
     flightParallaxLayers.forEach((definition, index) => this.createLayer(definition, index));
-    this.createCelestialBodies();
-    this.createDebris();
+    if (!theme) { this.createCelestialBodies(); this.createDebris(); }
+    else this.createCampaignProps(start ?? { x: 320, y: worldHeight / 2 });
   }
 
   /** Call every frame after the camera has moved. */
@@ -83,8 +89,41 @@ export class SpaceBackdrop {
       .setScrollFactor(0)
       .setAlpha(definition.alpha)
       .setDepth(depth.backdrop + index * 0.1);
+    if (this.theme) sprite.setTint(colorNumber(this.theme.palette.skyBottom));
 
     this.layers.push({ definition, sprite });
+  }
+
+  private createCampaignProps(start: Point): void {
+    const theme = this.theme;
+    if (!theme) return;
+    const prop = campaignBackdropProps[theme.id];
+    for (let i = 0; i < 2; i += 1) {
+      const x = 580 + i * 440;
+      const y = Math.round((start.y - this.scene.scale.height / 2) * 0.4 + 220 + i * 170);
+      const g = this.scene.add.graphics().setPosition(x, y).setScrollFactor(0.4).setDepth(depth.parallax).setAlpha(0.72);
+      g.fillStyle(colorNumber(theme.palette.accent), 1);
+      if (prop === "lunch-crate") {
+        g.fillRect(-28, -18, 56, 36); g.fillStyle(colorNumber(theme.palette.light), 1).fillRect(-30, -20, 60, 4).fillRect(-4, -18, 8, 36);
+        g.fillStyle(colorNumber(theme.palette.skyTop), 1).fillRect(-22, -10, 16, 12).fillRect(8, -10, 14, 12);
+      } else if (prop === "tea-leaf") {
+        for (let row = -14; row <= 14; row += 2) { const half = 26 - Math.abs(row); g.fillRect(-half, row, half * 2, 2); }
+        g.fillStyle(colorNumber(theme.palette.light), 0.8).fillRect(-22, 0, 44, 2);
+      } else if (prop === "flour-comet") {
+        g.fillStyle(colorNumber(theme.palette.light), 0.5);
+        for (let t = 0; t < 7; t += 1) g.fillRect(-t * 12, t * 2, 10 - t, 4);
+        g.fillStyle(colorNumber(theme.palette.light), 1).fillRect(-4, -6, 16, 12).fillRect(0, -10, 8, 20);
+      } else if (prop === "rain") {
+        for (let t = 0; t < 9; t += 1) { const rx = (t % 3) * 32; const ry = Math.floor(t / 3) * 28; g.fillRect(rx, ry, 2, 14); g.fillRect(rx - 2, ry + 14, 2, 6); }
+      } else if (prop === "ribbon-lantern") {
+        g.fillRect(-16, -20, 32, 36); g.fillStyle(colorNumber(theme.palette.light), 1).fillRect(-10, -14, 20, 24);
+        g.fillStyle(colorNumber(theme.palette.accent), 1).fillRect(-6, 16, 4, 36).fillRect(4, 16, 4, 26);
+      }
+      if (!isReducedMotion()) {
+        const drift = { offset: 0 };
+        this.scene.tweens.add({ targets: drift, offset: 12, duration: 4500 + i * 1100, ease: "Sine.easeInOut", yoyo: true, repeat: -1, onUpdate: () => g.setY(y + snapToArtStep(drift.offset)) });
+      }
+    }
   }
 
   private createCelestialBodies(): void {

@@ -3,7 +3,7 @@
  * Six fixed nodes in a U: the top row runs left → right, the bottom row right → left. Indices are
  * campaign board order (0 = Tea Moon … 5 = Home). Coordinates are logical 1280×720 px.
  */
-import { dotsAlongQuadratic, type Point } from "./layout";
+import { dotsAlongQuadratic, quadraticPoint, type Point } from "./layout";
 
 export type BoardNodeState = "locked" | "available" | "completed";
 export type BoardMove = "left" | "right" | "up" | "down" | "next" | "previous";
@@ -43,6 +43,11 @@ export function boardTokenCaption(centre: Point, labelHeight: number, chipHeight
   const labelY = centre.y + BOARD_TOKEN.labelOffset;
   const chipY = Math.ceil(labelY + labelHeight + 4);
   return { labelY, chipY, bottom: chipY + chipHeight };
+}
+
+/** On compact lower-row stops, put unlock chips inside the dim art, above the title and detail panel. */
+export function boardUnlockCaptionTop(centre: Point, chipTop: number, kind: BoardLayoutKind, index: number): number {
+  return kind === "compact" && BOARD_GRID[index]?.row === 1 ? centre.y + 48 : chipTop + 12;
 }
 
 /** Node centres in board order for a layout. */
@@ -150,6 +155,27 @@ export function boardLegDots(leg: BoardRouteLeg, spacing: number, clearRadius: n
   return dotsAlongQuadratic(leg.from, leg.control, leg.to, spacing)
     .filter((dot) => Math.hypot(dot.x - leg.from.x, dot.y - leg.from.y) > clearRadius && Math.hypot(dot.x - leg.to.x, dot.y - leg.to.y) > clearRadius)
     .map(({ x, y }) => ({ x, y }));
+}
+
+/** A small pixel chevron at the leg's midpoint, pointing in authored route order. */
+export function boardLegArrow(leg: BoardRouteLeg): Point[] {
+  const centre = quadraticPoint(leg.from, leg.control, leg.to, 0.5);
+  const dx = leg.to.x - leg.from.x;
+  const dy = leg.to.y - leg.from.y;
+  const vertical = Math.abs(dy) > Math.abs(dx);
+  const sign = Math.sign(vertical ? dy : dx);
+  if (sign === 0) return [];
+  const x = Math.round(centre.x / 2) * 2;
+  const y = Math.round(centre.y / 2) * 2;
+  const pixels: Point[] = [{ x: x - 2, y: y - 2 }];
+  for (let step = 1; step <= 2; step += 1) {
+    for (const side of [-1, 1]) {
+      pixels.push(vertical
+        ? { x: x - 2 + side * step * 4, y: y - 2 - sign * step * 4 }
+        : { x: x - 2 - sign * step * 4, y: y - 2 + side * step * 4 });
+    }
+  }
+  return pixels;
 }
 
 /** Axis-aligned rects (relative to the centre) of a stepped pixel ring: rows of `band` px. */

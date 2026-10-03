@@ -53,6 +53,27 @@ export function zoneBounds(shape: ZoneShape): { readonly x: number; readonly y: 
   return { x: shape.center.x - shape.radius, y: shape.center.y - shape.radius, width: shape.radius * 2, height: shape.radius * 2 };
 }
 
+/** Three sparse flow lanes: two edges and one central lane, rather than a wall of arrows. */
+export function flowCueBases(bounds: { readonly x: number; readonly y: number; readonly width: number; readonly height: number }, vertical: boolean, spacing: number): readonly Point[] {
+  const points: Point[] = [];
+  const length = vertical ? bounds.height : bounds.width;
+  const cross = vertical ? bounds.width : bounds.height;
+  for (const fraction of [0, 0.5, 1]) {
+    for (let along = -spacing; along <= length + spacing; along += spacing) {
+      const across = cross * fraction;
+      points.push({ x: bounds.x + (vertical ? across : along), y: bounds.y + (vertical ? along : across) });
+    }
+  }
+  return points;
+}
+
+/** Cues stay clear of the ship silhouette, dialog, instruments, and controls. */
+export function cueIsClear(point: Point, ship: Point, screen: Point, width: number, height: number, avoid: readonly { readonly x: number; readonly y: number; readonly width: number; readonly height: number }[]): boolean {
+  if (Math.hypot(point.x - ship.x, point.y - ship.y) < 100) return false;
+  if (screen.x < 30 || screen.x > width - 30 || screen.y < 96 || screen.y > height - 78) return false;
+  return !avoid.some((r) => screen.x >= r.x - 28 && screen.x <= r.x + r.width + 28 && screen.y >= r.y - 28 && screen.y <= r.y + r.height + 28);
+}
+
 /**
  * Centre for a destination body sprite: beyond the arrival ring in the required bottom direction (the
  * ship docks bottom-toward the station, like the Tea Moon), kept fully inside the world.
