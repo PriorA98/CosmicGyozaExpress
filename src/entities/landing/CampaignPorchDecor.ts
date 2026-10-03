@@ -42,7 +42,7 @@ export function createCampaignPorchDecor(
   const glow = scene.add.graphics().setDepth(depth.world + 2.5).setBlendMode(Phaser.BlendModes.ADD);
   const p = theme.palette;
   const c: Palette = {
-    ink: colorNumber(colors.ink), light: colorNumber(p.light), accent: colorNumber(p.accent), ground: colorNumber(p.ground),
+    ink: colorNumber(colors.ink), light: decor.warmHorizon ? mixHex(p.light, colors.ember, 0.45) : colorNumber(p.light), accent: colorNumber(p.accent), ground: colorNumber(p.ground),
     plaster: colorNumber(colors.parchment), rim: colorNumber(decor.tones.rim),
     wall: mixHex(p.ground, p.light, 0.14), dark: mixHex(p.ground, colors.ink, 0.45),
   };
@@ -390,7 +390,7 @@ function paintProp(paint: Painter, c: Palette, kind: LandingDecorProp["kind"], x
       rect(x - 18, y - 106, 36, 6, accent); rect(x - 16, y - 4, 32, 6, ink);
       halo(x, y - 89, 40); break;
     case "lantern":
-      pool(x + 18, y + 2, 40, 8); rect(x - 4, y - 132, 6, 132, ink); rect(x - 6, y - 132, 36, 4, accent);
+      pool(x + 18, y + 2, 56, 12, 2); rect(x - 4, y - 132, 6, 132, ink); rect(x - 6, y - 132, 36, 4, accent);
       rect(x + 20, y - 128, 2, 16, plaster); ellipse(x + 22, y - 92, 18, 24, light);
       for (let ox = -10; ox <= 10; ox += 10) rect(x + 22 + ox, y - 112, 2, 40, accent, 0.8);
       rect(x + 8, y - 118, 28, 6, ink); rect(x + 10, y - 70, 24, 4, ink);

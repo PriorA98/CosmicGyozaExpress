@@ -645,6 +645,7 @@ export class LandingScene extends Phaser.Scene {
       x,
       y: this.captionY(),
       title: this.theme.legacy ? landingCopy.touchdown[result] : this.mission.landingLines[result],
+      opacityMs: this.theme.legacy ? undefined : campaignLandingScenery.touchdownOpacityMs,
       subtitle: `${landingCopy.touchdownSpeedLabel} ${descent.number} ${descent.unit} · ${landingCopy.rows.package} ${this.packageWord()}`,
       accent: landingZoneColors[result],
       scale: this.hudScale(),
@@ -921,10 +922,11 @@ export class LandingScene extends Phaser.Scene {
       showNote: !this.theme.legacy,
     });
     const touchPads = this.touchLayout ? new LandingTouchPads(this, compactUiScale(this)) : undefined;
-    const hint = this.touchLayout ? undefined : createLandingControlsHint(this, uiScale, !this.theme.legacy || isCompactDisplay(this) ? "top-right" : "bottom");
+    // Match Tea's bottom-centred hints; compact keyboard displays keep them above the berth to avoid overlap.
+    const hint = this.touchLayout ? undefined : createLandingControlsHint(this, uiScale, isCompactDisplay(this) ? "top-right" : "bottom");
     const retryChip = this.touchLayout ? this.createRetryChip(compactUiScale(this)) : undefined;
-    // Touch: the wind chip sits beside the retry chip in the top bar, clear of the destination landmark.
-    const windAnchor = retryChip ? { right: retryChip.x - landingScenery.retryChip.marginX / 2, top: retryChip.y } : undefined;
+    // Touch: dock left, below the dashboard. The right-side crown and the gauge's highest position stay clear.
+    const windAnchor = retryChip ? { right: dashboard.root.x + campaignLandingScenery.windIndicator.width * uiScale, top: snapToGrid(dashboard.root.y + dashboard.displayHeight + 8, CELL) } : undefined;
     const wind = this.theme.legacy || this.definition.wind.kind === "none"
       ? undefined
       : new LandingWindIndicator(this, this.definition.wind, uiScale, isCompactDisplay(this), windAnchor);

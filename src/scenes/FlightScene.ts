@@ -645,6 +645,12 @@ export class FlightScene extends Phaser.Scene {
     this.updateCameraTarget(delta);
     this.backdrop.update(time);
     this.beacon.update(docking, this.arrivalProgress, time);
+    if (!this.theme.legacy && time >= this.nextHudMs) this.indicator.setWorldKeepOuts([
+      ...this.route.obstacles.map((rock) => ({ x: rock.x, y: rock.y, radius: rock.radius + 12 })),
+      ...this.movingObstacles.map((rock) => ({ ...rock.position, radius: rock.radius + 12 })),
+      ...this.route.collectibles.filter((pickup) => !this.collectedIds.has(pickup.id)).map((pickup) => ({ ...pickup.position, radius: 44 })),
+      ...this.route.beacons.map((note) => ({ ...note.position, radius: 80 })),
+    ]);
     this.indicator.update(docking, time);
     this.updateHud(docking, time);
     this.updateDebugGraphics();

@@ -1,12 +1,27 @@
 import { describe, expect, it } from "vitest";
 import { CAMPAIGN_WINDSOCK_FRAME } from "../src/data/assetManifest";
 import { campaignLandingDecor, campaignLandingScenery } from "../src/data/landingScenery";
-import { campaignGaugeY, flourPosition, gustWarningAlpha } from "../src/entities/landing/campaignPresentation";
+import { campaignGaugeY, flourPosition, gustWarningAlpha, windsockPlacement } from "../src/entities/landing/campaignPresentation";
 import { windsockFrameFor, type LandingWindSample } from "../src/systems/LandingEnvironmentSystem";
 
 const wind: LandingWindSample = { acceleration: { x: 0, y: 0 }, phase: "calm", envelope: 0, exposure: 1, msUntilGust: 0 };
 
 describe("landing windsock sheet semantics", () => {
+  it("keeps all final-art pole centres fixed on the mast, including mirrored wind", () => {
+    const config = campaignLandingScenery.windsock;
+    for (let frame = 0; frame < 4; frame += 1) {
+      const poleX = config.poleArtX[frame];
+      const poleY = config.poleTopArtY[frame];
+      if (poleX === undefined || poleY === undefined) throw new Error("missing windsock anchor");
+      for (const direction of [-1, 1]) {
+        const placement = windsockPlacement(frame, direction, 568, 648);
+        const artX = direction < 0 ? config.frameArtWidth - poleX : poleX;
+        expect((artX - placement.originX * config.frameArtWidth) * config.sockScale).toBeCloseTo(0);
+        expect((poleY - placement.originY * config.frameArtHeight) * config.sockScale).toBe(0);
+        expect(568 + (placement.cropRows - poleY) * config.sockScale).toBe(648);
+      }
+    }
+  });
   it("progresses from limp calm through warning and medium to straight-out strong", () => {
     const samples: readonly LandingWindSample[] = [
       wind,

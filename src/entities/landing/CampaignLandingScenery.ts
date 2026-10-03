@@ -16,7 +16,7 @@ import type { LandingDefinition } from "../../types/campaign";
 import { drawSpans, filledEllipseSpans, snapToGrid } from "./pixelShapes";
 import { isReducedMotion } from "../../fx/feedback";
 import { createCampaignPorchDecor } from "./CampaignPorchDecor";
-import { ambientMotePosition, campaignSkyBandColors, flourPosition, gustWarningAlpha, type AmbientMote } from "./campaignPresentation";
+import { ambientMotePosition, campaignSkyBandColors, flourPosition, gustWarningAlpha, windsockPlacement, type AmbientMote } from "./campaignPresentation";
 import { mixHex } from "./colorMix";
 
 const CELL = LANDING_ART_SCALE;
@@ -31,7 +31,7 @@ export type CampaignSceneryOptions = {
   readonly riseAbovePx: number;
 };
 
-type Windsock = { readonly sprite: Phaser.GameObjects.Sprite; readonly altitude: number; frame: number };
+type Windsock = { readonly sprite: Phaser.GameObjects.Sprite; readonly altitude: number; readonly mount: "mast" | "ridge"; readonly topY: number; readonly direction: number; frame: number };
 type Speck = { readonly shape: Phaser.GameObjects.Graphics; readonly x: number; readonly phase: number; readonly speed: number };
 type Mote = AmbientMote & { readonly shape: Phaser.GameObjects.Graphics };
 
@@ -97,13 +97,15 @@ export class CampaignLandingScenery implements LandingGreeter {
 
     const recipient = config.recipient;
     const x = options.touchLayout ? recipient.touchX : recipient.x;
-    this.greeterBaseY = config.groundTopY + CELL * 2;
+    this.greeterBaseY = config.groundTopY - config.recipientWindow.bottomAboveGround;
     if (this.theme.portraitTexture !== null) {
+      this.createRecipientWindow(x);
       this.greeter = scene.add
         .sprite(x, this.greeterBaseY, this.theme.portraitTexture, CAMPAIGN_PORTRAIT_FRAME.idle)
         .setOrigin(0.5, 1)
         .setScale(CELL)
         .setFlipX(x > options.definition.pad.centerX)
+        .setCrop(0, 0, 48, config.recipientWindow.cropRows)
         .setDepth(depth.world + 3);
       this.objects.push(this.greeter);
     } else {
@@ -119,6 +121,7 @@ export class CampaignLandingScenery implements LandingGreeter {
       if (frame !== sock.frame) {
         sock.frame = frame;
         sock.sprite.setFrame(frame);
+        this.alignWindsock(sock);
       }
       const warning = sample.phase === "warning" && sample.exposure > 0;
       sock.sprite.setAlpha(warning ? gustWarningAlpha(clockMs, isReducedMotion()) : 1);
@@ -195,6 +198,13 @@ export class CampaignLandingScenery implements LandingGreeter {
         g.fillRect(0, seam + CELL, VIEW_WIDTH, CELL);
         g.fillStyle(bands[i] ?? 0, 1);
         g.fillRect(0, seam - CELL * 2, VIEW_WIDTH, CELL);
+      }
+    }
+    if (decor?.warmHorizon) {
+      const glow = this.track(this.scene.add.graphics().setDepth(depth.backdrop + 0.5).setScrollFactor(0));
+      for (let y = 360; y < campaignLandingScenery.groundTopY; y += 8) {
+        glow.fillStyle(colorNumber(decor.tones.horizon), 0.04 + (y - 360) / 288 * 0.18);
+        glow.fillRect(0, y, VIEW_WIDTH, 8);
       }
     }
     // Stars: fixed pseudo-random pattern (deterministic so captures stay stable).
@@ -391,36 +401,61 @@ export class CampaignLandingScenery implements LandingGreeter {
     const config = campaignLandingScenery.windsock;
     const scale = config.sockScale;
     const topY = snapToGrid(this.definition.pad.surfaceY - altitude, CELL);
-    const artBottom = topY + (config.frameArtHeight - config.poleTopArtY) * scale;
+    const artBottom = topY + (config.frameArtHeight - Math.max(...config.poleTopArtY)) * scale;
     if (mount === "mast" && artBottom < campaignLandingScenery.groundTopY) {
       const ground = campaignLandingScenery.groundTopY;
       const half = scale;
       const pole = this.track(this.scene.add.graphics().setDepth(depth.world + 1));
-      pole.fillStyle(colorNumber(colors.ink), 1);
-      pole.fillRect(x - half - CELL, artBottom - scale * 2, half * 2 + CELL * 2, ground - artBottom + scale * 2 + CELL);
-      pole.fillStyle(mixHex(this.theme.palette.accent, colors.ink, 0.45), 1);
+      pole.fillStyle(colorNumber(config.poleColor), 1);
       pole.fillRect(x - half, artBottom - scale * 2, half * 2, ground - artBottom + scale * 2);
-      pole.fillStyle(mixHex(this.theme.palette.accent, this.theme.palette.light, 0.2), 0.8);
-      pole.fillRect(x - half, artBottom - scale * 2, CELL, ground - artBottom + scale * 2);
+      pole.fillStyle(colorNumber(config.poleShadow), 1);
+      pole.fillRect(x, artBottom - scale * 2, half, ground - artBottom + scale * 2);
       pole.fillStyle(colorNumber(colors.ink), 1);
       pole.fillRect(x - half * 2, ground - CELL * 3, half * 4, CELL * 3);
     }
     const wind = this.definition.wind;
     const direction = wind.kind === "steady" ? wind.acceleration.x : wind.kind === "gust" ? wind.peakAcceleration.x : 1;
     // Art points right (blowing towards +x); mirrored for wind towards -x, keeping the pole on the same column.
-    const poleU = config.poleArtX / config.frameArtWidth;
     const sprite = this.track(
       this.scene.add
         .sprite(x, topY, config.key, CAMPAIGN_WINDSOCK_FRAME.calm)
-        .setOrigin(direction < 0 ? 1 - poleU : poleU, config.poleTopArtY / config.frameArtHeight)
         .setScale(scale)
         .setFlipX(direction < 0)
         .setDepth(mount === "ridge" ? depth.world - 0.5 : depth.world + 4),
     );
-    // A low sock's own pole would reach below the ground band: crop the art at ground level.
-    const groundRows = config.poleTopArtY + Math.floor((campaignLandingScenery.groundTopY - topY) / scale);
-    if (mount === "mast" && groundRows < config.frameArtHeight) sprite.setCrop(0, 0, config.frameArtWidth, groundRows);
-    this.windsocks.push({ sprite, altitude, frame: CAMPAIGN_WINDSOCK_FRAME.calm });
+    const sock: Windsock = { sprite, altitude, mount, topY, direction, frame: CAMPAIGN_WINDSOCK_FRAME.calm };
+    this.alignWindsock(sock);
+    this.windsocks.push(sock);
+  }
+
+  private alignWindsock(sock: Windsock): void {
+    const config = campaignLandingScenery.windsock;
+    const anchor = windsockPlacement(sock.frame, sock.direction, sock.topY, campaignLandingScenery.groundTopY);
+    sock.sprite.setOrigin(anchor.originX, anchor.originY);
+    if (sock.mount === "mast") sock.sprite.setCrop(0, 0, config.frameArtWidth, anchor.cropRows);
+  }
+
+  /** A service window motivates the bust art: warm recess behind it, a solid frame and counter in front. */
+  private createRecipientWindow(x: number): void {
+    const config = campaignLandingScenery.recipientWindow;
+    const left = x - config.width / 2;
+    const bottom = this.greeterBaseY;
+    const top = bottom - config.height;
+    const back = this.track(this.scene.add.graphics().setDepth(depth.world + 2.75));
+    back.fillStyle(colorNumber(this.theme.palette.light), 1);
+    back.fillRect(left, top, config.width, config.height);
+    back.fillStyle(mixHex(this.theme.palette.ground, colors.ink, 0.5), 1);
+    back.fillRect(left + config.framePx, top + config.framePx, config.width - config.framePx * 2, config.height - config.framePx * 2);
+    const frame = this.track(this.scene.add.graphics().setDepth(depth.world + 4));
+    frame.fillStyle(colorNumber(colors.ink), 1);
+    for (const px of [left, left + config.width - config.framePx]) frame.fillRect(px, top, config.framePx, config.height);
+    frame.fillRect(left - CELL, top - CELL, config.width + CELL * 2, config.framePx);
+    frame.fillRect(left - CELL * 2, bottom - CELL * 4, config.width + CELL * 4, config.railPx);
+    frame.fillStyle(colorNumber(this.theme.palette.light), 1);
+    frame.fillRect(left + CELL, top, config.width - CELL * 2, CELL);
+    frame.fillRect(left - CELL, bottom - CELL * 4, config.width + CELL * 2, CELL * 2);
+    frame.fillStyle(colorNumber(this.theme.palette.accent), 1);
+    frame.fillRect(left, bottom - CELL * 2, config.width, config.railPx - CELL * 4);
   }
 
   /** Porch awning at the shelter height plus windbreak posts on the windward side: explains the calm. */
@@ -485,6 +520,26 @@ export class CampaignLandingScenery implements LandingGreeter {
     }
     g.fillStyle(colorNumber(palette.light), 1);
     for (let x = x0; x < x1; x += stripe) g.fillRect(x + CELL * 2, y, stripe / 2, CELL * 2);
+    // The canopy shelters a parcel table, giving its tall posts a homecoming purpose.
+    const table = campaignLandingScenery.welcomeTable;
+    const tx = snapToGrid((x0 + x1 - table.width) / 2, CELL);
+    const ty = ground - table.height;
+    g.fillStyle(colorNumber(colors.ink), 1);
+    g.fillRect(tx - CELL, ty - CELL, table.width + CELL * 2, CELL * 5);
+    for (const px of [tx + CELL * 3, tx + table.width - CELL * 7]) g.fillRect(px, ty, CELL * 4, table.height);
+    g.fillStyle(colorNumber(palette.light), 1);
+    g.fillRect(tx, ty, table.width, CELL * 2);
+    g.fillStyle(colorNumber(palette.accent), 1);
+    g.fillRect(tx + CELL * 2, ty + CELL * 2, table.width - CELL * 4, CELL * 3);
+    for (const [dx, w, h] of [[22, 38, 32], [76, 34, 24]] as const) {
+      g.fillStyle(colorNumber(colors.ink), 1);
+      g.fillRect(tx + dx - CELL, ty - h - CELL, w + CELL * 2, h + CELL);
+      g.fillStyle(colorNumber(colors.parchment), 1);
+      g.fillRect(tx + dx, ty - h, w, h);
+      g.fillStyle(colorNumber(palette.accent), 1);
+      g.fillRect(tx + dx + w / 2 - CELL, ty - h, CELL * 2, h);
+      g.fillRect(tx + dx, ty - h + CELL * 4, w, CELL * 2);
+    }
   }
 
   private createHomeBanner(x: number): void {

@@ -6,6 +6,7 @@ import {
   fogPuffLayout,
   gustCueLevels,
   mixHexColor,
+  parallaxBodyOpacity,
   parallaxPropCandidates,
   placeParallaxProps,
   routeCameraPath,
@@ -31,10 +32,19 @@ describe("campaign backdrop moods", () => {
         // Mid/light multiply tints: never a dark sky colour that would crush the layers to black.
         expect(luminance(tint ?? "#000000")).toBeGreaterThan(120);
       }
-      expect(mood.bodies.length).toBeGreaterThan(0);
-      for (const body of mood.bodies) expect(flightCelestialBodies.some((candidate) => candidate.id === body.id)).toBe(true);
+      for (const body of mood.bodies) expect(body.id === "tea-moon" || flightCelestialBodies.some((candidate) => candidate.id === body.id)).toBe(true);
       expect(mood.debrisAlpha).toBeGreaterThan(0.5);
     }
+  });
+
+  it("reserves the storm planet for its route and gives the home sky a tiny Tea Moon", () => {
+    for (const [theme, mood] of Object.entries(campaignBackdropMoods)) {
+      if (!mood) continue;
+      expect(mood.bodies.some((body) => body.id === "im-fine")).toBe(theme === "imFine");
+    }
+    expect(campaignBackdropMoods.matchaNebula?.bodies).toEqual([]);
+    expect(campaignBackdropMoods.home?.bodies[0]).toMatchObject({ id: "tea-moon", radiusArt: 14 });
+    expect(campaignBackdropMoods.bentoBelt?.bodies[0]).toMatchObject({ id: "far-plum", radiusArt: 18 });
   });
 
   it("places far props clear of every rock, track, pickup, note and checkpoint along each route", () => {
@@ -62,6 +72,14 @@ describe("campaign backdrop moods", () => {
     const path = Array.from({ length: 21 }, (_, i) => ({ x: i * 50, y: 0 }));
     expect(placeParallaxProps([{ x: 100, y: 100 }], 1, 0.5, path, [{ x: 180, y: 100, radius: 20 }], 10, { width: 1280, height: 720 })).toEqual([]);
     expect(placeParallaxProps([{ x: 100, y: 300 }], 1, 0.5, path, [{ x: 180, y: 100, radius: 20 }], 10, { width: 1280, height: 720 })).toEqual([{ x: 100, y: 300 }]);
+  });
+
+  it("clears celestial bodies before a track overlaps, including camera parallax and a soft fringe", () => {
+    const anchor = { x: 780, y: 190 };
+    const track = [{ x: 1300, y: 650, radius: 118 }];
+    expect(parallaxBodyOpacity(anchor, 0.04, { x: 0, y: 0 }, track, 62)).toBe(1);
+    expect(parallaxBodyOpacity(anchor, 0.04, { x: 520 / 0.96, y: 460 / 0.96 }, track, 62)).toBe(0);
+    expect(parallaxBodyOpacity(anchor, 0.04, { x: 520 / 0.96, y: 265 / 0.96 }, track, 62)).toBeCloseTo(0.5);
   });
 });
 

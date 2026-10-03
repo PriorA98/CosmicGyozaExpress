@@ -131,6 +131,36 @@ export function gustCueLevels(phase: GustPhase, envelope: number, timeMs: number
 export type KeepOut = { readonly x: number; readonly y: number; readonly radius: number };
 type Viewport = { readonly width: number; readonly height: number };
 
+/** Clear far bodies locally as the camera reveals a track; the body vanishes before any overlap. */
+export function parallaxBodyOpacity(anchor: Point, scrollFactor: number, camera: Point, keepOuts: readonly KeepOut[], radius: number): number {
+  const x = anchor.x + (1 - scrollFactor) * camera.x;
+  const y = anchor.y + (1 - scrollFactor) * camera.y;
+  let alpha = 1;
+  for (const k of keepOuts) alpha = Math.min(alpha, Math.max(0, Math.min(1, (Math.hypot(x - k.x, y - k.y) - radius - k.radius) / 30)));
+  return alpha;
+}
+
+export type ScreenRect = { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
+
+/** Slide a complete pin/label footprint along its clamped edge, preferring the closest clear spot. */
+export function clearIndicatorPosition(preferred: Point, vertical: boolean, min: number, max: number, footprint: ScreenRect, obstacles: readonly KeepOut[], hud: readonly ScreenRect[]): Point {
+  const position = (along: number): Point => vertical ? { x: preferred.x, y: along } : { x: along, y: preferred.y };
+  const clear = (p: Point): boolean => {
+    const r = { x: p.x + footprint.x, y: p.y + footprint.y, width: footprint.width, height: footprint.height };
+    if (hud.some((h) => r.x < h.x + h.width && r.x + r.width > h.x && r.y < h.y + h.height && r.y + r.height > h.y)) return false;
+    return obstacles.every((o) => Math.hypot(o.x - Math.max(r.x, Math.min(r.x + r.width, o.x)), o.y - Math.max(r.y, Math.min(r.y + r.height, o.y))) > o.radius + 8);
+  };
+  if (clear(preferred)) return preferred;
+  const along = vertical ? preferred.y : preferred.x;
+  for (let distance = 8; distance <= max - min + 8; distance += 8) {
+    for (const direction of [-1, 1]) {
+      const candidate = position(Math.max(min, Math.min(max, along + direction * distance)));
+      if (clear(candidate)) return candidate;
+    }
+  }
+  return preferred;
+}
+
 /** Camera scroll samples while the ship flies start -> waypoints -> destination (camera centred, clamped to the world). */
 export function routeCameraPath(stops: readonly Point[], world: FlightWorldBounds, viewport: Viewport, stepPx = 60): Point[] {
   const scroll = (p: Point): Point => ({

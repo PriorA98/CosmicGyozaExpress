@@ -457,7 +457,7 @@ export const missionResultCopy: Readonly<Record<MissionId, MissionResultCopy>> =
     postcardTitle: "matcha nebula postcard",
     deliveryNote: { first: "first delivery to the matcha nebula", repeat: "delivery no. {n} to the matcha nebula" },
     reactionLines: {
-      soft: ["“Still steaming. I heard you coming the whole way.”", "“You drifted in like a quiet song.”"],
+      soft: ["“Still steaming. I heard you coming the whole\u00a0way.”", "“You drifted in like a quiet song.”"],
       bumpy: ["“A wobbly arrival! The flask kept every drop.”", "“The listening post felt that one. It smiled.”"],
       incident: ["“You tried again for me. I’ll remember that tune.”", "“Extra stirred. Matcha likes a little stirring.”"],
     },

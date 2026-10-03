@@ -5,6 +5,7 @@ import { SURFACE, monoStyle } from "../../ui";
 import type { DockingState, Point } from "../../types/flight";
 import { clamp } from "../../utils/math";
 import type { HudScreenRect } from "./FlightDashboard";
+import { clearIndicatorPosition, type KeepOut } from "./flightCueMath";
 
 const TAU = Math.PI * 2;
 
@@ -27,6 +28,8 @@ export class DestinationIndicator {
   private pillBlockHeight = 0;
   private nextReadoutMs = 0;
   private lastTimeMs = 0;
+  private nextUpdateMs = 0;
+  private worldKeepOuts: readonly KeepOut[] = [];
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -64,6 +67,8 @@ export class DestinationIndicator {
     this.avoidRects = rects;
   }
 
+  setWorldKeepOuts(keepOuts: readonly KeepOut[]): void { this.worldKeepOuts = keepOuts; }
+
   /** Top of the highest avoid rect overlapping the column around `x` (Infinity when none). */
   private avoidTopAt(x: number): number {
     const half = destinationIndicatorStyle.footprintHalfWidth * this.uiScale;
@@ -76,8 +81,10 @@ export class DestinationIndicator {
   }
 
   update(docking: DockingState, timeMs: number): void {
-    if (timeMs < this.lastTimeMs) this.nextReadoutMs = 0;
+    if (timeMs < this.lastTimeMs) { this.nextReadoutMs = 0; this.nextUpdateMs = 0; }
     this.lastTimeMs = timeMs;
+    if (this.readoutIntervalMs > 0 && timeMs < this.nextUpdateMs) return;
+    this.nextUpdateMs = timeMs + this.readoutIntervalMs;
     const style = destinationIndicatorStyle;
     const { width, height } = this.scene.scale;
     const camera = this.scene.cameras.main;
@@ -91,10 +98,22 @@ export class DestinationIndicator {
     if (onScreen) return;
 
     const labelMargin = this.readoutIntervalMs > 0 ? Math.max(margin, (this.name.width / 2 + style.pillPaddingX + 8) * this.uiScale) : margin;
-    const x = clamp(screenX, labelMargin, width - labelMargin);
+    let x = clamp(screenX, labelMargin, width - labelMargin);
     const avoidTop = this.avoidTopAt(x);
     const topMargin = this.readoutIntervalMs > 0 ? Math.max(margin, 110 * this.uiScale) : margin;
-    const y = clamp(screenY, topMargin, Math.min(maxY, avoidTop - style.avoidClearance * this.uiScale));
+    let y = clamp(screenY, topMargin, Math.min(maxY, avoidTop - style.avoidClearance * this.uiScale));
+    if (this.readoutIntervalMs > 0) {
+      const halfWidth = Math.max(this.name.width / 2 + style.pillPaddingX, style.discRadius + style.pinTipLength + style.chevronGap + style.chevronLength + style.chevronTravel) * this.uiScale;
+      const pinHeight = (style.discRadius + style.plateExtraRadius + 8) * this.uiScale;
+      const labelHeight = (style.labelGap + this.name.height + this.readout.height + style.pillLineGap + style.pillPaddingY * 2) * this.uiScale;
+      const below = y < height / 2 || Math.abs(screenY - y) < Math.abs(screenX - x) * 0.5;
+      const footprint = { x: -halfWidth, y: below ? -pinHeight : -labelHeight, width: halfWidth * 2, height: labelHeight + pinHeight };
+      const vertical = screenX < labelMargin || screenX > width - labelMargin;
+      const min = vertical ? Math.max(topMargin, -footprint.y) : labelMargin;
+      const max = vertical ? Math.min(maxY, height - footprint.y - footprint.height) : width - labelMargin;
+      const point = clearIndicatorPosition({ x, y }, vertical, min, max, footprint, this.worldKeepOuts.map((o) => ({ ...o, x: o.x - camera.scrollX, y: o.y - camera.scrollY })), this.avoidRects);
+      x = point.x; y = point.y;
+    }
     const angle = Math.atan2(screenY - y, screenX - x) || Math.atan2(screenY - height / 2, screenX - width / 2);
     const pulse = 0.5 + 0.5 * Math.sin((timeMs / style.pulseMs) * TAU);
     const color = colorNumber(docking.kind === "too-far" ? colors.ember : dockingStateColors[docking.kind]);

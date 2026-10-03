@@ -23,6 +23,12 @@ describe("wrapped title quotes", () => {
       else expect(fitted.endsWith("…")).toBe(true);
     }
   });
+
+  it("ellipsizes at a word boundary when the ellipsis would add another line", () => {
+    const fitted = clampWrappedText("The lunch platform keeps drifting sideways.", 1, wrap);
+    expect(fitted).toBe("The lunch platform keeps…");
+    expect(wrap(fitted)).toHaveLength(1);
+  });
 });
 
 describe("quote lines that fit above the cargo tray", () => {
@@ -32,5 +38,10 @@ describe("quote lines that fit above the cargo tray", () => {
     expect(quoteLinesThatFit(5, 20)).toBe(1);
     expect(quoteLinesThatFit(-10, 20)).toBe(1);
     expect(quoteLinesThatFit(60, 0)).toBe(1);
+  });
+
+  it("allows two lines in the exact measured space without trailing line spacing", () => {
+    expect(quoteLinesThatFit(52, 28, 4)).toBe(2);
+    expect(quoteLinesThatFit(51, 28, 4)).toBe(1);
   });
 });

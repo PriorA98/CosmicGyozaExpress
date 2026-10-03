@@ -441,12 +441,15 @@ export const campaignLandingScenery = {
   },
   rail: { heightPx: 6, tieSpacingPx: 24, bulbRadiusPx: 6, overhangPx: 20 },
   recipient: { x: 1080, touchX: 1010, frameIdle: 0, frameWelcome: 1, waveSwaps: 5, waveStepMs: 180 },
+  recipientWindow: { width: 104, height: 100, bottomAboveGround: 24, cropRows: 44, framePx: 4, railPx: 14 },
   homeBanner: { width: 132, height: 36, postHeight: 54 },
   /** Sock art is drawn at 2x the landing art scale (integer) so it reads at a glance; warm wooden mast. */
   windsock: {
     key: ASSET.campaignWindsock, sockScale: LANDING_ART_SCALE * 2,
     /** Frame anchor (art px in a 24x32 frame): the sock's own pole is centred on this column, its top at this row. */
-    poleArtX: 6, poleTopArtY: 3, frameArtWidth: 24, frameArtHeight: 32,
+    // Final PNG alpha: each frame has a different two-column pole, measured left-to-right.
+    poleArtX: [9, 6, 2, 1], poleTopArtY: [0, 0, 2, 1], frameArtWidth: 24, frameArtHeight: 32,
+    poleColor: "#7D4B3E", poleShadow: "#48252F",
   },
   awning: { overhangPastPadPx: 20, depthPx: 18, stripePx: 16, postSpacingPx: 36 },
   flour: { count: 12, riseSpeedPx: 14, swayPx: 28, sizePx: 16, alpha: 0.7, topY: 504 },
@@ -454,6 +457,8 @@ export const campaignLandingScenery = {
   lowGravityBelow: 120,
   windIndicator: { topPx: 90, compactTopPx: 116, width: 178, height: 34 },
   introCard: { width: 540, height: 164, figureWidth: 96 },
+  touchdownOpacityMs: 100,
+  welcomeTable: { width: 136, height: 66 },
   /** Dashboard: the mission's landingIntro line shows for this long after descent starts. */
   introNoteMs: 3600,
   /** Below this altitude (px) fixed-pad landings show the mission's landingCalm line. */
@@ -496,6 +501,7 @@ export type CampaignAmbient = { readonly kind: "drift" | "firefly" | "rain"; rea
 
 /** Per-theme decoration (no collision). Windsock altitudes are px above the pad surface. */
 export type CampaignLandingDecor = {
+  readonly warmHorizon?: boolean;
   readonly backdrop: CampaignLandingBackdrop;
   readonly tones: CampaignLandingTones;
   readonly landmark: { readonly x: number; readonly y: number };
@@ -553,7 +559,8 @@ export const campaignLandingDecor: Readonly<Record<Exclude<ThemeId, "teaMoon">, 
   },
   matchaNebula: {
     backdrop: { skyTexture: ASSET.campaignLandingSkyMatcha, farHillsTexture: ASSET.campaignLandingHillsMatcha, groundTexture: null },
-    tones: { horizon: "#B4A46E", farHill: "#1E2B34", nearHill: "#2C3A2B", rim: "#E2DD9A" },
+    tones: { horizon: "#C59169", farHill: "#1E2B34", nearHill: "#2C3A2B", rim: "#E2DD9A" },
+    warmHorizon: true,
     landmark: { x: 1066, y: 236 },
     silhouette: [160, 212, 170, 140, 184, 220, 152, 166], ridgeShape: "rounded", nearHills: [108, 72, 50, 36, 72, 116, 90],
     ground: "moss",
@@ -567,7 +574,7 @@ export const campaignLandingDecor: Readonly<Record<Exclude<ThemeId, "teaMoon">, 
     rockShape: "mossy",
     rocks: [{ x: 60, y: 690, size: 26 }, { x: 420, y: 688, size: 20 }, { x: 1250, y: 692, size: 28 }],
     flour: false, ambient: { kind: "firefly", count: 14, color: "light" },
-    windsocks: [{ x: 300, altitude: 150, mount: "mast" }], shelter: null, canopy: null,
+    windsocks: [{ x: 284, altitude: 150, mount: "mast" }], shelter: null, canopy: null,
   },
   blackHoleBakery: {
     backdrop: { skyTexture: ASSET.campaignLandingSkyBakery, farHillsTexture: ASSET.campaignLandingHillsBakery, groundTexture: null },

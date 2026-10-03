@@ -19,7 +19,7 @@ import type { Point } from "../../types/flight";
 import { isReducedMotion } from "../../fx/feedback";
 import { ensureVerticalMirrorTile } from "./pixelArt";
 import { ensureStandInStarTile, isFallbackTexture, planetTextureOrStandIn } from "./textureFallbacks";
-import { mixHexColor, parallaxPropCandidates, placeParallaxProps, type KeepOut } from "./flightCueMath";
+import { mixHexColor, parallaxBodyOpacity, parallaxPropCandidates, placeParallaxProps, type KeepOut } from "./flightCueMath";
 
 /** Route geometry the campaign backdrop uses to keep its far props off gameplay. */
 export type BackdropRouteLayout = { readonly cameraPath: readonly Point[]; readonly keepOuts: readonly KeepOut[] };
@@ -41,6 +41,8 @@ const QUARTER_TURN_DEGREES = 90;
  */
 export class SpaceBackdrop {
   private readonly layers: ParallaxLayer[] = [];
+  private readonly campaignBodies: { readonly object: Phaser.GameObjects.Image | Phaser.GameObjects.Graphics; readonly anchor: Point; readonly scrollFactor: number; readonly radius: number }[] = [];
+  private readonly bodyKeepOuts: readonly KeepOut[];
 
   private readonly mood: CampaignBackdropMood | null;
 
@@ -51,6 +53,7 @@ export class SpaceBackdrop {
     layout?: BackdropRouteLayout,
   ) {
     this.mood = theme ? campaignBackdropMoods[theme.id] : null;
+    this.bodyKeepOuts = layout?.keepOuts ?? [];
     scene.cameras.main.setBackgroundColor(this.mood?.cosmos ?? colors.cosmos);
     flightParallaxLayers.forEach((definition, index) => this.createLayer(definition, index));
     if (!this.mood) {
@@ -62,7 +65,16 @@ export class SpaceBackdrop {
     const mood = this.mood;
     const bodies = mood.bodies.flatMap((placed) => {
       const body = flightCelestialBodies.find((candidate) => candidate.id === placed.id);
-      return body ? [{ ...body, x: placed.x, y: placed.y, tint: placed.tint }] : [];
+      const scrollFactor = body?.scrollFactor ?? 0.04;
+      const radius = placed.radiusArt !== undefined ? (placed.radiusArt + 10) * FLIGHT_ART_SCALE : (body?.standIn.size ?? 128) * FLIGHT_ART_SCALE / 2;
+      const anchor = placed;
+      if (placed.radiusArt !== undefined) {
+        const g = scene.add.graphics().setPosition(snapToArtStep(anchor.x), snapToArtStep(anchor.y)).setScrollFactor(scrollFactor).setDepth(depth.parallax);
+        drawMiniatureBody(g, placed.radiusArt, placed.id === "far-plum", colorNumber(placed.tint), colorNumber(mood.cosmos));
+        this.campaignBodies.push({ object: g, anchor, scrollFactor, radius: radius + 6 });
+        return [];
+      }
+      return body ? [{ ...body, x: anchor.x, y: anchor.y, tint: placed.tint }] : [];
     });
     this.createCelestialBodies(bodies);
     this.createDebris();
@@ -80,6 +92,9 @@ export class SpaceBackdrop {
       // Mirror layers are anchored so the authored (unflipped) half is framed at the centred scroll.
       const scrollY = definition.mode === "mirror" ? camera.scrollY - centredScrollY : camera.scrollY;
       sprite.tilePositionY = snapToScreenPixel((scrollY * definition.scrollFactorY) / FLIGHT_ART_SCALE);
+    }
+    for (const body of this.campaignBodies) {
+      body.object.setAlpha(parallaxBodyOpacity(body.anchor, body.scrollFactor, { x: camera.scrollX, y: camera.scrollY }, this.bodyKeepOuts, body.radius));
     }
   }
 
@@ -140,7 +155,7 @@ export class SpaceBackdrop {
       const x = Math.round(anchor.x / FLIGHT_ART_SCALE) * FLIGHT_ART_SCALE;
       const y = Math.round(anchor.y / FLIGHT_ART_SCALE) * FLIGHT_ART_SCALE;
       const g = this.scene.add.graphics().setPosition(x, y).setScrollFactor(style.scrollFactor).setDepth(depth.parallax + 0.5).setAlpha(style.alpha);
-      drawProp(g, mood.prop ?? "rain", shade, pale);
+      drawProp(g, mood.prop ?? "rain", shade, pale, colorNumber(mood.cosmos));
       if (!isReducedMotion()) {
         const drift = { offset: 0 };
         this.scene.tweens.add({ targets: drift, offset: 10, duration: 5200 + i * 1300, ease: "Sine.easeInOut", yoyo: true, repeat: -1, onUpdate: () => g.setY(y + snapToArtStep(drift.offset)) });
@@ -157,6 +172,7 @@ export class SpaceBackdrop {
         .setScrollFactor(body.scrollFactor)
         .setTint(colorNumber(body.tint))
         .setDepth(depth.parallax + index * 0.1);
+      if (this.mood) this.campaignBodies.push({ object: image, anchor: body, scrollFactor: body.scrollFactor, radius: body.standIn.size * body.scale / 2 + body.driftPx });
 
       // Drift in whole art pixels so the planet never sits between grid steps.
       const drift = { t: 0 };
@@ -217,12 +233,19 @@ function snapToArtStep(screenPx: number): number {
 const P = FLIGHT_ART_SCALE;
 
 /** Pixel silhouettes for far props (local px, art-grid aligned). One flat shade + one pale highlight. */
-function drawProp(g: Phaser.GameObjects.Graphics, prop: NonNullable<CampaignBackdropMood["prop"]>, shade: number, pale: number): void {
+function drawProp(g: Phaser.GameObjects.Graphics, prop: NonNullable<CampaignBackdropMood["prop"]>, shade: number, pale: number, ink: number): void {
   if (prop === "lunch-crate") {
-    // Distant two-tier lunchbox station with a knot on top.
-    g.fillStyle(shade, 1).fillRect(-36, -12, 72, 30).fillRect(-30, -26, 60, 14);
-    g.fillStyle(pale, 1).fillRect(-36, -12, 72, P).fillRect(-30, -26, 60, P).fillRect(-6, -34, 12, 8);
-    g.fillRect(-4 * P, -38, P, 4).fillRect(3 * P, -38, P, 4);
+    // Three lacquer tiers, an overhanging lid and a folded cloth tied around the lunchbox.
+    g.fillStyle(ink, 1).fillRect(-34, -20, 68, 46).fillRect(-40, -28, 80, 10);
+    g.fillStyle(shade, 1).fillRect(-32, -18, 64, 42).fillRect(-38, -26, 76, 6);
+    for (const y of [-8, 8]) {
+      g.fillStyle(ink, 1).fillRect(-32, y, 64, 4);
+      g.fillStyle(pale, 1).fillRect(-30, y + 4, 60, P);
+    }
+    g.fillStyle(pale, 1).fillRect(-34, -26, 68, P).fillRect(-8, -20, 16, 44);
+    g.fillStyle(shade, 1).fillRect(-4, -18, 8, 40);
+    g.fillStyle(ink, 1).fillRect(-18, -40, 14, 12).fillRect(4, -40, 14, 12).fillRect(-6, -34, 12, 10);
+    g.fillStyle(pale, 1).fillRect(-16, -38, 10, 6).fillRect(6, -38, 10, 6).fillRect(-4, -32, 8, 6);
   } else if (prop === "tea-leaf") {
     // Large curled leaf drifting far away: tapered, curved, with a stem and vein.
     for (let x = -44; x <= 44; x += P) {
@@ -250,5 +273,31 @@ function drawProp(g: Phaser.GameObjects.Graphics, prop: NonNullable<CampaignBack
       g.fillStyle(shade, 1).fillRect(x, y - 3, P, 6);
     }
     g.fillStyle(pale, 1).fillRect(-8, -10, 6, 8).fillRect(4, -10, 6, 8).fillRect(-2, -6, 4, 4);
+  }
+}
+
+/** Small distant callbacks drawn on the same 2px art grid, never scaled-down hero art. */
+function drawMiniatureBody(g: Phaser.GameObjects.Graphics, radiusArt: number, ringed: boolean, tint: number, ink: number): void {
+  const radius = radiusArt * P;
+  g.fillStyle(ink, 1);
+  for (let y = -radius - P; y <= radius + P; y += P) {
+    const half = snapToArtStep(Math.sqrt(Math.max(0, (radius + P) ** 2 - y ** 2)));
+    g.fillRect(-half, y, half * 2, P);
+  }
+  g.fillStyle(tint, 1);
+  for (let y = -radius; y <= radius; y += P) {
+    const half = snapToArtStep(Math.sqrt(Math.max(0, radius ** 2 - y ** 2)));
+    g.fillRect(-half, y, half * 2, P);
+  }
+  g.fillStyle(ink, 0.4).fillRect(-radius + 6, -6, 10, 8).fillRect(8, 10, 8, 6);
+  if (ringed) {
+    for (let i = 0; i < 120; i += 1) {
+      const angle = i / 120 * Math.PI * 2;
+      g.fillStyle(tint, 0.65).fillRect(snapToArtStep(Math.cos(angle) * (radius + 16)), snapToArtStep(Math.sin(angle) * 10 + Math.cos(angle) * 10), P, P);
+    }
+  } else {
+    // A little roof and lit kettle window identify the distant Tea Moon.
+    g.fillStyle(ink, 1).fillRect(-10, -radius - 4, 20, 6).fillRect(-6, -radius + 2, 12, 8);
+    g.fillStyle(colorNumber(colors.parchment), 1).fillRect(-2, -radius + 4, 4, 4);
   }
 }

@@ -15,6 +15,8 @@ export type LandingCaptionOptions = {
   readonly progressMs?: number;
   /** HUD scale (compactUiScale) so the card stays legible on phones. */
   readonly scale: number;
+  /** Campaign captions become opaque before the scale pop completes; legacy keeps its original tween. */
+  readonly opacityMs?: number;
 };
 
 const DOT_PX = 10;
@@ -84,8 +86,13 @@ export function showLandingCaption(scene: Phaser.Scene, options: LandingCaptionO
   container.setScrollFactor(0, 0, true);
   const halfVisible = (width * options.scale) / 2 + config.edgeMarginPx;
   container.setX(Math.round(Phaser.Math.Clamp(options.x, halfVisible, scene.scale.width - halfVisible)));
-  container.setScale(options.scale * 0.6).setAlpha(0);
-  scene.tweens.add({ targets: container, scale: options.scale, alpha: 1, duration: config.popMs, ease: "Back.easeOut" });
+  container.setScale(options.scale * 0.6).setAlpha(options.opacityMs === undefined ? 0 : 0.85);
+  if (options.opacityMs === undefined) {
+    scene.tweens.add({ targets: container, scale: options.scale, alpha: 1, duration: config.popMs, ease: "Back.easeOut" });
+  } else {
+    scene.tweens.add({ targets: container, scale: options.scale, duration: config.popMs, ease: "Back.easeOut" });
+    scene.tweens.add({ targets: container, alpha: 1, duration: options.opacityMs, ease: "Linear" });
+  }
   scene.tweens.add({
     targets: container,
     y: container.y - cell * 3,

@@ -21,6 +21,11 @@ export const BOARD_GRID: readonly { readonly row: 0 | 1; readonly col: 0 | 1 | 2
 
 export const BOARD_NODE_COUNT = BOARD_GRID.length;
 
+/** Fixed bottom card footprint: leaves room for the longest row-two lock caption. */
+export function boardDetailHeight(kind: BoardLayoutKind, uiScale = 1): number {
+  return kind === "compact" ? Math.round(112 * uiScale) : 157;
+}
+
 const COLUMN_X: readonly number[] = [280, 640, 1000];
 const ROW_Y: Readonly<Record<BoardLayoutKind, readonly [number, number]>> = {
   desktop: [184, 416],

@@ -682,8 +682,9 @@ export class TitleScene extends Phaser.Scene {
     if (!theme.legacy) {
       // Measure the wrapped quote and keep it clear of the cargo tray: clamp with an ellipsis to the lines that fit.
       const wrapped = request.getWrappedText(request.text);
-      const lineHeight = request.height / Math.max(1, wrapped.length);
-      const maxLines = quoteLinesThatFit(itemsY - uiScaled(8, s) - request.y, lineHeight);
+      // Phaser omits trailing line spacing from the text height (two 28px lines occupy 52px).
+      const lineHeight = (request.height + request.lineSpacing) / Math.max(1, wrapped.length);
+      const maxLines = quoteLinesThatFit(itemsY - uiScaled(this.compact ? 6 : 8, s) - request.y, lineHeight, request.lineSpacing);
       request.setText(clampWrappedText(request.text, maxLines, (text) => request.getWrappedText(text)));
     }
     card.addContent(name, request);

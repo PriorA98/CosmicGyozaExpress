@@ -1,11 +1,12 @@
 import Phaser from "phaser";
 import { layoutBerthTiles } from "./berthTiles";
-import { campaignLandingDecor, campaignLandingScenery, LANDING_ART_SCALE, type CampaignBerthFinish } from "../../data/landingScenery";
+import { campaignLandingDecor, campaignLandingScenery, landingScenery, LANDING_ART_SCALE, type CampaignBerthFinish } from "../../data/landingScenery";
 import type { CampaignThemeDefinition } from "../../data/campaign/themes";
 import { colorNumber, colors, depth } from "../../game/designTokens";
 import type { LandingPadDefinition } from "../../types/landing";
 import { snapToGrid } from "./pixelShapes";
 import { mixHex } from "./colorMix";
+import { guideLightRowStrength } from "./guideLight";
 
 export { layoutBerthTiles, type BerthTile } from "./berthTiles";
 
@@ -20,6 +21,7 @@ export class CampaignBerth {
   private readonly scene: Phaser.Scene;
   private readonly root: Phaser.GameObjects.Container;
   private readonly lamps: Phaser.GameObjects.Graphics;
+  private readonly beam: Phaser.GameObjects.Graphics;
   private readonly width: number;
   private readonly theme: CampaignThemeDefinition;
   private aligned: boolean | undefined;
@@ -29,6 +31,7 @@ export class CampaignBerth {
     this.scene = scene;
     this.theme = theme;
     this.width = pad.width;
+    this.beam = this.createGuideLight(pad);
     const config = campaignLandingScenery.berth;
     const top = -config.surfaceRowArtPx * CELL;
     const tileHeightPx = config.tileArtHeight * CELL;
@@ -57,16 +60,19 @@ export class CampaignBerth {
   /** Moving pads: follow the sampled centre (whole art px so the tiles never shimmer). */
   setCenterX(centerX: number): void {
     this.root.setX(snapToGrid(centerX, CELL));
+    this.beam.setX(snapToGrid(centerX, CELL));
   }
 
   setAligned(aligned: boolean): void {
     if (aligned === this.aligned) return;
     this.aligned = aligned;
+    this.beam.setAlpha(this.lit ? landingScenery.guideLight.landedIntensity : aligned ? landingScenery.guideLight.alignedIntensity : landingScenery.guideLight.idleIntensity);
     this.drawLamps();
   }
 
   lightLanterns(): void {
     this.lit = true;
+    this.beam.setAlpha(landingScenery.guideLight.landedIntensity);
     this.drawLamps();
     this.scene.tweens.add({ targets: this.lamps, alpha: { from: 0.4, to: 1 }, duration: 260, ease: "Sine.easeOut" });
   }
@@ -91,6 +97,30 @@ export class CampaignBerth {
       this.lamps.fillStyle(colorNumber(color), 1);
       this.lamps.fillRect(x, y, size, size);
     }
+  }
+
+  /** Tea's stepped guide column, painted once in this destination's light and moved with its berth. */
+  private createGuideLight(pad: LandingPadDefinition): Phaser.GameObjects.Graphics {
+    const guide = landingScenery.guideLight;
+    const beam = this.scene.add.graphics().setPosition(snapToGrid(pad.centerX, CELL), pad.surfaceY)
+      .setDepth(depth.parallax + 2.5).setBlendMode(Phaser.BlendModes.ADD);
+    const color = colorNumber(this.theme.palette.light);
+    for (let band = 0; band < guide.bands; band += 1) {
+      const t = band / guide.bands;
+      const height = snapToGrid(guide.height * (1 - t * guide.bandHeightFalloff), CELL);
+      const bottomHalf = pad.width * guide.baseWidthRatio / 2 * (1 - t * guide.bandWidthFalloff);
+      const upperHalf = pad.width * guide.topWidthRatio / 2 * (1 - t * guide.bandWidthFalloff);
+      for (let y = 0; y < height; y += guide.stepPx) {
+        const k = y / height;
+        const strength = guideLightRowStrength(k, guide.fadeStart, guide.fadeSteps);
+        if (strength <= 0) break;
+        const half = snapToGrid(bottomHalf + (upperHalf - bottomHalf) * k, CELL);
+        const rowHeight = Math.min(guide.stepPx, height - y);
+        beam.fillStyle(color, guide.bandAlpha * strength);
+        beam.fillRect(-half, -y - rowHeight, half * 2, rowHeight);
+      }
+    }
+    return beam;
   }
 
   /**

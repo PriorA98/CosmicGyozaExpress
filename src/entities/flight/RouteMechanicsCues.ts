@@ -87,7 +87,7 @@ export function drawMotionTracks(scene: Phaser.Scene, definitions: readonly Movi
 type ArrowField = {
   readonly zone: Extract<ForceZoneDefinition, { kind: "directional-current" | "gust" }>;
   readonly arrows: readonly { readonly image: Phaser.GameObjects.Image; readonly base: Point }[];
-  /** Gusts only: wisps streaming along the two band edges parallel to the push. */
+  /** Gusts only: staggered streams across the full band, including its visible interior. */
   readonly streaks: readonly { readonly image: Phaser.GameObjects.Image; readonly base: Point }[];
   /** Gusts only: faint band tint + dotted edges, drawn once; only its alpha changes. */
   readonly band: Phaser.GameObjects.Graphics | undefined;
@@ -176,7 +176,11 @@ export class ForceZoneCues {
       };
       for (const arrow of field.arrows) {
         place(arrow.image, arrow.base, field.offset, field.bounds, alpha > 0.01);
-        if (restyle) arrow.image.setTexture(outlined ? GUST_OUTLINE_KEY : field.activeKey).setAlpha(alpha).setTint(colorNumber(tint));
+        if (restyle) {
+          arrow.image.setTexture(outlined ? GUST_OUTLINE_KEY : field.activeKey).setAlpha(alpha).setTint(colorNumber(tint));
+          // Fill tint preserves the final arrow silhouette while making active wind warm-white, not olive.
+          arrow.image.setTintMode(Phaser.TintModes.FILL);
+        }
       }
       for (const streak of field.streaks) {
         place(streak.image, streak.base, field.streakOffset, field.outer, streakAlpha > 0.01);
@@ -240,13 +244,8 @@ export class ForceZoneCues {
           band.fillRect(snap(ex) - 2, snap(ey) - 2, vertical ? 4 : 8, vertical ? 8 : 4);
         }
       }
-      // Streaming wisps just inside both edges (two staggered rows per edge).
-      for (const [side, depthIn] of [[0, 28], [0, 70], [1, -28], [1, -70]] as const) {
-        const stagger = Math.abs(depthIn) > 40 ? gustStyle.streakSpacingPx / 2 : 0;
-        for (let t = -gustStyle.streakSpacingPx + stagger; t <= edgeLength + gustStyle.streakSpacingPx; t += gustStyle.streakSpacingPx) {
-          const base = vertical
-            ? { x: outer.x + side * outer.width + depthIn, y: outer.y + t }
-            : { x: outer.x + t, y: outer.y + side * outer.height + depthIn };
+      // More lanes than arrows: any camera-sized slice of this wide band contains streaming wind.
+      for (const base of flowCueBases(bounds, vertical, gustStyle.streakSpacingPx, gustStyle.lanes + 2)) {
           const image = this.scene.add
             .image(snap(base.x), snap(base.y), GUST_STREAK_KEY)
             .setScale(FLIGHT_ART_SCALE)
@@ -255,7 +254,6 @@ export class ForceZoneCues {
             .setDepth(CUE_DEPTH)
             .setVisible(false);
           streaks.push({ image, base });
-        }
       }
       // Windsock at the band entry (side nearest the route start), dropped below the flight line so the
       // edge indicator's label band and the ship's path stay clear.
@@ -302,7 +300,7 @@ export class ForceZoneCues {
           for (let x = strand.from; x < strand.to; x += 1) {
             const y = strand.y + Math.round(Math.sin(x / 9 + strand.phase) * 2);
             if (x % 12 === 11) continue; // breaks keep it wispy
-            g.fillRect(x, y, 1, 1);
+            g.fillRect(x, y, 1, 2);
           }
         }
         g.fillRect(66, 13, 2, 2).fillRect(68, 15, 2, 2).fillRect(66, 17, 2, 2);
@@ -364,11 +362,25 @@ export class ForceZoneCues {
     this.statics.push(core);
     // The oven is decorative and non-colliding; its centre remains a safe zero-force sample.
     const oven = this.scene.add.graphics().setPosition(snap(cx), snap(cy)).setDepth(depth.world - 0.4);
-    oven.fillStyle(light, 0.24); fillPixelDisc(oven, 0, 0, 62);
-    oven.fillStyle(light, 1); fillPixelDisc(oven, 0, 0, 52);
-    oven.fillStyle(colorNumber(this.theme.palette.skyTop), 1); fillPixelDisc(oven, 0, 0, 46);
-    oven.fillStyle(light, 0.9).fillRect(-26, 16, 52, 4).fillRect(-20, 22, 40, 4);
-    oven.fillStyle(light, 1).fillRect(-14, -12, 4, 4).fillRect(12, -12, 4, 4);
+    const ink = colorNumber(this.theme.palette.skyTop);
+    // Dark local clearing raises the oven mouth out of the painted cloud bank.
+    oven.fillStyle(ink, 0.8); fillPixelDisc(oven, 0, 0, 82);
+    oven.fillStyle(light, 0.24); fillPixelDisc(oven, 0, 0, 66);
+    oven.fillStyle(light, 1); fillPixelDisc(oven, 0, 0, 54);
+    oven.fillStyle(colorNumber(this.theme.palette.ground), 1); fillPixelDisc(oven, 0, 0, 48);
+    oven.fillStyle(ink, 1); fillPixelDisc(oven, 0, 0, 40);
+    // Cinnamon-roll spiral instead of a face: stepped amber pastry curling into the safe core.
+    for (let t = 0; t < 220; t += 1) {
+      const angle = t / 220 * Math.PI * 4.5;
+      const radius = 4 + t / 220 * 36;
+      oven.fillStyle(light, 0.8).fillRect(snap(Math.cos(angle) * radius), snap(Math.sin(angle) * radius), 4, 4);
+    }
+    oven.fillStyle(ink, 1).fillRect(-48, 46, 96, 10);
+    oven.fillStyle(light, 1).fillRect(-42, 48, 84, 4);
+    for (const side of [-1, 1]) {
+      oven.fillStyle(light, 0.45).fillRect(side * 32 - 8, -70, 14, 8).fillRect(side * 32 - 4, -78, 14, 8);
+      oven.fillStyle(light, 0.7).fillRect(side * 32 - 6, -74, 8, 4);
+    }
     this.statics.push(oven);
     if (!this.reducedMotion) {
       this.scene.tweens.add({ targets: g, alpha: 1 - style.breathAlpha, duration: style.breathMs, ease: "Sine.easeInOut", yoyo: true, repeat: -1 });

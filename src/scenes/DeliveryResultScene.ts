@@ -517,8 +517,7 @@ export class DeliveryResultScene extends Phaser.Scene {
     const postcard = view.isEnding ? null : this.createPostcard(card, frame, view);
     const copyBottom = this.createHeadline(card, frame, view);
     if (view.isEnding) {
-      // Notes block is centred in the space under the headline; the postcard sits beside the
-      // closing line inside a warm porch-light glow, so the ending reads as a scene, not a text card.
+      // Notes follow the headline; the postcard warms the space beside the closing line.
       const postcardH = ART.postcard.height * layout.postcardScale;
       const postcardLeft = frame.innerRight - SPACING.postcardSlotPad - ART.postcard.width * layout.postcardScale;
       const anchorY = this.createThankYouNotes(card, frame, view, copyBottom, postcardLeft);
@@ -747,7 +746,7 @@ export class DeliveryResultScene extends Phaser.Scene {
     ], () => this.startSteam([steamA, steamB]));
   }
 
-  /** Campaign cargo: the theme's cargo icon set down on the same wooden tray. */
+  /** Campaign cargo centred in its recessed tile; Tea keeps its serving-tray arrangement. */
   private createCargo(
     card: Phaser.GameObjects.Container,
     layout: ResultCardLayout,
@@ -757,11 +756,11 @@ export class DeliveryResultScene extends Phaser.Scene {
   ): void {
     const trayWidth = layout.leftColumnWidth - SPACING.trayInsetX * 2;
     const trayLeft = Math.round(x - trayWidth / 2);
-    const restLine = Math.round(trayTop + SPACING.trayHeight * 0.62);
+    const restLine = Math.round(trayTop + SPACING.trayHeight - 8);
     const tray = this.drawTray(trayLeft, trayTop, trayWidth, restLine, [[x, 60]]);
     const cargo = this.add
-      .image(x, restLine + 2, ASSET.campaignCargo, this.theme.cargoFrame ?? 0)
-      .setOrigin(0.5, 1)
+      .image(x, trayTop + SPACING.trayHeight / 2, ASSET.campaignCargo, this.theme.cargoFrame ?? 0)
+      .setOrigin(0.5, 0.5)
       .setScale(ART_SCALE);
     const caption = this.add
       .text(x, trayTop + SPACING.trayHeight + SPACING.captionGap, view.content.deliveryItemName, {
@@ -1076,8 +1075,7 @@ export class DeliveryResultScene extends Phaser.Scene {
       cursor += NOTES.closingGap + Math.round(closing.height);
     }
 
-    // Centre the measured block in the room between the headline and the footer divider.
-    const offset = Math.round(top + Math.max(0, (frame.contentBottom - top - cursor) / 2));
+    const offset = Math.round(top);
     for (const text of [title, ...lines, ...(closing ? [closing] : [])]) text.setY(text.y + offset);
 
     card.add([title, ...lines]);
@@ -1107,7 +1105,9 @@ export class DeliveryResultScene extends Phaser.Scene {
       for (let dy = -r; dy < r; dy += band) {
         const mid = dy + band / 2;
         const half = Math.round(Math.sqrt(Math.max(0, r * r - mid * mid)) / band) * band;
-        if (half > 0) glow.fillRect(cx - half, Math.round(centreY + dy), half * 2, band);
+        const y = Math.round(centreY + dy);
+        const height = Math.min(band, frame.contentBottom - y);
+        if (half > 0 && height > 0) glow.fillRect(cx - half, y, half * 2, height);
       }
     }
     card.add(glow);

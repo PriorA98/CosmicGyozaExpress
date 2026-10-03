@@ -13,6 +13,18 @@ export function campaignGaugeY(shipY: number, scale: number, surfaceY: number, b
   return Math.max(minY, Math.min(shipY - 6, maxY));
 }
 
+/** The final windsock frames move their pole within the frame. Keep its world anchor fixed on every swap. */
+export function windsockPlacement(frame: number, direction: number, topY: number, groundY: number): { originX: number; originY: number; cropRows: number } {
+  const config = campaignLandingScenery.windsock;
+  const x = config.poleArtX[frame] ?? config.poleArtX[0];
+  const y = config.poleTopArtY[frame] ?? config.poleTopArtY[0];
+  return {
+    originX: direction < 0 ? 1 - x / config.frameArtWidth : x / config.frameArtWidth,
+    originY: y / config.frameArtHeight,
+    cropRows: Math.max(0, Math.min(config.frameArtHeight, y + Math.floor((groundY - topY) / config.sockScale))),
+  };
+}
+
 /** Flour is clustered in the apron air, rising through a short band with a slow sideways drift. */
 export function flourPosition(x: number, phase: number, speed: number, timeMs: number): { x: number; y: number } {
   const config = campaignLandingScenery.flour;

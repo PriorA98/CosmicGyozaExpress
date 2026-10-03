@@ -12,12 +12,14 @@ import { colorNumber, colors, depth, motion, typeScale } from "../game/designTok
 import { emitGameEvent } from "../game/events";
 import { missionBoard, nextSuggestedMission, normalizeCampaignProgress, type CampaignProgress, type MissionBoardNode } from "../systems/CampaignSystem";
 import { SaveSystem } from "../systems/SaveSystem";
+import { clampWrappedText, quoteLinesThatFit } from "../ui/textFit";
 import type { MissionId, MissionSelectSceneData } from "../types/campaign";
 import type { FlightSceneData } from "../types/flight";
 import {
   boardLegDots,
   boardLegArrow,
   BOARD_TOKEN,
+  boardDetailHeight,
   boardNodeCentres,
   boardRouteLegs,
   boardTokenCaption,
@@ -355,15 +357,19 @@ export class MissionSelectScene extends Phaser.Scene {
     const artWidth = 172;
     const textWidth = width - pad * 3 - buttonWidth - artWidth;
 
-    // Measure first so the card is exactly as tall as its copy.
+    // Keep a fixed bottom footprint so every row-two caption clears the card, whichever quote is selected.
     const recipient = this.add.text(0, 0, mission.recipientName, headingStyle({ size: uiTextSize(this.compact ? 19 : 22, s), color: colors.ink, wrapWidth: textWidth }));
     const item = this.add.text(0, 0, `${boardCopy.carrying} · ${mission.deliveryItemName}`, monoStyle({ size: uiSecondaryTextSize(typeScale.sm, s), bold: true, color: colors.sageDeep, wrapWidth: textWidth }));
     const request = this.add.text(0, 0, `“${mission.requestText}”`, bodyStyle({ size: uiTextSize(this.compact ? 14 : 15, s), color: colors.inkSoft, wrapWidth: textWidth }));
     const idea = this.add.text(0, 0, boardCopy.newIdea[mission.id], monoStyle({ size: uiSecondaryTextSize(typeScale.sm, s), bold: true, color: colors.terracottaDeep, wrapWidth: textWidth }));
     const gap = uiScaled(this.compact ? 2 : 4, s);
     const top = this.compact ? pad : uiScaled(CARD_HEADER_HEIGHT, s) + uiScaled(12, s);
+    const height = boardDetailHeight(this.compact ? "compact" : "desktop", s);
+    const quoteRoom = height - top - pad - recipient.height - item.height - idea.height - gap * 4;
+    const wrapped = request.getWrappedText();
+    const lineHeight = (request.height + request.lineSpacing) / Math.max(1, wrapped.length);
+    request.setText(clampWrappedText(request.text, quoteLinesThatFit(quoteRoom, lineHeight, request.lineSpacing), (text) => request.getWrappedText(text)));
     const textHeight = recipient.height + gap + item.height + gap * 2 + request.height + gap + idea.height;
-    const height = Math.ceil(top + Math.max(textHeight, buttonHeight) + pad);
 
     const y = this.scale.height - 12 - height;
     const panel = new ParchmentCard(this, {

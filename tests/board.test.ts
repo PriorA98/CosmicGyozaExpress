@@ -5,6 +5,7 @@ import { missionBoard, normalizeCampaignProgress } from "../src/systems/Campaign
 import {
   BOARD_GRID,
   BOARD_TOKEN,
+  boardDetailHeight,
   boardLegDots,
   boardLegArrow,
   boardNodeCentres,
@@ -32,7 +33,8 @@ describe("board direction cues", () => {
         const caption = boardTokenCaption(centre, nameHeight, 0);
         const top = boardUnlockCaptionTop(centre, caption.chipY, kind, index) - 12;
         expect(top).toBeGreaterThan(caption.labelY + nameHeight);
-        if (index >= 3) expect(top + pillHeight).toBeLessThan(kind === "compact" ? 540 : 568);
+        const panelTop = 720 - 12 - boardDetailHeight(kind, kind === "compact" ? 1.48 : 1);
+        if (index >= 3) expect(top + pillHeight).toBeLessThan(panelTop);
       });
     }
   });

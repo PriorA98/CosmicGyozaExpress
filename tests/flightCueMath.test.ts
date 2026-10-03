@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CAMPAIGN_WINDSOCK_FRAME } from "../src/data/assetManifest";
-import { advanceSimClock, simulationSteps, windsockFrame, quarterTurnRotation, octantIndex, wrap, zoneBounds, pickRockTexture, flowCueBases, cueIsClear } from "../src/entities/flight/flightCueMath";
+import { advanceSimClock, simulationSteps, windsockFrame, quarterTurnRotation, octantIndex, wrap, zoneBounds, pickRockTexture, flowCueBases, cueIsClear, clearIndicatorPosition } from "../src/entities/flight/flightCueMath";
 
 describe("campaign flight clock", () => {
   it("consumes at most 50 ms, split into steps no larger than 1/120 s", () => {
@@ -17,6 +17,30 @@ describe("campaign flight clock", () => {
       expect(advanceSimClock(1200, delta, 50)).toBe(1200);
     }
     expect(simulationSteps(9, 50, 1000 / 120).reduce((total, step) => total + step, 0)).toBe(9);
+  });
+});
+
+describe("destination indicator keep-out", () => {
+  const footprint = { x: -70, y: -44, width: 140, height: 132 };
+  it("slides the complete pin and label clear of an envelope, rock and lantern glow", () => {
+    for (const radius of [44, 84, 80]) {
+      const obstacles = [{ x: 1180, y: 250, radius }];
+      const point = clearIndicatorPosition({ x: 1180, y: 250 }, true, 110, 550, footprint, obstacles, []);
+      expect(point.x).toBe(1180);
+      expect(point.y).toBeGreaterThanOrEqual(110);
+      expect(point.y).toBeLessThanOrEqual(550);
+      const top = point.y + footprint.y;
+      const bottom = top + footprint.height;
+      expect(Math.max(top - 250, 250 - bottom)).toBeGreaterThan(radius + 8);
+    }
+  });
+  it("preserves a clear position and slides along horizontal edges without entering HUD panels", () => {
+    const original = { x: 600, y: 110 };
+    expect(clearIndicatorPosition(original, false, 100, 1180, footprint, [], [])).toEqual(original);
+    const panel = { x: 500, y: 0, width: 200, height: 200 };
+    const shifted = clearIndicatorPosition(original, false, 100, 1180, footprint, [], [panel]);
+    expect(shifted.y).toBe(110);
+    expect(shifted.x + 70 <= panel.x || shifted.x - 70 >= panel.x + panel.width).toBe(true);
   });
 });
 

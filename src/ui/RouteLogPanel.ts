@@ -106,7 +106,8 @@ export class RouteLogPanel {
     const cy = top + Math.round(frameHeight / 2);
     if (hasAuthoredTexture(scene, options.postcardKey) && options.postcardFrame !== undefined) {
       const image = scene.add.image(cx, cy, options.postcardKey, options.postcardFrame);
-      card.addContent(image.setScale(UI_ART_SCALE));
+      // Campaign frames are half the legacy postcard's authored dimensions.
+      card.addContent(image.setScale(postcardScale * 2));
     } else if (hasAuthoredTexture(scene, options.postcardKey)) {
       card.addContent(scene.add.image(cx, cy, options.postcardKey).setScale(postcardScale));
     } else {
