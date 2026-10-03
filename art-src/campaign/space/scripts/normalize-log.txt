@@ -1,0 +1,8 @@
+python tools/art/pixelize.py art-src/campaign/space/raw/nebula-bento-v1.png public/assets/campaign/nebula-bento.png --size 640x360 --fit cover --soft-alpha --colors 32 --no-crop
+python tools/art/pixelize.py art-src/campaign/space/raw/nebula-matcha-v1.png public/assets/campaign/nebula-matcha.png --size 640x360 --fit cover --soft-alpha --colors 32 --no-crop
+python tools/art/pixelize.py art-src/campaign/space/raw/nebula-bakery-v1.png public/assets/campaign/nebula-bakery.png --size 640x360 --fit cover --soft-alpha --colors 32 --no-crop
+python tools/art/pixelize.py art-src/campaign/space/raw/nebula-im-fine-v1.png public/assets/campaign/nebula-im-fine.png --size 640x360 --fit cover --soft-alpha --colors 32 --no-crop
+python tools/art/pixelize.py art-src/campaign/space/raw/nebula-home-v1.png public/assets/campaign/nebula-home.png --size 640x360 --fit cover --soft-alpha --colors 32 --no-crop
+python tools/art/pixelize.py art-src/campaign/_work/windsock-0.png art-src/campaign/_work/windsock-1.png art-src/campaign/_work/windsock-2.png art-src/campaign/_work/windsock-3.png --sheet public/assets/campaign/windsock.png --size 24x32 --colors 10 --anchor bottom --pad 0
+python tools/art/pixelize.py art-src/campaign/space/raw/flow-arrow-v1.png public/assets/campaign/flow-arrow.png --size 24x16 --colors 8 --pad 0
+python tools/art/pixelize.py art-src/campaign/_work/berth-0.png art-src/campaign/_work/berth-1.png art-src/campaign/_work/berth-2.png --sheet public/assets/campaign/berth-tiles.png --size 32x24 --fit cover --colors 14 --no-crop --anchor top

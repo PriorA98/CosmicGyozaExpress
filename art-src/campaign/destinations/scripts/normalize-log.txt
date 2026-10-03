@@ -1,0 +1,5 @@
+python tools/art/pixelize.py art-src/campaign/destinations/raw/destination-bento-v1.png public/assets/campaign/destination-bento.png --size 160x160 --colors 28 --pad 2
+python tools/art/pixelize.py art-src/campaign/destinations/raw/destination-matcha-v1.png public/assets/campaign/destination-matcha.png --size 160x160 --colors 28 --pad 2
+python tools/art/pixelize.py art-src/campaign/destinations/raw/destination-bakery-v1.png public/assets/campaign/destination-bakery.png --size 160x160 --colors 28 --pad 2
+python tools/art/pixelize.py art-src/campaign/destinations/raw/destination-im-fine-v1.png public/assets/campaign/destination-im-fine.png --size 160x160 --colors 28 --pad 2
+python tools/art/pixelize.py art-src/campaign/destinations/raw/destination-home-v1.png public/assets/campaign/destination-home.png --size 160x160 --colors 28 --pad 2

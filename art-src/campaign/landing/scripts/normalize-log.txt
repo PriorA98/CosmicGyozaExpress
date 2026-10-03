@@ -1,0 +1,10 @@
+python tools/art/pixelize.py art-src/campaign/landing/raw/sky-bento-v1.png public/assets/campaign/landing-sky-bento.png --size 640x360 --fit cover --opaque --key none --colors 40
+python tools/art/pixelize.py art-src/campaign/landing/raw/hills-bento-v1.png public/assets/campaign/landing-hills-bento.png --size 640x96 --fit cover --anchor bottom --colors 24 --no-crop
+python tools/art/pixelize.py art-src/campaign/landing/raw/sky-matcha-v1.png public/assets/campaign/landing-sky-matcha.png --size 640x360 --fit cover --opaque --key none --colors 40
+python tools/art/pixelize.py art-src/campaign/landing/raw/hills-matcha-v1.png public/assets/campaign/landing-hills-matcha.png --size 640x96 --fit cover --anchor bottom --colors 24 --no-crop
+python tools/art/pixelize.py art-src/campaign/landing/raw/sky-bakery-v1.png public/assets/campaign/landing-sky-bakery.png --size 640x360 --fit cover --opaque --key none --colors 40
+python tools/art/pixelize.py art-src/campaign/landing/raw/hills-bakery-v1.png public/assets/campaign/landing-hills-bakery.png --size 640x96 --fit cover --anchor bottom --colors 24 --no-crop
+python tools/art/pixelize.py art-src/campaign/landing/raw/sky-im-fine-v1.png public/assets/campaign/landing-sky-im-fine.png --size 640x360 --fit cover --opaque --key none --colors 40
+python tools/art/pixelize.py art-src/campaign/landing/raw/hills-im-fine-v1.png public/assets/campaign/landing-hills-im-fine.png --size 640x96 --fit cover --anchor bottom --colors 24 --no-crop
+python tools/art/pixelize.py art-src/campaign/landing/raw/sky-home-v1.png public/assets/campaign/landing-sky-home.png --size 640x360 --fit cover --opaque --key none --colors 40
+python tools/art/pixelize.py art-src/campaign/landing/raw/hills-home-v1.png public/assets/campaign/landing-hills-home.png --size 640x96 --fit cover --anchor bottom --colors 24 --no-crop

@@ -562,6 +562,7 @@ export const campaignBackdropMoods: Readonly<Record<ThemeId, CampaignBackdropMoo
   teaMoon: null,
   bentoBelt: {
     cosmos: "#211C2A",
+    layerTextureKeys: { nebula: ASSET.campaignNebulaBento },
     layerTints: { "stars-far": "#F4E2CC", nebula: "#F0A878", "stars-near": "#FBEBD8" },
     bodies: [{ id: "far-plum", x: 960, y: 150, tint: "#E2B49A" }, { id: "im-fine", x: 300, y: 600, tint: "#C9A48F" }],
     debrisTints: ["#E3BFA2", "#CDA58C", "#EBD0B8"],
@@ -570,6 +571,7 @@ export const campaignBackdropMoods: Readonly<Record<ThemeId, CampaignBackdropMoo
   },
   matchaNebula: {
     cosmos: "#16211E",
+    layerTextureKeys: { nebula: ASSET.campaignNebulaMatcha },
     layerTints: { "stars-far": "#E2EFD4", nebula: "#9FC690", "stars-near": "#EEF6E2" },
     bodies: [{ id: "far-plum", x: 1010, y: 160, tint: "#AFCB9F" }, { id: "im-fine", x: 560, y: 600, tint: "#98B48C" }],
     debrisTints: ["#B9D0A6", "#A3BD92", "#CBDDB8"],
@@ -578,6 +580,7 @@ export const campaignBackdropMoods: Readonly<Record<ThemeId, CampaignBackdropMoo
   },
   blackHoleBakery: {
     cosmos: "#1B1428",
+    layerTextureKeys: { nebula: ASSET.campaignNebulaBakery },
     layerTints: { "stars-far": "#EADCF2", nebula: "#A684D6", "stars-near": "#F3E8F8" },
     bodies: [{ id: "far-plum", x: 980, y: 140, tint: "#C3A6DE" }, { id: "im-fine", x: 260, y: 610, tint: "#A790C4" }],
     debrisTints: ["#D2BDE4", "#BCA4D2", "#E6D2C6"],
@@ -586,6 +589,7 @@ export const campaignBackdropMoods: Readonly<Record<ThemeId, CampaignBackdropMoo
   },
   imFine: {
     cosmos: "#162030",
+    layerTextureKeys: { nebula: ASSET.campaignNebulaImFine },
     layerTints: { "stars-far": "#D9E4F0", nebula: "#7FA2D0", "stars-near": "#E7EEF6" },
     bodies: [{ id: "far-plum", x: 980, y: 150, tint: "#A6B8D2" }],
     debrisTints: ["#AFC1D6", "#9BB0C8", "#C6D3E2"],
@@ -594,6 +598,7 @@ export const campaignBackdropMoods: Readonly<Record<ThemeId, CampaignBackdropMoo
   },
   home: {
     cosmos: "#221A2C",
+    layerTextureKeys: { nebula: ASSET.campaignNebulaHome },
     layerTints: { "stars-far": "#F4E0E6", nebula: "#E893B2", "stars-near": "#F8EAEE" },
     bodies: [{ id: "far-plum", x: 960, y: 150, tint: "#DDB0C2" }, { id: "im-fine", x: 620, y: 610, tint: "#BFA0B4" }],
     debrisTints: ["#E2C0CC", "#CFA9B8", "#EED6C8"],

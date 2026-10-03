@@ -1,0 +1,25 @@
+You are generating production pixel-art SOURCE images for the cozy game "Cosmic Gyoza Express" (2D side-view space delivery game: a dumpling-shaped gyoza spaceship delivers warm food to lonely little worlds).
+
+FIRST use view_image on these style references and match their rendering, outline weight, light direction and warmth exactly:
+- D:/code/CosmicGyozaExpress/public/assets/ship/gyoza-idle.png (hero ship)
+- D:/code/CosmicGyozaExpress/public/assets/celestial/tea-moon.png (approved destination planet: Tea Moon with its teahouse)
+- D:/code/CosmicGyozaExpress/public/assets/characters/rabbit-portrait.png (approved character portrait strip)
+- D:/code/CosmicGyozaExpress/public/assets/lunar/lunar-sky.png and lunar-hills-far.png (approved landing backdrop layers)
+
+Art direction: cozy handcrafted pixel art, warm, soft, gently funny, never cold sci-fi, never creepy. Chunky readable pixel clusters with simple shapes (the image will be downscaled to a small true pixel resolution, so avoid fine noise, tiny details and noisy dithering). Soft light from the top-left, warm dark ink outlines (#1D1F33), not pure black. Shared base palette: ink #1D1F33, cosmos #1A1B2E, cosmos-deep #0E0F1C, parchment #F4ECDC, cream #F4E6C8, peach #E6A57A, terracotta #C97B5A, amber #D4A055, sage #8DA17A. No text, letters, numbers, UI, frames, signatures or watermarks in any image.
+Background rule: where a SOLID FLAT MAGENTA #FF00FF background is requested use exactly that flat colour with no gradient, no shadow and no anti-aliased halo; the subject must not contain magenta or hot pink.
+Save rule: copy each resulting PNG to exactly the path given (PowerShell Copy-Item). Do NOT modify, create or delete any other files in the repository. Do not ask questions; make routine decisions yourself. Report the final file paths and anything that deviated from the request.
+First also view_image D:/code/CosmicGyozaExpress/public/assets/items/tea.png and D:/code/CosmicGyozaExpress/public/assets/items/mochi.png (approved item style).
+Generate the following separate images, each one centred subject on a SOLID FLAT MAGENTA #FF00FF background, with bold simple silhouettes readable at tiny sizes (cargo is shown at 32x32 art pixels, postcards at 48x32, pickups at 16x16).
+CARGO (square 1:1 each):
+1) cargo-bento: a three-tier lacquered bento box tied with a cloth (#B96C58, #D69A57).
+2) cargo-flask: a warm matcha thermos flask with a little steam curl (#80966B, #B7C69A).
+3) cargo-jar: a glass jar of bubbly sourdough starter with a cloth lid tied with string (#E5BD76, cloth #806C91).
+4) cargo-soup: a lidded soup pot with an extra spoon leaning on it (soup #EDC477, pot #657A91).
+5) cargo-parcel: a parcel wrapped in kraft paper with an unreasonably big rose ribbon bow (#BA8798, #E5C68F).
+POSTCARDS (landscape 3:2 each: a little cream postcard with a thin border and a tiny stamp corner, showing one simple landmark scene, no text):
+6) postcard-bento (the bento asteroid station), 7) postcard-matcha (a paper lantern in green mist), 8) postcard-bakery (a glowing domed oven bakery), 9) postcard-im-fine (a cottage with one lit window in rain), 10) postcard-home (the home station with ribbon bunting).
+PICKUPS (square 1:1):
+11) pickup-postcard: a small floating envelope/postcard with a peach heart seal (#F4E6C8, #E6A57A), extra-bold outline.
+12) pickup-crumb: a tiny glowing star crumb (#E6A57A, #F4E6C8).
+Save to D:/code/CosmicGyozaExpress/art-src/campaign/items/raw/ as cargo-bento-v1.png, cargo-flask-v1.png, cargo-jar-v1.png, cargo-soup-v1.png, cargo-parcel-v1.png, postcard-bento-v1.png, postcard-matcha-v1.png, postcard-bakery-v1.png, postcard-im-fine-v1.png, postcard-home-v1.png, pickup-postcard-v1.png, pickup-crumb-v1.png.

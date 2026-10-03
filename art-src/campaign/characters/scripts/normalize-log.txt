@@ -1,0 +1,4 @@
+python tools/art/pixelize.py art-src/campaign/characters/raw/mallow-idle-v1.png art-src/campaign/characters/raw/mallow-welcome-v1.png --sheet public/assets/campaign/portrait-mallow.png --size 48x48 --colors 20 --anchor bottom --pad 0
+python tools/art/pixelize.py art-src/campaign/characters/raw/nori-idle-v1.png art-src/campaign/characters/raw/nori-welcome-v1.png --sheet public/assets/campaign/portrait-nori.png --size 48x48 --colors 20 --anchor bottom --pad 0
+python tools/art/pixelize.py art-src/campaign/characters/raw/pip-idle-v1.png art-src/campaign/characters/raw/pip-welcome-v1.png --sheet public/assets/campaign/portrait-pip.png --size 48x48 --colors 20 --anchor bottom --pad 0
+python tools/art/pixelize.py art-src/campaign/characters/raw/iona-idle-v1.png art-src/campaign/characters/raw/iona-welcome-v1.png --sheet public/assets/campaign/portrait-iona.png --size 48x48 --colors 20 --anchor bottom --pad 0

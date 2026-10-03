@@ -324,3 +324,15 @@ Codex was not called for any asset in the wave-2 continuation; the image_gen raw
 - `rabbit-portrait` happy frame is visibly mirrored; `rabbit-sprite` floppy ear can read as a loop at 1x.
 - `memory-postcard`: the stamped cottage and ship are only 22-24 px wide. `item-steam` is a simple blob.
 - `icons.png`: the package's two ears can suggest bunny ears; the radar feed arm is subtle on the dark HUD.
+
+## Phase 3 campaign art (2026-10-03)
+
+All under `public/assets/campaign/`, loaded via `ASSET_MANIFEST` (`campaign-*` keys); provenance in `art-src/campaign/PROVENANCE.md`.
+
+- Destinations (160×160): bento, matcha, bakery, im-fine, home.
+- Recipient portraits (48×48, frames idle/welcome): mallow, nori, pip, iona.
+- Cargo strip (32×32 × 5), postcard strip (48×32 × 5), pickups (16×16 × 2).
+- Landing backdrop layers per theme: `landing-sky-<theme>` (640×360 opaque), `landing-hills-<theme>` (640×96), wired through `campaignLandingDecor.<theme>.backdrop` in `src/data/landingScenery.ts`.
+- Flight nebula layer per theme: `nebula-<theme>` (640×360 soft alpha), wired through `campaignBackdropMoods.<theme>.layerTextureKeys.nebula` in `src/data/flightScenery.ts`.
+- Cues: `windsock` (24×32 × 4: calm, warning, medium, strong), `flow-arrow` (24×16), `berth-tiles` (32×24 × 3: left cap, centre, right cap).
+- `fog.png` remains a Stage-A placeholder (unused by flight since round 2; kept for the manifest contract).

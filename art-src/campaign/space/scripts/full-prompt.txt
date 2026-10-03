@@ -1,0 +1,23 @@
+You are generating production pixel-art SOURCE images for the cozy game "Cosmic Gyoza Express" (2D side-view space delivery game: a dumpling-shaped gyoza spaceship delivers warm food to lonely little worlds).
+
+FIRST use view_image on these style references and match their rendering, outline weight, light direction and warmth exactly:
+- D:/code/CosmicGyozaExpress/public/assets/ship/gyoza-idle.png (hero ship)
+- D:/code/CosmicGyozaExpress/public/assets/celestial/tea-moon.png (approved destination planet: Tea Moon with its teahouse)
+- D:/code/CosmicGyozaExpress/public/assets/characters/rabbit-portrait.png (approved character portrait strip)
+- D:/code/CosmicGyozaExpress/public/assets/lunar/lunar-sky.png and lunar-hills-far.png (approved landing backdrop layers)
+
+Art direction: cozy handcrafted pixel art, warm, soft, gently funny, never cold sci-fi, never creepy. Chunky readable pixel clusters with simple shapes (the image will be downscaled to a small true pixel resolution, so avoid fine noise, tiny details and noisy dithering). Soft light from the top-left, warm dark ink outlines (#1D1F33), not pure black. Shared base palette: ink #1D1F33, cosmos #1A1B2E, cosmos-deep #0E0F1C, parchment #F4ECDC, cream #F4E6C8, peach #E6A57A, terracotta #C97B5A, amber #D4A055, sage #8DA17A. No text, letters, numbers, UI, frames, signatures or watermarks in any image.
+Background rule: where a SOLID FLAT MAGENTA #FF00FF background is requested use exactly that flat colour with no gradient, no shadow and no anti-aliased halo; the subject must not contain magenta or hot pink.
+Save rule: copy each resulting PNG to exactly the path given (PowerShell Copy-Item). Do NOT modify, create or delete any other files in the repository. Do not ask questions; make routine decisions yourself. Report the final file paths and anything that deviated from the request.
+First also view_image D:/code/CosmicGyozaExpress/public/assets/space/nebula.png (approved flight nebula layer) and D:/code/CosmicGyozaExpress/public/assets/lunar/lunar-pad.png (approved landing pad).
+PART 1: FIVE flight NEBULA layers (wide 16:9 each), same structure as nebula.png: soft large cloudy nebula shapes used as a parallax layer, low contrast, SOLID FLAT MAGENTA #FF00FF wherever there is empty space (only the cloud shapes are painted), edges tile horizontally. Hues:
+1) nebula-bento: warm peach and terracotta clouds (#F0A878, #B96C58).
+2) nebula-matcha: soft matcha greens with a little gold (#9FC690, #80966B, #D6C58C).
+3) nebula-bakery: plum-violet with warm amber edges (#806C91, #E5BD76).
+4) nebula-im-fine: rainy blue-grey with silver edges (#657A91, #A4B9B3).
+5) nebula-home: rose and peach with a hint of sage (#BA8798, #E5C68F, #88A59A).
+PART 2: cues, each on a SOLID FLAT MAGENTA #FF00FF background.
+6) windsock-sheet: FOUR windsock poses side by side in one wide 4:1 image, in four equal cells. Identical dark warm wooden pole on the LEFT of each cell from near the top to the bottom edge, with a striped peach and cream sock (#E6A57A, #F4E6C8) attached at the top. Cell 1: hanging limp straight down along the pole (calm). Cell 2: lifting slightly with a wobble (warning). Cell 3: half out at about 45 degrees (medium). Cell 4: straight out horizontally to the right, fully inflated (strong).
+7) flow-arrow: one soft but unmistakable chunky arrow pointing RIGHT, pale matcha cream (#B7C69A, #F4E6C8) with a dark ink outline, wide 3:2.
+8) berth-tiles: a landing-pad slab strip, 4:1, like a cosy dock deck: a cream top contact surface line, a sage-teal body (#6F8E83, #88A59A), small warm lamps and rivets. It must tile horizontally: the middle third is the repeatable tile, and the left and right ends are rounded caps.
+Save to D:/code/CosmicGyozaExpress/art-src/campaign/space/raw/ as nebula-bento-v1.png, nebula-matcha-v1.png, nebula-bakery-v1.png, nebula-im-fine-v1.png, nebula-home-v1.png, windsock-sheet-v1.png, flow-arrow-v1.png, berth-tiles-v1.png.
