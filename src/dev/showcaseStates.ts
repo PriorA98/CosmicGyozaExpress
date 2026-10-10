@@ -223,7 +223,7 @@ export const SHOWCASE_STATES: readonly ShowcaseStateDefinition[] = [
     hold: ["KeyS"],
     data: landing({
       packageCondition: 100,
-      start: { x: 640, y: 300, rotation: 0.45, velocityX: 0, velocityY: 60, angularVelocity: 0 },
+      start: { x: 640, y: 300, rotation: landingForMission(TEA_MOON_MISSION_ID).tuning.maxLeanRadians, velocityX: 0, velocityY: 60, angularVelocity: 0 },
     }),
   },
   {

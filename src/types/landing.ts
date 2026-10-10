@@ -1,9 +1,10 @@
 import type { PackageConditionLabel } from "./flight";
 
+/** W lifts; A/D slide; S steadies pad-relative drift and levels cosmetic lean. */
 export type LandingControls = {
   thrust: boolean;
-  rotateLeft: boolean;
-  rotateRight: boolean;
+  left: boolean;
+  right: boolean;
   stabilizer: boolean;
 };
 

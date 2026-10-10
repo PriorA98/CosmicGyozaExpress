@@ -1,8 +1,8 @@
 # Gameplay Decisions
 
-Last updated: 2026-05-30 JST
+Last updated: 2026-10-10 JST (landing controls v2)
 
-Status: Phase 1 flight-feel decisions implemented; Phase 2 Tea Moon landing/delivery model locked unless playtesting proves a problem.
+Status: route-flight defaults preserved; landing controls v2 replaces the Phase 2 tilt model after player feedback.
 
 This document captures the gameplay choices that should guide the next implementation work. The goal is to prevent the project from drifting into a bigger or different game while the Tea Moon vertical slice proves the complete loop.
 
@@ -22,7 +22,7 @@ This means the project should keep the proven Phase 1 route-flight feel, then ad
 | Flight feel | Floaty velocity with direct rotation | Keeps inertia funny and skillful while preserving readable controls. |
 | Failure model | No lives and no game over | Crashes should be comedic, recoverable, and low-pressure. |
 | Arrival gate | Mission 1 uses zone entry, low speed, bottom-side angle alignment, and a short stable ready window | Teaches controlled arrival and starts landing without making the first route harsh. |
-| Landing model | Tea Moon uses a short assisted one-bottom-thruster lunar-lander sequence | Makes the ship's goofy physical limitation central to delivery while keeping the vertical slice memorable. |
+| Landing model | All six missions use hover landing: W lifts, A/D slide, S steadies | Keeps wind and moving pads controllable while preserving a careful final descent. |
 | Package condition | Affects flavor and result text, not progression | Keeps delivery warm and forgiving while still rewarding careful play. |
 | Difficulty default | Cozy and forgiving by default | Matches the tone and avoids turning the first playable slice into a precision challenge. |
 | Mission structure | Handcrafted linear unlocks | Keeps content authored, small, and emotionally directed. |
@@ -129,13 +129,13 @@ Implementation implication:
 - Show clear dashboard states: too far, slow down, align, ready.
 - Use destination ring visuals to match the dashboard state.
 
-### 5. One-Bottom-Thruster Landing
+### 5. Hover Landing (2026-10-10)
 
-Tea Moon landing should use a separate short assisted landing scene inspired by Lunar Lander.
+All six missions use the separate short assisted LandingScene.
 
 Locked landing concept:
 
-> The gyoza ship has only one thruster on its bottom. Horizontal correction comes from tilting the whole ship before firing that bottom thruster.
+> The bottom thruster lifts straight up in world space. Independent side puffers move left/right; lean is cosmetic. S damps drift relative to the pad and levels the ship.
 
 Landing should use:
 
@@ -143,8 +143,8 @@ Landing should use:
 - gravity pulling downward;
 - one visible bottom thruster;
 - `W` / Up to fire the bottom thruster;
-- `A` / `D` to rotate;
-- `S` / Down as a gentle stabilizer assist for Tea Moon;
+- `A` / `D` to slide independently of W;
+- `S` / Down as a capped pad-relative steady assist;
 - wide landing pad;
 - generous safe speed and angle thresholds;
 - soft, bumpy, and incident landing outcomes.
@@ -168,7 +168,8 @@ Landing incidents should:
 Implementation implication:
 
 - Add `LandingScene`.
-- Add pure landing logic that can be tested without Phaser rendering.
+- Keep pure landing logic testable without Phaser rendering.
+- Keep tuning and per-mission overrides typed; see [landing controls v2 verification](implementation/phase-4-challenge-redesign.md#9-landing-controls-rework).
 - Treat current docking readiness as an arrival gate into landing.
 - Keep player-facing language focused on landing and delivery rather than scoring.
 

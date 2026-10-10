@@ -103,7 +103,7 @@ type HudLayer = {
   readonly wind: LandingWindIndicator | undefined;
 };
 
-const NO_CONTROLS: LandingControls = { thrust: false, rotateLeft: false, rotateRight: false, stabilizer: false };
+const NO_CONTROLS: LandingControls = { thrust: false, left: false, right: false, stabilizer: false };
 const CELL = LANDING_ART_SCALE;
 const FLY_FRAMES = [ASSET.shipFly1, ASSET.shipFly2, ASSET.shipFly3] as const;
 /** Pre-rotated (RotSprite) sheets of the fly frames: the flame never rotates at runtime either. */
@@ -139,6 +139,7 @@ export class LandingScene extends Phaser.Scene {
   private playMinX = 0;
   private playMaxX = 0;
   private thrustTrail!: ThrustTrail;
+  private sideTrail!: ThrustTrail;
   private caption: Phaser.GameObjects.Container | undefined;
   private introCard: LandingIntroCard | undefined;
   private pad: LandingPadDefinition = this.definition.pad;
@@ -242,6 +243,7 @@ export class LandingScene extends Phaser.Scene {
       .setDepth(depth.ship);
     // Puffs are placed at the live flame tip each frame, so the trail itself needs no offset.
     this.thrustTrail = createThrustTrail(this, { depth: TRAIL_DEPTH, offset: 0 });
+    this.sideTrail = createThrustTrail(this, { depth: TRAIL_DEPTH, offset: 0 });
 
     this.keys = this.input.keyboard?.addKeys({
       W: Phaser.Input.Keyboard.KeyCodes.W,
@@ -263,6 +265,7 @@ export class LandingScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off(Phaser.Scale.Events.RESIZE, onResize);
       this.thrustTrail.destroy();
+      this.sideTrail.destroy();
       this.scenery.destroy();
     });
 
@@ -273,6 +276,7 @@ export class LandingScene extends Phaser.Scene {
       pad: { ...this.pad, velocityX: this.environment.pad.velocity.x },
       wind: { ax: this.environment.wind.acceleration.x, ay: this.environment.wind.acceleration.y, phase: this.environment.wind.phase, exposure: this.environment.wind.exposure },
       tuning: {
+        ...this.definition.tuning,
         gravity: this.definition.tuning.gravityAcceleration, thruster: this.definition.tuning.thrusterAcceleration,
         safeVerticalSpeed: this.definition.tuning.safeVerticalSpeed, safeHorizontalSpeed: this.definition.tuning.safeHorizontalSpeed,
         safeAngleDegrees: this.definition.tuning.safeAngleDegrees, shipRadius: this.definition.tuning.shipRadius,
@@ -306,7 +310,7 @@ export class LandingScene extends Phaser.Scene {
     const descending = this.phase.kind === "descending";
     // The arrival glide burns a visible braking flame, so it drives the thrust loop too.
     const introBraking = this.phase.kind === "intro" && this.introShip.power >= landingScenery.thrust.litPower;
-    this.emitHeldEdges((descending && this.controls.thrust) || introBraking, descending && this.controls.stabilizer);
+    this.emitHeldEdges((descending && (this.controls.thrust || this.controls.left !== this.controls.right)) || introBraking, descending && this.controls.stabilizer);
 
     switch (this.phase.kind) {
       case "intro":
@@ -441,7 +445,7 @@ export class LandingScene extends Phaser.Scene {
     this.landingClockMs += deltaSeconds * 1000;
     this.sampleEnvironment();
     this.landingState = integrateLandingMovement(this.landingState, this.controls, deltaSeconds, this.definition.tuning,
-      this.definition.collisionModel === "legacy-horizontal" ? undefined : this.environment.wind.acceleration);
+      this.environment.wind.acceleration, this.environment.pad.velocity.x);
     this.keepShipInsideView();
     this.refreshReadings();
     this.thrustPower = stepThrustPower(this.thrustPower, this.controls.thrust, deltaSeconds, landingScenery.thrust);
@@ -585,6 +589,7 @@ export class LandingScene extends Phaser.Scene {
     this.thrustTrail.update(this.ship.x, this.ship.y, this.ship.visualRotation, false, 0);
     // Puffs already in flight would drift down over the blanket and the hint bar: remove them at once.
     this.thrustTrail.clear();
+    this.sideTrail.clear();
   }
 
   private beginTouchdown(result: Exclude<LandingResultKind, "incident">): void {
@@ -1061,13 +1066,13 @@ export class LandingScene extends Phaser.Scene {
     const keys = this.keys;
     return {
       thrust: Boolean(keys?.W.isDown || keys?.UP.isDown) || touch.thrust,
-      rotateLeft: Boolean(keys?.A.isDown || keys?.LEFT.isDown) || touch.rotateLeft,
-      rotateRight: Boolean(keys?.D.isDown || keys?.RIGHT.isDown) || touch.rotateRight,
+      left: Boolean(keys?.A.isDown || keys?.LEFT.isDown) || touch.left,
+      right: Boolean(keys?.D.isDown || keys?.RIGHT.isDown) || touch.right,
       stabilizer: Boolean(keys?.S.isDown || keys?.DOWN.isDown) || touch.stabilizer,
     };
   }
 
-  /** Emits landing:thrust / landing:stabilizer only when the held state changes. */
+  /** Shares the subtle thrust loop with side puffers; steady keeps its existing audio event. */
   private emitHeldEdges(thrust: boolean, stabilizer: boolean): void {
     if (thrust !== this.thrustHeld) {
       this.thrustHeld = thrust;
@@ -1094,7 +1099,7 @@ export class LandingScene extends Phaser.Scene {
     this.playMaxX = this.scale.width - radius;
     if (!this.touchLayout) return;
     const tiles = landingTouchTiles(this.scale.width, this.scale.height);
-    this.playMinX = Math.max(this.playMinX, tiles.rotateRight.x + tiles.rotateRight.width + radius);
+    this.playMinX = Math.max(this.playMinX, tiles.right.x + tiles.right.width + radius);
     this.playMaxX = Math.min(this.playMaxX, tiles.thrust.x - radius);
   }
 
@@ -1162,6 +1167,10 @@ export class LandingScene extends Phaser.Scene {
     const tip = frame > 0 ? (this.shipLayout.flameTipsPx[frame - 1] ?? this.shipLayout.flameTipPx) : this.shipLayout.footPx;
     const distance = Math.max(this.shipLayout.footPx, tip - landingScenery.thrust.trailInsetPx);
     const bottom = bottomVector(this.ship.visualRotation);
+    const push = Number(this.controls.right) - Number(this.controls.left);
+    const t = this.definition.tuning;
+    this.sideTrail.update(this.ship.x - push * t.sidePuffOffset, this.ship.y,
+      push * Math.PI / 2, this.phase.kind === "descending" && push !== 0, t.sidePuffIntensity);
     this.thrustTrail.update(
       this.ship.x + bottom.x * distance,
       this.ship.y + bottom.y * distance,

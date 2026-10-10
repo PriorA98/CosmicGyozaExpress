@@ -28,6 +28,7 @@ export type LandingAidsFrame = {
   readonly shipY: number;
   /** Physics contact line (ship feet) while upright. */
   readonly feetY: number;
+  /** Cosmetic hover lean; thrust remains vertical in world space. */
   readonly rotation: number;
   readonly reading: LandingZoneReading;
   readonly readouts: LandingReadouts;
@@ -274,7 +275,7 @@ export class LandingAids {
       if (star.depth !== starDepth) star.setDepth(starDepth);
     }
 
-    // Level brackets stay screen-level beside the hull: the tilt reads against them.
+    // Level brackets stay screen-level beside the hull: the cosmetic lean reads against them.
     const bracketsOut = this.gyroAmount >= config.bracketShowAmount;
     this.levelBrackets.setVisible(bracketsOut);
     if (bracketsOut) this.levelBrackets.setPosition(snapToGrid(frame.shipX, CELL), snapToGrid(frame.shipY + config.offsetY, CELL));

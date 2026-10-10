@@ -387,7 +387,7 @@ export const landingScenery = {
     marginX: 22,
     marginY: 20,
   },
-  /** Touch tiles (screen px of the logical canvas). Left: tilt pair. Right edge: steady stacked over thrust. */
+  /** Touch tiles (screen px of the logical canvas). Left: slide pair. Right edge: steady stacked over thrust. */
   touch: {
     tileWidth: 116,
     tileHeight: 118,
@@ -532,7 +532,7 @@ export type LandingDecorProp = {
   readonly x: number;
   readonly y: number;
   /**
-   * Touch layouts: authored position clear of the tilt / thrust pads (null hides the prop). When omitted,
+   * Touch layouts: authored position clear of the slide / thrust pads (null hides the prop). When omitted,
    * props right of the pad follow the recipient's touch shift and the rest stay put.
    */
   readonly touchX?: number | null;

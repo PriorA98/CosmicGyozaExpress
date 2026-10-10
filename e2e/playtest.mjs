@@ -8,6 +8,7 @@
 // Writes e2e/out/<label>/playtest-<landing>.json plus step screenshots. Exit code 1 on any failed check.
 // A run killed by a page reload under the harness (Vite HMR "Execution context was destroyed") is
 // re-run once in a fresh process (`--attempt=2`); the report records `attempt`.
+import { campaignData, routePilot } from "./lib/campaignPilot.mjs";
 import { spawnSync } from "node:child_process";
 import {
   DEFAULT_URL,
@@ -291,7 +292,8 @@ async function crashAndRetry() {
 async function landShip(profile) {
   const started = Date.now();
   let shotLow = false;
-  const touchdownTarget = profile === "soft" ? 38 : 112;
+  const { pilotLandingControls } = routePilot();
+  const hints = campaignData().resolveMission("tea-moon").pilotHints.landing;
   while (Date.now() - started < 40000) {
     const scenes = await activeScenes();
     if (scenes.includes("DeliveryResultScene")) {
@@ -321,16 +323,11 @@ async function landShip(profile) {
       await page.waitForTimeout(60);
       continue;
     }
-    const st = s.state;
-    const altitude = s.pad.surfaceY - (st.y + 52);
-    const desiredVy = Math.min(150, touchdownTarget + altitude * 0.22);
-    const dx = s.pad.centerX - st.x;
-    const desiredTilt = Math.max(-0.22, Math.min(0.22, dx * 0.002 - st.velocityX * 0.004));
-    const tiltErr = wrapAngle(desiredTilt - st.rotation);
-    await key("KeyD", tiltErr > 0.05);
-    await key("KeyA", tiltErr < -0.05);
-    await key("KeyS", Math.abs(tiltErr) <= 0.05);
-    await key("KeyW", st.velocityY > desiredVy);
+    const controls = pilotLandingControls(s, profile, hints);
+    await key("KeyD", controls.right);
+    await key("KeyA", controls.left);
+    await key("KeyS", controls.brake);
+    await key("KeyW", controls.thrust);
     await page.waitForTimeout(25);
   }
   await releaseAll();

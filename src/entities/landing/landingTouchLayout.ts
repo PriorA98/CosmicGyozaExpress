@@ -16,7 +16,7 @@ export type LandingTouchLayout = {
 };
 
 /**
- * Tile rectangles for each landing control: the tilt pair bottom-left, steady stacked over thrust at the
+ * Tile rectangles for each landing control: the slide pair bottom-left, steady stacked over thrust at the
  * right edge (so the right cluster never reaches the rabbit or the tea house). Pure, so layouts are testable.
  */
 export function landingTouchTiles(
@@ -27,8 +27,8 @@ export function landingTouchTiles(
   const bottom = canvasHeight - layout.marginBottom - layout.tileHeight;
   const right = canvasWidth - layout.marginX - layout.tileWidth;
   return {
-    rotateLeft: { x: layout.marginX, y: bottom, width: layout.tileWidth, height: layout.tileHeight },
-    rotateRight: { x: layout.marginX + layout.tileWidth + layout.gap, y: bottom, width: layout.tileWidth, height: layout.tileHeight },
+    left: { x: layout.marginX, y: bottom, width: layout.tileWidth, height: layout.tileHeight },
+    right: { x: layout.marginX + layout.tileWidth + layout.gap, y: bottom, width: layout.tileWidth, height: layout.tileHeight },
     thrust: { x: right, y: bottom, width: layout.tileWidth, height: layout.tileHeight },
     stabilizer: { x: right, y: bottom - layout.gap - layout.tileHeight, width: layout.tileWidth, height: layout.tileHeight },
   };

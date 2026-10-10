@@ -31,7 +31,7 @@ export const PILOT_DEFAULTS = {
   crossingSpeed: 110,
   arrivalSpeed: 40,
   obstacleLookaheadSeconds: 1.5,
-  landing: { targetRelativeDescent: 38, targetTangentOffset: 0, maximumTiltRadians: 0.3 },
+  landing: { targetRelativeDescent: 38, targetTangentOffset: 0 },
 } as const;
 
 export function waypoint(position: Point, targetSpeed: number = PILOT_DEFAULTS.cruiseSpeed, flags: { readonly hold?: boolean; readonly quiet?: boolean; readonly radius?: number } = {}): PilotWaypoint {

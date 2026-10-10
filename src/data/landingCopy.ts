@@ -10,7 +10,7 @@ export const landingCopy = {
   rows: {
     descent: "descent",
     drift: "drift",
-    tilt: "tilt",
+    tilt: "lean",
     altitude: "altitude",
     pad: "pad",
     package: "package",
@@ -34,8 +34,9 @@ export const landingCopy = {
     bumpy: "slidey",
     rough: "too slidey",
   } satisfies Record<LandingZone, string>,
+  levelWord: "level",
   tiltWords: {
-    soft: "level",
+    soft: "leaning",
     bumpy: "leaning",
     rough: "tipping",
   } satisfies Record<LandingZone, string>,
@@ -57,10 +58,10 @@ export const landingCopy = {
     bumpy: "bumpy",
   } satisfies Record<Exclude<LandingZone, "rough">, string>,
   notes: {
-    descendingIdle: "please apply soup-facing thrust",
-    thrusting: "one-thruster confidence: moderate",
-    stabilizing: "gyro humming, dumpling leveling",
-    tilted: "bottom not pointed at problem",
+    descendingIdle: "W lifts, A/D slide, S steadies",
+    thrusting: "bottom puffs soften the drop",
+    stabilizing: "steady puffers, matching the pad",
+    tilted: "side puffers sliding the dumpling",
     offPad: "the pad is the glowing blanket",
     settling: "landing blanket engaged",
     retry: "fresh attempt, same warm dumpling",
@@ -120,15 +121,15 @@ export const landingCopy = {
   },
   controls: [
     { keys: ["W"], label: "thrust" },
-    { keys: ["A", "D"], label: "tilt" },
+    { keys: ["A", "D"], label: "slide" },
     { keys: ["S"], label: "steady" },
     { keys: ["R"], label: "retry" },
   ],
   /** Touch layouts have no R key: a small parchment chip in the top-right corner retries instead. */
   touchRetry: "retry",
   touchLabels: {
-    rotateLeft: "tilt",
-    rotateRight: "tilt",
+    left: "left",
+    right: "right",
     stabilizer: "steady",
     thrust: "thrust",
   },

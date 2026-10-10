@@ -1,6 +1,6 @@
 # Cosmic Gyoza Express Documentation Index
 
-Last updated: 2026-10-02 JST
+Last updated: 2026-10-10 JST
 
 This folder contains the official project documentation derived from the original concept document, the implementation plan, and the imported Gyoza UI prototype handoff.
 
@@ -29,7 +29,7 @@ This folder contains the official project documentation derived from the origina
 - `wiki/flight-mechanics.md`
   - Route-flight movement model and current Phase 1 behavior.
 - `wiki/one-bottom-thruster-landing.md`
-  - Locked Phase 2 landing mechanic built around the ship's single bottom thruster.
+  - Current landing controls v2: world-space lift, independent side puffers, pad-relative steady assist.
 - `wiki/delivery-results.md`
   - Delivery completion, package condition, result tone, save effects, and reward behavior.
 - `design/design-system.md`

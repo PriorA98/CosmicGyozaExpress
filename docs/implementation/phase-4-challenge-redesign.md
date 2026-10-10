@@ -245,3 +245,87 @@ Not yet done:
 - A human playtest of the new difficulty. Simulated pilots cannot judge how hard it feels.
 - Final art for the koi, toaster and lantern buoys. They are code-drawn pixel art in `ChallengeCues.ts`.
 - Re-scoring by the module critics.
+
+## 9. Landing controls rework
+
+Date: 2026-10-10 JST. Player feedback: slow angular steering could not counter crosswind or follow the moving tray. This section supersedes the tilt-based landing descriptions and landing numbers in sections 3 and 8.
+
+Every landing now uses the same hover controls:
+
+| Input / property | Shipped value |
+|---|---|
+| W / bottom thruster | 270 px/s^2 straight up in world space, independent of lean |
+| A / D / side puffers | 230 px/s^2 left / right, independent of W |
+| Cosmetic lean | maximum 0.28 radians (16 degrees); follows input and returns at 4 rad/s |
+| S / steady | horizontal drift damping relative to the moving pad, capped at 55 px/s^2; also levels lean |
+| Horizontal air drag | 0.6 /s in world space |
+| Vertical damping | existing 0.018 /s |
+| Touchdown thresholds | soft 84 vertical / 68 pad-relative horizontal / 22 degrees; bumpy 145 / 122 / 36 |
+
+Gravity per mission stays unchanged. Wind and pad sampling, collision frames, landing-only retry and package rules stay unchanged. Angular acceleration/damping/upright-assist tuning and maximum-tilt pilot hints are removed. The existing rotation field stores lean and angularVelocity stays zero; state/probe/save shape remains compatible. Both side keys cancel; S levels the ship even when a side key is held. Strong wind still requires A/D because steady alone cannot cancel it.
+
+The PD pilot uses position gain 1.8, relative-velocity gain 3, a 10 px/s^2 side-command deadband, and wind/drag feed-forward. It uses S only within 12 px and 8 px/s of matching, with no side command. Soft descent approaches the mission target (38 px/s); bumpy approaches 110 px/s. If off centre below 220 px it slows to 18 px/s before committing. The simulator matches LandingScene's environment clock, world bounds and integration. Its naive pilot aims at the current pad with no wind or pad-velocity feed-forward, uses 80% feedback gain and delays side commands by 350 ms; it retains ordinary descent metering.
+
+Retunes needed to keep the authored twists meaningful under stronger steering:
+
+| Landing | Change | Preserved |
+|---|---|---|
+| Bento Belt | tray width 300 -> 260 px | endpoints 480/800, period 12 s, peak 83.8 px/s |
+| Matcha Nebula | lower band -42 -> -100 px/s^2 | upper band +75, split 260 px, blend 80 px |
+| Black Hole Bakery | no physical retune | gravity 100, sideways pull -60, pad width 300 |
+| I'm Fine | landing-only cycle: warning 1500 -> 800 ms, sustain 1800 -> 2500 ms, calm 3000 -> 1500 ms (period 6 s) | peak +/-140; attack 500 / release 700 ms; shelter below 40 px, fully exposed above 110 px; route cycle unchanged |
+| Tea Moon / Home | no gravity, wind or pad retune | calm tutorial and victory lap |
+
+Verification:
+
+- TypeScript no-emit check and Vite production build succeed using the installed bundled runtime. Vite retains its existing large-bundle warning.
+- Vitest: 406 tests across 34 files pass. Physics coverage verifies independent lateral puffers, world-space vertical thrust, capped/returning lean, S relative to moving pads and its acceleration cap, and side thrust overcoming every authored wind sample.
+- All 72 landing simulations pass: 6 missions x soft/bumpy x phases [0, 1500, 3000, 4500, 6000, 9000] ms.
+- Naive soft counts on those six phases: Bento 1/6, Matcha 0/6, Bakery 0/6, I'm Fine 1/6. Tea Moon and Home remain soft 6/6 each.
+- Browser visual/input check: A/D slide with W released, lean +/-0.28, released lean returns to zero, opposite-side exhaust puffs visible, desktop hints and phone touch labels correct; 0 runtime/asset/font errors. Evidence: `e2e/out/lr-hover-ui/`.
+- Tea Moon full-loop keyboard playtest `e2e/playtest.mjs --label=lr-tea`: passed, soft delivery, incident-to-retry 1.09 s, save survives reload, 0 runtime/asset/font errors.
+
+Campaign real-keyboard e2e results (`--mission=all` covers the five post-tutorial deliveries; Tea Moon is checked separately above):
+
+- `--mission=all --landing=soft --label=lr-soft`: 5/5 soft, 0 route crashes, 0 runtime/asset/font errors, average FPS 59.85-60.36.
+- `--mission=all --landing=bumpy --incident-first=true --phase=0.5 --label=lr-bumpy`: 5/5 bumpy, 0 route crashes, 0 runtime/asset/font errors, landing-only retry 1.059-1.127 s.
+- Outputs: `e2e/out/lr-soft/summary.json`, `e2e/out/lr-bumpy/summary.json`, `e2e/out/lr-tea/playtest-soft.json`. The two summary.json top-level lines both read `"passed": true`, and every mission entry does too. Tea Moon's report also reads `"passed": true`.
+- Supplied runtime hash 81ea4d5168ddd0a3 was absent; every JS command used installed bundled `C:/Users/alber/AppData/Local/OpenAI/Codex/runtimes/cua_node/cfb32733c877621e/bin/node.exe`. The existing localhost:5173 server was reused.
+
+Human difficulty/feel review remains for the lead; automatic pilots verify controllability and outcomes.
+
+Changed files for this task (33; other builder files excluded):
+
+- `README.md`
+- `docs/README.md`
+- `docs/engineering/ARCHITECTURE.md`
+- `docs/gameplay-decisions.md`
+- `docs/implementation/phase-4-challenge-redesign.md`
+- `docs/wiki/one-bottom-thruster-landing.md`
+- `e2e/playtest.mjs`
+- `src/data/campaign/bentoBelt.ts`
+- `src/data/campaign/blackHoleBakery.ts`
+- `src/data/campaign/campaignHelpers.ts`
+- `src/data/campaign/imFine.ts`
+- `src/data/campaign/matchaNebula.ts`
+- `src/data/campaign/teaMoon.ts`
+- `src/data/landingCopy.ts`
+- `src/data/landingScenery.ts`
+- `src/data/landingTuning.ts`
+- `src/dev/landingSim.ts`
+- `src/dev/routePilot.ts`
+- `src/dev/showcaseStates.ts`
+- `src/entities/landing/LandingAids.ts`
+- `src/entities/landing/LandingTouchPads.ts`
+- `src/entities/landing/campaignPresentation.ts`
+- `src/entities/landing/landingReadouts.ts`
+- `src/entities/landing/landingTouchLayout.ts`
+- `src/scenes/LandingScene.ts`
+- `src/systems/LandingSystem.ts`
+- `src/types/campaign.ts`
+- `src/types/landing.ts`
+- `tests/campaignContracts.test.ts`
+- `tests/challengeRedesign.test.ts`
+- `tests/landing.test.ts`
+- `tests/landingAtmosphere.test.ts`
+- `tests/landingCampaign.test.ts`

@@ -8,7 +8,7 @@ Cosmic Gyoza Express is a small cozy physics-based space delivery game about a t
 - Stack locked: Phaser + TypeScript + Vite + localStorage.
 - Implementation plan documented.
 - Gameplay wiki added for core loop, flight, landing, and delivery result mechanics.
-- Phase 2 landing model locked: a short assisted one-bottom-thruster lunar-lander sequence for Tea Moon.
+- Landing controls v2: W lifts, A/D slide with side puffers, S steadies relative to the pad across all six deliveries.
 - Gyoza UI prototype handoff analyzed and officialized into design docs.
 - Raw design handoff preserved under `references/design-handoff/`.
 - Reusable reference assets copied under `assets/reference/`.

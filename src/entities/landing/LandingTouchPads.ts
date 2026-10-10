@@ -8,12 +8,12 @@ export { landingTouchTiles, type LandingTouchLayout, type LandingTouchTile } fro
 
 type ControlKey = keyof LandingControls;
 
-const EMPTY_CONTROLS: LandingControls = { thrust: false, rotateLeft: false, rotateRight: false, stabilizer: false };
-const CONTROL_KEYS: readonly ControlKey[] = ["rotateLeft", "rotateRight", "stabilizer", "thrust"];
+const EMPTY_CONTROLS: LandingControls = { thrust: false, left: false, right: false, stabilizer: false };
+const CONTROL_KEYS: readonly ControlKey[] = ["left", "right", "stabilizer", "thrust"];
 
 /**
  * Landing controls on the shared UI kit's TouchControls: cream keycap tiles (the bright-scene tone) with
- * kit pixel glyphs for tilt and steady and the kit thrust icon, each with a lowercase label inside the tile.
+ * kit pixel glyphs for slide and steady and the kit thrust icon, each with a lowercase label inside the tile.
  * Zone ids are the LandingControls keys. The scene keeps this on the screen-fixed layer.
  */
 export class LandingTouchPads {
@@ -23,8 +23,8 @@ export class LandingTouchPads {
     const tiles = landingTouchTiles(scene.scale.width, scene.scale.height);
     const labels = landingCopy.touchLabels;
     const zones: TouchZoneDefinition[] = [
-      { id: "rotateLeft", shape: { kind: "rect", ...tiles.rotateLeft }, glyph: "left", label: labels.rotateLeft },
-      { id: "rotateRight", shape: { kind: "rect", ...tiles.rotateRight }, glyph: "right", label: labels.rotateRight },
+      { id: "left", shape: { kind: "rect", ...tiles.left }, glyph: "left", label: labels.left },
+      { id: "right", shape: { kind: "rect", ...tiles.right }, glyph: "right", label: labels.right },
       { id: "stabilizer", shape: { kind: "rect", ...tiles.stabilizer }, glyph: "steady", label: labels.stabilizer },
       { id: "thrust", shape: { kind: "rect", ...tiles.thrust }, icon: "thrust", label: labels.thrust },
     ];

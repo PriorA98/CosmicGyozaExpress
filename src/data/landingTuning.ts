@@ -7,15 +7,30 @@ export const landingTuning = {
   maxDeltaSeconds: 1 / 30,
   gravityAcceleration: 138,
   thrusterAcceleration: 270,
-  rotationAcceleration: 5.2,
-  angularDamping: 1.45,
+  /** World-space side puffers, independent of the bottom thruster. */
+  lateralAcceleration: 230,
+  maxLeanRadians: 0.28,
+  leanRate: 4,
+  /** S removes pad-relative drift, capped so strong wind still needs side puffers. */
+  steadyAcceleration: 55,
+  lateralDrag: 0.6,
   linearDamping: 0.018,
-  stabilizerAngularDamping: 5.8,
-  stabilizerUprightStrength: 3.2,
-  /** Below this altitude (px above the surface) the Tea Moon pad gently nudges the ship upright, no input needed. */
-  uprightAssistAltitude: 150,
-  /** Strength of that hands-free upright nudge; deliberately much weaker than the S stabilizer. */
-  uprightAssistStrength: 1.1,
+  /** Shared dev pilot's PD gains, tolerances and descent targets. */
+  pilotPositionGain: 1.8,
+  pilotVelocityGain: 3,
+  pilotAccelerationDeadband: 10,
+  pilotSteadyPositionTolerance: 12,
+  pilotSteadyVelocityTolerance: 8,
+  pilotCorrectionAltitude: 220,
+  pilotCorrectionPadShare: 0.22,
+  pilotCorrectionDescent: 18,
+  pilotBumpyDescent: 110,
+  pilotSoftCruiseDescent: 130,
+  pilotBumpyCruiseDescent: 155,
+  pilotDescentAltitudeGain: 0.16,
+  /** Small side exhaust uses the shared trail helper. */
+  sidePuffOffset: 42,
+  sidePuffIntensity: 0.22,
   shipRadius: 52,
   padWidth: 320,
   surfaceY: 612,

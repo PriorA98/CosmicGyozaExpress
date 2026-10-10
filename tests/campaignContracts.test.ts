@@ -56,7 +56,7 @@ describe("campaign registry", () => {
     expect(resolveMission("home-delivery").unlocksMissionIds).toEqual([]);
   });
 
-  it("keeps Tea Moon's authored values identical to the slice", () => {
+  it("keeps Tea Moon route and shared hover landing tuning", () => {
     const route = routeForMission("tea-moon");
     expect(route.world).toEqual(flightPrototypeRoute.world);
     expect(route.start).toEqual(flightPrototypeRoute.start);
@@ -227,21 +227,21 @@ describe("landing environment", () => {
     expect(shelterExposure(wind, 75)).toBeCloseTo(0.5);
     expect(shelterExposure(wind, 300)).toBe(1);
     expect(sampleLandingWind(wind, 300, 3000).acceleration.x).toBeCloseTo(140);
-    expect(sampleLandingWind(wind, 300, 3000 + 7500).acceleration.x).toBeCloseTo(-140);
+    expect(sampleLandingWind(wind, 300, 3000 + 6000).acceleration.x).toBeCloseTo(-140);
     expect(sampleLandingWind(wind, 40, 3000).acceleration.x).toBe(0);
     expect(sampleLandingWind(wind, 300, 0).acceleration.x).toBe(0);
   });
   it("Matcha mist pushes right up high and left near the pad", () => {
     const wind = landingForMission("matcha-nebula").wind;
     expect(sampleLandingWind(wind, 400, 0).acceleration.x).toBeCloseTo(75);
-    expect(sampleLandingWind(wind, 100, 0).acceleration.x).toBeCloseTo(-42);
+    expect(sampleLandingWind(wind, 100, 0).acceleration.x).toBeCloseTo(-100);
     const middle = sampleLandingWind(wind, 260, 0).acceleration.x;
-    expect(middle).toBeGreaterThan(-42);
+    expect(middle).toBeGreaterThan(-100);
     expect(middle).toBeLessThan(75);
   });
 });
 
-describe("environment integration keeps the slice arithmetic", () => {
+describe("environment integration keeps forces additive", () => {
   it("zero / omitted environment matches the original ship integration", () => {
     const state = { x: 10, y: 20, rotation: 0.4, velocityX: 30, velocityY: -12 };
     const controls = { thrust: true, brake: false, rotateLeft: false, rotateRight: true };
@@ -251,7 +251,7 @@ describe("environment integration keeps the slice arithmetic", () => {
   });
   it("landing wind adds lateral velocity, gravity unchanged", () => {
     const state = createLandingState();
-    const controls = { thrust: false, rotateLeft: false, rotateRight: false, stabilizer: false };
+    const controls = { thrust: false, left: false, right: false, stabilizer: false };
     expect(integrateLandingMovement(state, controls, 1 / 60, landingTuning, { x: 0, y: 0 })).toEqual(integrateLandingMovement(state, controls, 1 / 60));
     expect(integrateLandingMovement(state, controls, 1 / 60, landingTuning, { x: 14, y: 0 }).velocityX).toBeGreaterThan(0);
   });

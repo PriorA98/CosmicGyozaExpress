@@ -49,7 +49,7 @@ export function campaignSkyBandColors(skyTop: string, skyBottom: string, horizon
 
 /**
  * Where a decor prop stands: touch layouts use the authored `touchX` / `touchY` (null hides it) so props stay
- * clear of the tilt / thrust pads; otherwise right-side pieces follow the recipient's touch shift.
+ * clear of the slide / thrust pads; otherwise right-side pieces follow the recipient's touch shift.
  */
 export function resolvePropPosition(prop: LandingDecorProp, touchLayout: boolean, recipientX: number): { x: number; y: number } | null {
   if (touchLayout && prop.touchX !== undefined) return prop.touchX === null ? null : { x: prop.touchX, y: prop.touchY ?? prop.y };

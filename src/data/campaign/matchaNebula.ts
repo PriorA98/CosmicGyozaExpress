@@ -112,8 +112,8 @@ export const matchaNebulaLanding: LandingDefinition = {
   pad: { centerX: 640, surfaceY: 612, width: 300 },
   padMotion: { kind: "fixed" },
   surfaceTiltRadians: 0,
-  // Two-layer mist: pushes right up high, left near the porch. Lean one way, then the other.
-  wind: { kind: "bands", splitAltitude: 260, blendPx: 80, upper: { x: 75, y: 0 }, lower: { x: -42, y: 0 } },
+  // Two-layer mist: pushes right up high, left near the porch. Slide one way, then the other.
+  wind: { kind: "bands", splitAltitude: 260, blendPx: 80, upper: { x: 75, y: 0 }, lower: { x: -100, y: 0 } },
   collisionModel: "relative-pad",
 };
 
@@ -149,9 +149,9 @@ export const matchaNebulaMission: MissionDefinitionV2 = {
     bump: "The flask sloshed in a very supportive way. The koi did not notice. Probably.",
     collectible: "A postcard, slightly damp, deeply green.",
     landingIntro: "Two mists. High up it pushes right, low down it pushes left.",
-    landingTwist: "The mist turns halfway down. Switch your lean.",
-    gustWarning: "The mist turns halfway down. Switch your lean.",
-    landingCalm: "Lower mist now. Lean right, then let it come down.",
+    landingTwist: "The mist turns halfway down. Switch your slide.",
+    gustWarning: "The mist turns halfway down. Switch your slide.",
+    landingCalm: "Lower mist now. Slide right, then let it come down.",
     afterTouchdown: "Nori holds the flask with both hands.",
   },
   pilotHints: pilotHints([
@@ -161,6 +161,6 @@ export const matchaNebulaMission: MissionDefinitionV2 = {
     waypoint({ x: 2760, y: 1115 }, 200, { quiet: true }),
     waypoint({ x: 3080, y: 880 }, 200, { quiet: true }),
     waypoint(destination, PILOT_DEFAULTS.crossingSpeed),
-  ], { maximumTiltRadians: 0.55 }),
+  ]),
   closingLine: null,
 };

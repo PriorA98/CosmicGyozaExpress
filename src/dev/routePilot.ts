@@ -7,6 +7,7 @@
  *    clear of moving rocks and strong gusts (rocks and gust cycles are pure functions of sim time);
  *  - `quiet`: keep thrust in short taps so tea-koi stay asleep.
  */
+import { landingTuning, type LandingTuning } from "../data/landingTuning";
 import type { FlightRouteDefinition, MissionPilotHints, PilotWaypoint } from "../types/campaign";
 import type { Point, ShipKinematicState } from "../types/flight";
 import { sampleForceZone } from "../systems/ForceFieldSystem";
@@ -211,43 +212,37 @@ export type PilotLandingInput = {
   readonly state: { readonly x: number; readonly y: number; readonly rotation: number; readonly velocityX: number; readonly velocityY: number; readonly angularVelocity: number };
   readonly pad: { readonly centerX: number; readonly surfaceY: number; readonly width: number; readonly velocityX?: number };
   readonly wind: { readonly ax: number; readonly ay: number } | null;
-  readonly tuning: { readonly gravity: number; readonly shipRadius: number };
+  readonly tuning: { readonly gravity: number; readonly shipRadius: number } & Partial<LandingTuning>;
+  /** Mechanic-blind simulation uses reduced feedback gain. */
+  readonly feedbackScale?: number;
   readonly zone?: { readonly altitude: number } | null;
 };
 
 export type PilotLandingControls = { readonly thrust: boolean; readonly brake: boolean; readonly left: boolean; readonly right: boolean; readonly altitude: number; readonly desiredTilt: number; readonly desiredVy: number };
 
-/** Below this altitude the landing pilot levels out to a touchdown-safe tilt (rad). */
-export const landingPilotTuning = { flareAltitude: 60, flareTilt: 0.36 } as const;
-
-/**
- * Landing autopilot: lean so thrust cancels the wind (tilt = atan(wind / gravity), up to the mission
- * `maximumTiltRadians`), track the (moving) pad, meter descent with thrust, and level out for touchdown.
- * `brake` is the S stabilizer.
- */
+/** Direct side-puffer PD tracking with wind/drag feed-forward; W meters descent and S helps only near matching. */
 export function pilotLandingControls(s: PilotLandingInput, profile: "soft" | "bumpy", hints: MissionPilotHints["landing"]): PilotLandingControls {
+  const t = { ...landingTuning, ...s.tuning };
   const st = s.state;
   const altitude = Math.max(0, s.zone?.altitude ?? (s.pad.surfaceY - st.y - s.tuning.shipRadius));
   const padVx = s.pad.velocityX ?? 0;
   const dx = s.pad.centerX + hints.targetTangentOffset - st.x;
-  const windX = s.wind?.ax ?? 0;
-  // Damped position + velocity tracking (the tilt itself takes about a second to swing, so keep gains low).
-  const ax = clamp(dx, -160, 160) * 0.55 + (padVx - st.velocityX) * 1.3 - windX;
-  const limit = altitude < landingPilotTuning.flareAltitude ? Math.min(hints.maximumTiltRadians, landingPilotTuning.flareTilt) : hints.maximumTiltRadians;
-  const desiredTilt = clamp(Math.atan2(ax, s.tuning.gravity + (s.wind?.ay ?? 0)), -limit, limit);
-  const error = wrapAngle(desiredTilt - st.rotation);
-  const angularError = clamp(error * 3, -0.65, 0.65) - st.angularVelocity;
-  const target = profile === "bumpy" ? 110 : hints.targetRelativeDescent;
-  // Off target low down: hover and correct sideways before committing to the pad.
-  const offTarget = Math.abs(dx) > s.pad.width * 0.22 && altitude < 220;
-  const desiredVy = offTarget ? Math.min(target, 18) : Math.min(profile === "bumpy" ? 155 : 130, target + altitude * 0.16);
+  const ax = (dx * t.pilotPositionGain + (padVx - st.velocityX) * t.pilotVelocityGain
+    - (s.wind?.ax ?? 0) + st.velocityX * t.lateralDrag) * (s.feedbackScale ?? 1);
+  const target = profile === "bumpy" ? t.pilotBumpyDescent : hints.targetRelativeDescent;
+  const offTarget = Math.abs(dx) > s.pad.width * t.pilotCorrectionPadShare && altitude < t.pilotCorrectionAltitude;
+  const desiredVy = offTarget ? Math.min(target, t.pilotCorrectionDescent)
+    : Math.min(profile === "bumpy" ? t.pilotBumpyCruiseDescent : t.pilotSoftCruiseDescent, target + altitude * t.pilotDescentAltitudeGain);
+  const left = ax < -t.pilotAccelerationDeadband;
+  const right = ax > t.pilotAccelerationDeadband;
   return {
-    right: angularError > 0.1,
-    left: angularError < -0.1,
-    brake: Math.abs(error) < 0.055 && Math.abs(st.angularVelocity) > 0.035,
+    left, right,
+    brake: !left && !right && Math.abs(dx) < t.pilotSteadyPositionTolerance
+      && Math.abs(st.velocityX - padVx) < t.pilotSteadyVelocityTolerance,
     thrust: st.velocityY > desiredVy,
     altitude,
-    desiredTilt,
+    // Kept for probe/e2e compatibility; now reports desired lateral acceleration.
+    desiredTilt: ax,
     desiredVy,
   };
 }

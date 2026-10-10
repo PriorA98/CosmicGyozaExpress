@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-10-02 JST (wave-2 integration)
+Last updated: 2026-10-10 JST (landing controls v2)
 
 This document records the boundaries of the Tea Moon vertical slice as implemented, the shared contracts every module codes against, and how work is split between parallel builders. It complements `development-standards.md` (rules) and `implementation-checklist.md` (process).
 
@@ -244,3 +244,11 @@ Spec and measurements: `docs/implementation/phase-4-challenge-redesign.md`. The 
 - **Landing:** banded mist and alternating squalls drive the windsocks and the wind chip per sample (`windDirectionSign`).
 - **Events / audio:** `flight:warp`, `flight:koi`; SFX `warp-pop`, `koi-wake`, `gust-whoosh` (on every gust attack).
 - **Dev tooling:** `src/dev/routePilot.ts` (shared flight + landing autopilot, also loaded by `e2e/campaign-playtest.mjs`), `src/dev/routeSim.ts` and `src/dev/landingSim.ts` (headless mirrors of the scene steps), `src/dev/routeChallenge.ts` (hinted vs mechanic-blind pilots). `tests/challengeRedesign.test.ts` asserts every redesigned route and landing is solvable by the hinted pilot and defeats the mechanic-blind one (phase-4 rule R7).
+
+## Landing controls v2 (2026-10-10)
+
+All six landings, including Tea Moon, use the hover model in `LandingSystem.integrateLandingMovement`. W accelerates straight up in world space (270 px/s^2); A/D slide independently (230 px/s^2). Rotation is cosmetic lean, capped at 0.28 rad and following/returning at 4 rad/s; angularVelocity remains in the state contract and is zero during integration. S levels lean and removes horizontal velocity relative to the sampled moving pad, at at most 55 px/s^2. Horizontal drag is 0.6 /s in world space; vertical linear damping remains 0.018 /s. Gravity, wind sampling, moving-pad sampling and touchdown thresholds are unchanged.
+
+`LandingControls` uses `thrust / left / right / stabilizer` (stabilizer means the S steady assist). The integrator accepts wind and pad horizontal velocity; LandingScene and landingSim sample the same environment before each step. A/D together cancel; S wins cosmetic leveling while simultaneous A/D still supplies side acceleration. Per-mission numeric overrides still use `campaignLandingTuning`. No save migration: LandingKinematicState retains its shape.
+
+The landing HUD calls rotation "lean". Small exhaust puffs appear opposite the side push and share the existing thrust audio loop; S keeps its subtle steady loop and visual brackets. Touch labels are left/right/thrust/steady. Flight controls are unchanged. The shared development pilot uses lateral position/velocity PD control with sampled wind and world-drag feed-forward, and meters descent with W. The legacy `desiredTilt` pilot output now reports desired lateral acceleration; real keyboard mapping stays A/D/W/S. See [phase-4 challenge redesign, section 9](../implementation/phase-4-challenge-redesign.md#9-landing-controls-rework) for retunes and verification.

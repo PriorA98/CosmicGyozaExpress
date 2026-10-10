@@ -11,7 +11,7 @@ import {
 import { classifyLandingTouchdown, createLandingState, integrateLandingMovement } from "../src/systems/LandingSystem";
 import type { LandingKinematicState } from "../src/types/landing";
 
-const idle = { thrust: false, rotateLeft: false, rotateRight: false, stabilizer: false };
+const idle = { thrust: false, left: false, right: false, stabilizer: false };
 
 it("tiles campaign berths at their exact collision width with cropped centres and intact caps", () => {
   for (const width of [340, 360, 480]) {
@@ -90,7 +90,7 @@ describe("campaign wind and shelter", () => {
   const gust = landingForMission("im-fine");
 
   it("starts with the full warning and telegraphs the force using the sampled envelope", () => {
-    for (const time of [0, 1499]) {
+    for (const time of [0, 799]) {
       const sample = sampleLandingWind(gust.wind, 200, time);
       expect(sample.phase).toBe("warning");
       expect(sample.acceleration).toEqual({ x: 0, y: 0 });
@@ -111,7 +111,7 @@ describe("campaign wind and shelter", () => {
     }
   });
 
-  it("applies steady crosswind and mission gravity without changing stabilizer semantics", () => {
+  it("applies steady crosswind and mission gravity without rotating the world-space thrusters", () => {
     const matcha = landingForMission("matcha-nebula");
     const state = createLandingState(matcha.tuning);
     const sample = sampleLandingEnvironment(matcha, state, 0);

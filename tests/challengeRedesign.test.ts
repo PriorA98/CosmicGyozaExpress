@@ -120,19 +120,23 @@ describe("challenge redesign: every mechanic is solvable and none is ignorable (
 
 describe("challenge redesign: landings", () => {
   const phases = [0, 1500, 3000, 4500, 6000, 9000];
-  it("the landing autopilot lands every mission soft and bumpy from any phase", () => {
-    for (const id of ["tea-moon", "bento-belt", "matcha-nebula", "black-hole-bakery", "im-fine", "home-delivery"] as const) {
-      for (const start of phases) {
-        expect(simulateLanding(id, "soft", start).result, `${id} soft @${start}`).toBe("soft");
-        expect(simulateLanding(id, "bumpy", start).result, `${id} bumpy @${start}`).toBe("bumpy");
-      }
+  const missions = ["tea-moon", "bento-belt", "matcha-nebula", "black-hole-bakery", "im-fine", "home-delivery"] as const;
+  it.each(missions)("%s: hover autopilot lands soft and bumpy from every phase", (id) => {
+    for (const start of phases) {
+      expect(simulateLanding(id, "soft", start).result, `${id} soft @${start}`).toBe("soft");
+      expect(simulateLanding(id, "bumpy", start).result, `${id} bumpy @${start}`).toBe("bumpy");
     }
   });
 
-  it("each landing twist matters: ignoring wind or tray motion stops being reliably soft", () => {
-    for (const id of ["bento-belt", "matcha-nebula", "black-hole-bakery", "im-fine"] as const) {
-      const soft = phases.filter((start) => simulateLanding(id, "soft", start, 45000, true).result === "soft").length;
-      expect(soft, id).toBeLessThanOrEqual(phases.length / 2);
+  it.each(["bento-belt", "matcha-nebula", "black-hole-bakery", "im-fine"] as const)(
+    "%s: ignoring wind or tray motion is soft at most half the time", (id) => {
+    const soft = phases.filter((start) => simulateLanding(id, "soft", start, 45000, true).result === "soft").length;
+    expect(soft, id).toBeLessThanOrEqual(phases.length / 2);
+  });
+
+  it.each(["tea-moon", "home-delivery"] as const)("%s: the naive hover pilot still handles calm landings", (id) => {
+    for (const start of phases) {
+      expect(simulateLanding(id, "soft", start, 45000, true).result).toBe("soft");
     }
   });
 });

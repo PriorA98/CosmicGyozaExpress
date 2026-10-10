@@ -262,7 +262,6 @@ export type MissionPilotHints = {
   readonly landing: {
     readonly targetRelativeDescent: number;
     readonly targetTangentOffset: number;
-    readonly maximumTiltRadians: number;
   };
 };
 

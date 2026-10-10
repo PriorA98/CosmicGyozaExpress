@@ -84,7 +84,7 @@ export function formatDriftReadout(velocityX: number, units: ReadoutUnits = DEFA
 
 export function formatTiltReadout(angleDegrees: number, tuning?: LandingTuning): LandingReadout {
   const zone = tiltZone(angleDegrees, tuning);
-  const word = landingCopy.tiltWords[zone];
+  const word = Math.round(Math.abs(angleDegrees)) === 0 ? landingCopy.levelWord : landingCopy.tiltWords[zone];
   const number = String(Math.round(Math.abs(angleDegrees)));
   const unit = landingCopy.units.degrees;
   return { word, number, unit, zone, text: `${word} ${number}${unit}` };

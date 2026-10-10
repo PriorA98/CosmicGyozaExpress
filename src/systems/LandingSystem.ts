@@ -13,9 +13,7 @@ import {
   applyDamping,
   clamp,
   radiansToDegrees,
-  shortestAngleDifferenceRadians,
 } from "../utils/math";
-import { thrustVector } from "./ShipMovementSystem";
 
 /** Colour band the landing aids show for "if you touched down right now". */
 export type LandingZone = "soft" | "bumpy" | "rough";
@@ -76,41 +74,26 @@ export function integrateLandingMovement(
   controls: LandingControls,
   deltaSeconds: number,
   tuning: LandingTuning = landingTuning,
-  /** Wind acceleration (px/s²); gravity stays in `tuning`. Omitted = the original Tea Moon arithmetic. */
+  /** World-space wind acceleration (px/s^2), sampled by the scene. */
   wind?: { readonly x: number; readonly y: number },
+  /** Moving pad velocity (px/s) for the S steady assist. */
+  padVelocityX = 0,
 ): LandingKinematicState {
   const dt = clamp(deltaSeconds, 0, tuning.maxDeltaSeconds);
-  const rotateDirection = Number(controls.rotateRight) - Number(controls.rotateLeft);
-  const uprightCorrection = shortestAngleDifferenceRadians(0, state.rotation);
+  if (dt === 0) return state;
+  const direction = Number(controls.right) - Number(controls.left);
+  const targetLean = controls.stabilizer ? 0 : direction * tuning.maxLeanRadians;
+  const rotation = clamp(state.rotation + clamp(targetLean - state.rotation, -tuning.leanRate * dt, tuning.leanRate * dt),
+    -tuning.maxLeanRadians, tuning.maxLeanRadians);
 
-  let angularVelocity = state.angularVelocity + rotateDirection * tuning.rotationAcceleration * dt;
-
-  if (controls.stabilizer) {
-    angularVelocity += uprightCorrection * tuning.stabilizerUprightStrength * dt;
-    angularVelocity = applyDamping(angularVelocity, tuning.stabilizerAngularDamping, dt);
-  } else if (rotateDirection === 0 && state.y + tuning.shipRadius >= tuning.surfaceY - tuning.uprightAssistAltitude) {
-    // Tea Moon courtesy: close to the surface and hands off the tilt keys, the ship leans gently back upright.
-    angularVelocity += uprightCorrection * tuning.uprightAssistStrength * dt;
-  }
-
-  angularVelocity = applyDamping(angularVelocity, tuning.angularDamping, dt);
-  const rotation = state.rotation + angularVelocity * dt;
-
-  let velocityX = state.velocityX;
-  let velocityY = state.velocityY + tuning.gravityAcceleration * dt;
-  if (wind !== undefined) {
-    velocityX += wind.x * dt;
-    velocityY += wind.y * dt;
-  }
-
-  if (controls.thrust) {
-    const thrust = thrustVector(rotation);
-    velocityX += thrust.x * tuning.thrusterAcceleration * dt;
-    velocityY += thrust.y * tuning.thrusterAcceleration * dt;
-  }
-
-  velocityX = applyDamping(velocityX, tuning.linearDamping, dt);
-  velocityY = applyDamping(velocityY, tuning.linearDamping, dt);
+  // Incoming relative velocity keeps steady from reversing drift in a calm frame.
+  const steady = controls.stabilizer
+    ? clamp((padVelocityX - state.velocityX) / dt, -tuning.steadyAcceleration, tuning.steadyAcceleration)
+    : 0;
+  const velocityX = applyDamping(state.velocityX + (direction * tuning.lateralAcceleration + steady + (wind?.x ?? 0)) * dt,
+    tuning.lateralDrag, dt);
+  const velocityY = applyDamping(state.velocityY + (tuning.gravityAcceleration + (wind?.y ?? 0)
+    - Number(controls.thrust) * tuning.thrusterAcceleration) * dt, tuning.linearDamping, dt);
 
   return {
     x: state.x + velocityX * dt,
@@ -118,7 +101,7 @@ export function integrateLandingMovement(
     rotation,
     velocityX,
     velocityY,
-    angularVelocity,
+    angularVelocity: 0,
   };
 }
 

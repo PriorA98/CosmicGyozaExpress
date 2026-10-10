@@ -1,5 +1,7 @@
 import { fitsTicker } from "../src/ui/layout";
 import { describe, expect, it } from "vitest";
+import { landingForMission } from "../src/data/campaign";
+import { sampleLandingWind } from "../src/systems/LandingEnvironmentSystem";
 import { landingTuning } from "../src/data/landingTuning";
 import {
   classifyLandingIncident,
@@ -36,8 +38,8 @@ import { stepThrustPower, thrustFlameFrame } from "../src/entities/landing/thrus
 
 const idle: LandingControls = {
   thrust: false,
-  rotateLeft: false,
-  rotateRight: false,
+  left: false,
+  right: false,
   stabilizer: false,
 };
 
@@ -60,28 +62,62 @@ describe("landing system", () => {
     expect(next.velocityY).toBeLessThan(state.velocityY);
   });
 
-  it("tilted thrust adds horizontal velocity", () => {
-    const state: LandingKinematicState = {
-      ...createLandingState(),
-      rotation: Math.PI / 6,
-      velocityY: 80,
-    };
-
-    const next = integrateLandingMovement(state, { ...idle, thrust: true }, 0.1);
-
-    expect(next.velocityX).toBeGreaterThan(0);
+  it("W thrust is vertical in world space regardless of cosmetic lean", () => {
+    const base = { ...createLandingState(), velocityY: 80 };
+    for (const rotation of [-0.28, 0, 0.28]) {
+      const next = integrateLandingMovement({ ...base, rotation }, { ...idle, thrust: true }, 1 / 60);
+      expect(next.velocityX).toBe(0);
+      expect(next.velocityY).toBe(integrateLandingMovement(base, { ...idle, thrust: true }, 1 / 60).velocityY);
+    }
   });
 
-  it("stabilizer nudges angular motion toward upright", () => {
-    const state: LandingKinematicState = {
-      ...createLandingState(),
-      rotation: 0.35,
-      angularVelocity: 0.8,
-    };
+  it("A/D add symmetric lateral acceleration with or without W", () => {
+    const dt = 1 / 60;
+    const expected = landingTuning.lateralAcceleration * dt * Math.exp(-landingTuning.lateralDrag * dt);
+    for (const thrust of [false, true]) {
+      const left = integrateLandingMovement(createLandingState(), { ...idle, left: true, thrust }, dt);
+      const right = integrateLandingMovement(createLandingState(), { ...idle, right: true, thrust }, dt);
+      expect(left.velocityX).toBeCloseTo(-expected);
+      expect(right.velocityX).toBeCloseTo(expected);
+      expect(left.velocityY).toBe(right.velocityY);
+    }
+    expect(integrateLandingMovement(createLandingState(), { ...idle, left: true, right: true }, dt).velocityX).toBe(0);
+  });
 
-    const next = integrateLandingMovement(state, { ...idle, stabilizer: true }, 0.1);
+  it("S levels lean at the same rate, even while a side key is held", () => {
+    const state = { ...createLandingState(), rotation: landingTuning.maxLeanRadians, angularVelocity: 8 };
+    const next = integrateLandingMovement(state, { ...idle, stabilizer: true, right: true }, 1 / 60);
+    expect(next.rotation).toBeCloseTo(state.rotation - landingTuning.leanRate / 60);
+    expect(next.angularVelocity).toBe(0);
+  });
 
-    expect(next.angularVelocity).toBeLessThan(state.angularVelocity);
+  it("S damps velocity relative to a moving pad and caps its acceleration", () => {
+    const dt = 1 / 60;
+    const tuning = { ...landingTuning, lateralDrag: 0 };
+    for (const padVelocityX of [-84, 84]) {
+      const base = { ...createLandingState(), velocityX: 0 };
+      const steady = integrateLandingMovement(base, { ...idle, stabilizer: true }, dt, tuning, undefined, padVelocityX);
+      expect(steady.velocityX).toBeCloseTo(Math.sign(padVelocityX) * tuning.steadyAcceleration * dt);
+      expect(Math.abs(steady.velocityX - padVelocityX)).toBeLessThan(Math.abs(padVelocityX));
+      const close = integrateLandingMovement({ ...base, velocityX: padVelocityX + 0.1 }, { ...idle, stabilizer: true }, dt, tuning, undefined, padVelocityX);
+      expect(close.velocityX).toBeCloseTo(padVelocityX);
+    }
+  });
+
+  it("full side puff beats every authored wind while steady alone cannot beat a squall", () => {
+    const dt = 1 / 60;
+    for (const id of ["tea-moon", "bento-belt", "matcha-nebula", "black-hole-bakery", "im-fine", "home-delivery"] as const) {
+      const definition = landingForMission(id);
+      for (const altitude of [0, 80, 200, 400]) for (let clock = 0; clock < 15000; clock += 250) {
+        const wind = sampleLandingWind(definition.wind, altitude, clock).acceleration;
+        expect(Math.abs(wind.x)).toBeLessThanOrEqual(140);
+        const right = wind.x <= 0;
+        const next = integrateLandingMovement(createLandingState(definition.tuning), { ...idle, right, left: !right }, dt, definition.tuning, wind);
+        expect(next.velocityX * (right ? 1 : -1)).toBeGreaterThan(0);
+      }
+    }
+    const steady = integrateLandingMovement({ ...createLandingState(), velocityX: 30 }, { ...idle, stabilizer: true }, dt, landingTuning, { x: 140, y: 0 });
+    expect(steady.velocityX).toBeGreaterThan(30);
   });
 
   it("classifies soft, bumpy, and incident touchdowns", () => {
@@ -132,31 +168,19 @@ describe("landing system", () => {
     expect(classifyLandingIncident({ ...base, onPad: false })).toBe("off-pad");
   });
 
-  it("gently nudges the ship upright near the pad without input", () => {
-    const pad = createTeaMoonLandingPad();
-    const nearPad: LandingKinematicState = {
-      ...createLandingState(),
-      y: pad.surfaceY - landingTuning.shipRadius - landingTuning.uprightAssistAltitude / 2,
-      rotation: 0.3,
-      angularVelocity: 0,
-    };
-
-    const next = integrateLandingMovement(nearPad, idle, 0.03);
-
-    expect(next.angularVelocity).toBeLessThan(0);
-  });
-
-  it("does not auto-correct tilt high above the pad or while the player is tilting", () => {
-    const high: LandingKinematicState = { ...createLandingState(), rotation: 0.3, angularVelocity: 0 };
-    expect(integrateLandingMovement(high, idle, 0.03).angularVelocity).toBe(0);
-
-    const pad = createTeaMoonLandingPad();
-    const nearPadTilting: LandingKinematicState = {
-      ...high,
-      y: pad.surfaceY - landingTuning.shipRadius - 10,
-    };
-    const tilting = integrateLandingMovement(nearPadTilting, { ...idle, rotateRight: true }, 0.03);
-    expect(tilting.angularVelocity).toBeGreaterThan(0);
+  it("lean caps in both directions and returns to level at every altitude", () => {
+    for (const right of [false, true]) for (const y of [150, 540]) {
+      let state = { ...createLandingState(), y };
+      for (let step = 0; step < 60; step += 1) {
+        const next = integrateLandingMovement(state, { ...idle, right, left: !right }, 1 / 60);
+        expect(Math.abs(next.rotation - state.rotation)).toBeLessThanOrEqual(landingTuning.leanRate / 60 + 1e-10);
+        expect(Math.abs(next.rotation)).toBeLessThanOrEqual(landingTuning.maxLeanRadians);
+        state = next;
+      }
+      expect(state.rotation).toBe((right ? 1 : -1) * landingTuning.maxLeanRadians);
+      for (let step = 0; step < 10; step += 1) state = integrateLandingMovement(state, idle, 1 / 60);
+      expect(state.rotation).toBe(0);
+    }
   });
 
   it("keeps the soft/bumpy/incident boundaries on the exact tuning thresholds", () => {

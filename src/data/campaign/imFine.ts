@@ -117,7 +117,7 @@ export const imFineLanding: LandingDefinition = {
   wind: {
     kind: "gust",
     peakAcceleration: { x: 140, y: 0 },
-    cycle: IM_FINE_GUST_CYCLE,
+    cycle: { ...IM_FINE_GUST_CYCLE, warningMs: 800, sustainMs: 2500, calmMs: 1500 },
     shelter: { calmBelowAltitude: 40, fullyExposedAltitude: 110 },
   },
   collisionModel: "relative-pad",
@@ -155,7 +155,7 @@ export const imFineMission: MissionDefinitionV2 = {
     bump: "The soup is fine. It says so itself.",
     collectible: "A postcard that smells like rain.",
     landingIntro: "Squalls swap sides each gust. The porch only shelters the very end.",
-    landingTwist: "Lean against this gust. The next one comes from the other side.",
+    landingTwist: "Slide against this gust. The next one comes from the other side.",
     gustWarning: "Gust gathering. Check which way the arrows point.",
     landingCalm: "Under the porch. Take your time.",
     afterTouchdown: "Someone left the light on.",
@@ -167,6 +167,6 @@ export const imFineMission: MissionDefinitionV2 = {
     waypoint({ x: 2350, y: 1120 }, 200, { hold: true, radius: 60 }),
     waypoint({ x: 2960, y: 980 }, 200),
     waypoint(destination, PILOT_DEFAULTS.crossingSpeed),
-  ], { maximumTiltRadians: 0.65 }),
+  ]),
   closingLine: "I said I was fine. I'm glad you came anyway.",
 };

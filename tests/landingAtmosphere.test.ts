@@ -35,7 +35,7 @@ describe("campaign landing atmosphere", () => {
 
   it("places ground props clear of the touch pads on touch layouts", () => {
     const tiles = landingTouchTiles(1280, 720, landingScenery.touch);
-    const leftClear = tiles.rotateRight.x + tiles.rotateRight.width;
+    const leftClear = tiles.right.x + tiles.right.width;
     const touchX = campaignLandingScenery.recipient.touchX;
     for (const decor of decors) {
       for (const prop of decor.props) {

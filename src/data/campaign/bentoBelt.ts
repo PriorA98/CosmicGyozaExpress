@@ -89,8 +89,8 @@ export const bentoBeltRoute: FlightRouteDefinition = {
 export const bentoBeltLanding: LandingDefinition = {
   id: "bento-belt-landing",
   themeId: "bentoBelt",
-  tuning: campaignLandingTuning({ padWidth: 300 }),
-  pad: { centerX: 480, surfaceY: 612, width: 300 },
+  tuning: campaignLandingTuning({ padWidth: 260 }),
+  pad: { centerX: 480, surfaceY: 612, width: 260 },
   // Lazy-Susan tray: slides 480 <-> 800 and back every 12 s (peak about 84 px/s, faster than the 68 px/s sideways limit).
   padMotion: {
     kind: "path",
@@ -147,6 +147,6 @@ export const bentoBeltMission: MissionDefinitionV2 = {
     waypoint(BENTO_LOOP_B, 200, { hold: true, radius: 60 }),
     waypoint({ x: 3000, y: 900 }, 200),
     waypoint(destination, PILOT_DEFAULTS.crossingSpeed),
-  ], { maximumTiltRadians: 0.5 }),
+  ]),
   closingLine: null,
 };
