@@ -16,6 +16,7 @@ import type { LandingDefinition } from "../../types/campaign";
 import { drawSpans, filledEllipseSpans, snapToGrid } from "./pixelShapes";
 import { isReducedMotion } from "../../fx/feedback";
 import { createCampaignPorchDecor } from "./CampaignPorchDecor";
+import { windDirectionSign } from "./LandingWindIndicator";
 import { ambientMotePosition, campaignSkyBandColors, flourPosition, gustWarningAlpha, windsockPlacement, type AmbientMote } from "./campaignPresentation";
 import { mixHex } from "./colorMix";
 
@@ -31,7 +32,7 @@ export type CampaignSceneryOptions = {
   readonly riseAbovePx: number;
 };
 
-type Windsock = { readonly sprite: Phaser.GameObjects.Sprite; readonly altitude: number; readonly mount: "mast" | "ridge"; readonly topY: number; readonly direction: number; frame: number };
+type Windsock = { readonly sprite: Phaser.GameObjects.Sprite; readonly altitude: number; readonly mount: "mast" | "ridge"; readonly topY: number; direction: number; frame: number };
 type Speck = { readonly shape: Phaser.GameObjects.Graphics; readonly x: number; readonly phase: number; readonly speed: number };
 type Mote = AmbientMote & { readonly shape: Phaser.GameObjects.Graphics };
 
@@ -116,8 +117,16 @@ export class CampaignLandingScenery implements LandingGreeter {
   /** Per-frame: windsocks follow the wind at their own altitude (same sampling as the physics), flour drifts. */
   update(timeMs: number, clockMs: number, wind: LandingWindSample): void {
     for (const sock of this.windsocks) {
-      const sample = this.definition.wind.kind === "gust" ? sampleLandingWind(this.definition.wind, sock.altitude, clockMs) : wind;
+      const kind = this.definition.wind.kind;
+      const sample = kind === "gust" || kind === "bands" ? sampleLandingWind(this.definition.wind, sock.altitude, clockMs) : wind;
       const frame = CAMPAIGN_WINDSOCK_FRAME[windsockFrameFor(sample, this.windPeak)];
+      // Alternating squalls and layered mist: the sock points where the wind at its own height pushes.
+      const direction = windDirectionSign(this.definition.wind, sample);
+      if (direction !== Math.sign(sock.direction)) {
+        sock.direction = direction;
+        sock.sprite.setFlipX(direction < 0);
+        sock.frame = -1;
+      }
       if (frame !== sock.frame) {
         sock.frame = frame;
         sock.sprite.setFrame(frame);
@@ -414,7 +423,7 @@ export class CampaignLandingScenery implements LandingGreeter {
       pole.fillRect(x - half * 2, ground - CELL * 3, half * 4, CELL * 3);
     }
     const wind = this.definition.wind;
-    const direction = wind.kind === "steady" ? wind.acceleration.x : wind.kind === "gust" ? wind.peakAcceleration.x : 1;
+    const direction = wind.kind === "steady" ? wind.acceleration.x : wind.kind === "gust" ? wind.peakAcceleration.x : wind.kind === "bands" ? (altitude >= wind.splitAltitude ? wind.upper.x : wind.lower.x) : 1;
     // Art points right (blowing towards +x); mirrored for wind towards -x, keeping the pole on the same column.
     const sprite = this.track(
       this.scene.add

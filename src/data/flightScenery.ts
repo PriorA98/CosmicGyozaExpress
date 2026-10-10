@@ -485,6 +485,30 @@ export const campaignFlightCopy = {
   beaconLabel: "bottom to dock",
   forceLabel: { "radial-gravity": "pull", "directional-current": "drift", gust: "gust" },
   gustWarningLabel: "gust soon",
+  /** Oven warp beat (Black Hole Bakery). */
+  warpLine: "Into the oven, out of the toaster. Lightly toasted, still on time.",
+  /** Tea-koi touch (Matcha Nebula): back to the last lantern. */
+  nibbleLine: "A curious koi nibble. Back to the last lantern.",
+  /** First time a koi wakes. */
+  koiWakeLine: "A koi woke up. Go quiet: coast, and it will lose interest.",
+} as const;
+
+/** Phase-4 telegraphs (tea-koi, dense fog, oven warp). */
+export const challengeCueStyle = {
+  koi: {
+    scale: 1.5,
+    body: "#F3E3C3",
+    patch: "#E08A4B",
+    outline: "#2A2230",
+    lure: "#FFE7A3",
+    lureSleepAlpha: 0.22,
+    hearingIdleAlpha: 0.08,
+    hearingNoiseAlpha: 0.45,
+    bobPx: 6,
+    bobPeriodMs: 2600,
+  },
+  fog: { color: "rgba(24,38,32,1)", edgeSoftPx: 90, fadeInPx: 260, lanternHaloAlpha: 0.07 },
+  warp: { mouthColor: "#F2B35E", pulseMs: 700 },
 } as const;
 
 /** Route rock textures and their canvas size in art px (contract: body diameter in art px == radius). */

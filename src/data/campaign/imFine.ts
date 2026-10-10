@@ -113,12 +113,12 @@ export const imFineLanding: LandingDefinition = {
   pad: { centerX: 640, surfaceY: 612, width: 300 },
   padMotion: { kind: "fixed" },
   surfaceTiltRadians: 0,
-  // A squall that swaps sides every gust; the porch awning only shelters the last 60 px (exposed above 150 px).
+  // A squall that swaps sides every gust; the porch awning only shelters the last 40 px (exposed above 110 px).
   wind: {
     kind: "gust",
-    peakAcceleration: { x: 120, y: 0 },
+    peakAcceleration: { x: 140, y: 0 },
     cycle: IM_FINE_GUST_CYCLE,
-    shelter: { calmBelowAltitude: 60, fullyExposedAltitude: 150 },
+    shelter: { calmBelowAltitude: 40, fullyExposedAltitude: 110 },
   },
   collisionModel: "relative-pad",
 };
@@ -167,6 +167,6 @@ export const imFineMission: MissionDefinitionV2 = {
     waypoint({ x: 2350, y: 1120 }, 200, { hold: true, radius: 60 }),
     waypoint({ x: 2960, y: 980 }, 200),
     waypoint(destination, PILOT_DEFAULTS.crossingSpeed),
-  ]),
+  ], { maximumTiltRadians: 0.65 }),
   closingLine: "I said I was fine. I'm glad you came anyway.",
 };

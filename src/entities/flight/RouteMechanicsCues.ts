@@ -55,8 +55,15 @@ export function drawMotionTracks(scene: Phaser.Scene, definitions: readonly Movi
   const style = campaignFlightStyle.track;
   const g = scene.add.graphics().setDepth(TRACK_DEPTH);
   const color = colorNumber(theme.palette.accent);
+  const drawn = new Set<string>();
   for (const definition of definitions) {
     const path = definition.path;
+    // Conveyor loops put many rocks on one orbit: draw each distinct track once.
+    const trackKey = path.kind === "orbit"
+      ? `o:${path.center.x},${path.center.y},${path.radiusX},${path.radiusY}`
+      : `p:${path.from.x},${path.from.y},${path.to.x},${path.to.y}`;
+    if (drawn.has(trackKey)) continue;
+    drawn.add(trackKey);
     if (path.kind === "ping-pong") {
       g.fillStyle(color, style.alpha);
       plotDashed(g, [path.from, path.to], style.dotPx, style.dashPx, style.gapPx);
@@ -98,6 +105,10 @@ type ArrowField = {
   readonly sockSilhouettes: readonly Phaser.GameObjects.Graphics[];
   readonly activeKey: string;
   readonly spacing: number;
+  readonly rotation: number;
+  readonly sockFlipped: boolean;
+  /** Alternating gusts: sign of the push the arrows currently show. */
+  sign: 1 | -1;
   offset: number;
   streakOffset: number;
   lastKey: string;
@@ -155,13 +166,22 @@ export class ForceZoneCues {
         speed = phase === "warning" ? style.gust.speedPxPerSecond * 0.12 : style.gust.speedPxPerSecond * envelope;
         tint = outlined ? this.theme.palette.light : campaignCuePalette.cream;
         field.band?.setAlpha(levels.band);
+        // Alternating storms: the arrows (warning included) always point the way this gust will push.
+        const sign = sample?.direction ?? 1;
+        if (sign !== field.sign) {
+          field.sign = sign;
+          const rotation = field.rotation + (sign < 0 ? Math.PI : 0);
+          for (const arrow of field.arrows) arrow.image.setRotation(rotation);
+          for (const streak of field.streaks) streak.image.setRotation(rotation);
+          field.windsock?.setFlipX(sign < 0 ? !field.sockFlipped : field.sockFlipped);
+        }
         const frame = windsockFrame(phase, envelope);
         if (field.windsock) field.windsock.setFrame(frame);
         field.sockSilhouettes.forEach((sock, index) => sock.setVisible(index === frame));
       }
       if (!this.reducedMotion) {
-        field.offset = wrap(field.offset + speed * dtSeconds, field.spacing);
-        field.streakOffset = wrap(field.streakOffset + speed * style.gust.streakSpeedScale * dtSeconds, style.gust.streakSpacingPx);
+        field.offset = wrap(field.offset + field.sign * speed * dtSeconds, field.spacing);
+        field.streakOffset = wrap(field.streakOffset + field.sign * speed * style.gust.streakSpeedScale * dtSeconds, style.gust.streakSpacingPx);
       }
       const key = `${alpha.toFixed(2)}:${streakAlpha.toFixed(2)}:${tint}:${outlined}`;
       const restyle = key !== field.lastKey;
@@ -283,7 +303,7 @@ export class ForceZoneCues {
         sockSilhouettes.push(sock);
       }
     }
-    return { zone, arrows, streaks, band, direction, bounds, outer, windsock, sockSilhouettes, activeKey, spacing, offset: 0, streakOffset: 0, lastKey: "" };
+    return { zone, arrows, streaks, band, direction, bounds, outer, windsock, sockSilhouettes, activeKey, spacing, rotation, sockFlipped: push.x < 0, sign: 1, offset: 0, streakOffset: 0, lastKey: "" };
   }
 
   private ensureFlowTextures(): void {
@@ -360,7 +380,7 @@ export class ForceZoneCues {
     });
     const core = this.scene.add.image(snap(cx), snap(cy), coreKey).setScale(FLIGHT_ART_SCALE).setDepth(CUE_DEPTH);
     this.statics.push(core);
-    // The oven is decorative and non-colliding; its centre remains a safe zero-force sample.
+    // The oven is non-colliding; when the well warps, its mouth (drawn by ChallengeCues) swallows the ship.
     const oven = this.scene.add.graphics().setPosition(snap(cx), snap(cy)).setDepth(depth.world - 0.4);
     const ink = colorNumber(this.theme.palette.skyTop);
     // Dark local clearing raises the oven mouth out of the painted cloud bank.

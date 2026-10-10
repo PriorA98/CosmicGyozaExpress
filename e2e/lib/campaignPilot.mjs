@@ -24,6 +24,17 @@ export function campaignData() {
   return loadData(resolve("src/data/campaign/index.ts"));
 }
 
+/** The shared campaign autopilot (src/dev/routePilot.ts): same controller as the route simulation tests. */
+export function routePilot() {
+  return loadData(resolve("src/dev/routePilot.ts"));
+}
+
+/** Probe flight state -> routePilot input. */
+export function pilotInput(s) {
+  return { ship: s.ship, simTimeMs: s.simTimeMs, environment: s.environment ?? null,
+    movingObstacles: s.movingObstacles ?? [], seekers: s.seekers ?? [], destination: s.destination };
+}
+
 export const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 export const wrapAngle = (angle) => Math.atan2(Math.sin(angle), Math.cos(angle));
 

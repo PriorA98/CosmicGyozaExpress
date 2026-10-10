@@ -23,7 +23,10 @@ export type SfxCueId =
   | "retry-swish"
   | "result-jingle"
   | "sound-on"
-  | "sound-off";
+  | "sound-off"
+  | "warp-pop"
+  | "koi-wake"
+  | "gust-whoosh";
 
 export type LoopCueId = "thrust" | "stabilizer";
 
@@ -65,6 +68,9 @@ export const SFX_CUE_IDS: readonly SfxCueId[] = [
   "result-jingle",
   "sound-on",
   "sound-off",
+  "warp-pop",
+  "koi-wake",
+  "gust-whoosh",
 ];
 
 export const LOOP_CUE_IDS: readonly LoopCueId[] = ["thrust", "stabilizer"];
@@ -183,8 +189,13 @@ export function mapGameEventToAudio(event: GameEvent, state: AudioMapperState, n
       return same([{ kind: "sfx", cue: "ui-confirm" }]);
     case "flight:gust-phase":
     case "landing:gust-phase":
-      // A soft hover-tick marks the start of each gust warning (the visual telegraph carries the meaning).
-      return same(event.phase === "warning" ? [{ kind: "sfx", cue: "ui-hover" }] : []);
+      // A soft tick marks each gust warning; a rising whoosh marks the push itself.
+      if (event.phase === "warning") return same([{ kind: "sfx", cue: "ui-hover" }]);
+      return same(event.phase === "attack" ? [{ kind: "sfx", cue: "gust-whoosh" }] : []);
+    case "flight:warp":
+      return same([{ kind: "sfx", cue: "warp-pop" }, ...STOP_LOOPS]);
+    case "flight:koi":
+      return same(event.mode === "alert" ? [{ kind: "sfx", cue: "koi-wake" }] : []);
     case "mission:start":
     case "mission:completed":
       return same([]);
@@ -377,6 +388,9 @@ export const SFX_TUNING = {
   "result-jingle": { db: -12, notes: [72, 76, 79, 81, 79, 84, 88], stepSeconds: 0.16 },
   "sound-on": { db: -13, notes: [72, 79] },
   "sound-off": { db: -15, notes: [79, 72] },
+  "warp-pop": { db: -6, fromHz: 520, toHz: 70, seconds: 0.55, popNotes: [84, 91] },
+  "koi-wake": { db: -11, notes: [74, 81], bubbleHz: 900 },
+  "gust-whoosh": { db: -9, fromHz: 300, toHz: 1500, seconds: 0.9 },
 } as const satisfies Record<SfxCueId, CueTrim>;
 
 export const LOOP_TUNING = {

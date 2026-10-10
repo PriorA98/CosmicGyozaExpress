@@ -5,7 +5,7 @@ import {
   probeSnapshot, seededRandomInitScript, summarizeErrors, timestampLabel,
   waitForProbe, waitForScene, writeJson,
 } from "./lib/harness.mjs";
-import { campaignData, cyclePeriod, flightControls, keyboardPilot, landingControls, readPilotState } from "./lib/campaignPilot.mjs";
+import { campaignData, cyclePeriod, keyboardPilot, pilotInput, readPilotState, routePilot } from "./lib/campaignPilot.mjs";
 
 const args = parseArgs(process.argv);
 const missions = [
@@ -31,6 +31,7 @@ if (!/^[a-zA-Z0-9_.-]+$/.test(label)) throw new Error("Label must be a simple di
 const outDir = `e2e/out/${label}`;
 ensureDir(outDir);
 const data = campaignData();
+const autopilot = routePilot();
 const browser = await launchBrowser();
 const reports = [];
 try {
@@ -99,7 +100,7 @@ async function runMission(config, attempt) {
     }
     report.phaseWait.endSimTimeMs = (await readPilotState(page, "flight")).state.simTimeMs;
     const started = Date.now();
-    const progress = { waypoint: 0, dock: false, staticObstacles: route.obstacles };
+    const progress = autopilot.createPilotProgress();
     let reached = false;
     let lastFlight = initial.state;
     let approachShot = false;
@@ -111,7 +112,8 @@ async function runMission(config, attempt) {
         throw new Error(`Lost FlightScene before arrival; active scenes: ${JSON.stringify(snapshot.scenes)}`);
       }
       lastFlight = s;
-      const controls = s.mode === "flying" ? flightControls(s, definition.pilotHints, progress) : {};
+      if (s.mode !== "flying") progress.lastSimMs = null;
+      const controls = s.mode === "flying" ? autopilot.pilotFlightControls(pilotInput(s), route, definition.pilotHints, progress) : {};
       trace("flight", snapshot, controls);
       await pilot.apply(controls);
       if (!approachShot && progress.waypoint === definition.pilotHints.waypoints.length - 1) {
@@ -162,7 +164,7 @@ async function runMission(config, attempt) {
         result = s.phase.result; await pilot.release(); await shot("05-touchdown");
       }
       if (snapshot.scenes.includes("DeliveryResultScene")) { sawResult = true; break; }
-      const controls = s?.phase.kind === "descending" ? landingControls(s, profile, definition.pilotHints.landing) : {};
+      const controls = s?.phase.kind === "descending" ? autopilot.pilotLandingControls({ state: s.state, pad: s.pad, wind: s.wind, tuning: s.tuning, zone: s.zone }, profile, definition.pilotHints.landing) : {};
       trace("landing", snapshot, controls);
       await pilot.apply(controls);
       await page.waitForTimeout(30);

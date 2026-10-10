@@ -146,6 +146,6 @@ export const blackHoleBakeryMission: MissionDefinitionV2 = {
     waypoint({ x: 2880, y: 1140 }, 190),
     waypoint({ x: 3200, y: 900 }),
     waypoint(destination, PILOT_DEFAULTS.crossingSpeed),
-  ]),
+  ], { maximumTiltRadians: 0.65 }),
   closingLine: null,
 };

@@ -42,6 +42,10 @@ export type GameEvent =
   | { readonly type: "flight:beacon"; readonly beaconId: string }
   /** Emitted when a gust zone's phase changes (independent of ship position). */
   | { readonly type: "flight:gust-phase"; readonly zoneId: string; readonly phase: GustPhase }
+  /** The oven mouth swallowed the ship; the white-hole toaster pops it out at `x, y`. */
+  | { readonly type: "flight:warp"; readonly zoneId: string; readonly x: number; readonly y: number }
+  /** A tea-koi changed mood (woke up, started chasing, gave up). */
+  | { readonly type: "flight:koi"; readonly seekerId: string; readonly mode: "sleeping" | "alert" | "chasing" | "returning" }
   | { readonly type: "landing:gust-phase"; readonly phase: GustPhase }
   | { readonly type: "landing:thrust"; readonly active: boolean }
   | { readonly type: "landing:stabilizer"; readonly active: boolean }

@@ -113,7 +113,7 @@ export const matchaNebulaLanding: LandingDefinition = {
   padMotion: { kind: "fixed" },
   surfaceTiltRadians: 0,
   // Two-layer mist: pushes right up high, left near the porch. Lean one way, then the other.
-  wind: { kind: "bands", splitAltitude: 260, blendPx: 80, upper: { x: 75, y: 0 }, lower: { x: -55, y: 0 } },
+  wind: { kind: "bands", splitAltitude: 260, blendPx: 80, upper: { x: 75, y: 0 }, lower: { x: -42, y: 0 } },
   collisionModel: "relative-pad",
 };
 
@@ -161,6 +161,6 @@ export const matchaNebulaMission: MissionDefinitionV2 = {
     waypoint({ x: 2760, y: 1115 }, 200, { quiet: true }),
     waypoint({ x: 3080, y: 880 }, 200, { quiet: true }),
     waypoint(destination, PILOT_DEFAULTS.crossingSpeed),
-  ]),
+  ], { maximumTiltRadians: 0.55 }),
   closingLine: null,
 };

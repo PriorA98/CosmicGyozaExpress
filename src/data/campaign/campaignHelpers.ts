@@ -44,12 +44,12 @@ export function waypoint(position: Point, targetSpeed: number = PILOT_DEFAULTS.c
   };
 }
 
-export function pilotHints(waypoints: readonly PilotWaypoint[]): MissionPilotHints {
+export function pilotHints(waypoints: readonly PilotWaypoint[], landing: Partial<MissionPilotHints["landing"]> = {}): MissionPilotHints {
   return {
     waypoints,
     arrivalSpeed: PILOT_DEFAULTS.arrivalSpeed,
     obstacleLookaheadSeconds: PILOT_DEFAULTS.obstacleLookaheadSeconds,
-    landing: PILOT_DEFAULTS.landing,
+    landing: { ...PILOT_DEFAULTS.landing, ...landing },
   };
 }
 

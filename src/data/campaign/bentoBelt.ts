@@ -147,6 +147,6 @@ export const bentoBeltMission: MissionDefinitionV2 = {
     waypoint(BENTO_LOOP_B, 200, { hold: true, radius: 60 }),
     waypoint({ x: 3000, y: 900 }, 200),
     waypoint(destination, PILOT_DEFAULTS.crossingSpeed),
-  ]),
+  ], { maximumTiltRadians: 0.5 }),
   closingLine: null,
 };

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { routeForMission } from "../src/data/campaign";
 import { shipTuning } from "../src/data/tuning";
+import { simulateLanding } from "../src/dev/landingSim";
 import { naiveDefeated, runHintedPilot, runNaivePilot } from "../src/dev/routeChallenge";
 import { gravityProfile, riverShare, sampleForceZone, sampleGustCycle, warpAt } from "../src/systems/ForceFieldSystem";
 import { createSeekerStates, seekerContact, seekerNoiseShare, stepSeeker, type SeekerState } from "../src/systems/SeekerSystem";
@@ -113,6 +114,25 @@ describe("challenge redesign: every mechanic is solvable and none is ignorable (
   it("signature forces are felt: at least 25% of thrust somewhere on every redesigned route", () => {
     for (const id of ["matcha-nebula", "black-hole-bakery", "im-fine"] as const) {
       expect(runHintedPilot(id).peakEnvironment).toBeGreaterThan(shipTuning.thrustAcceleration * 0.25);
+    }
+  });
+});
+
+describe("challenge redesign: landings", () => {
+  const phases = [0, 1500, 3000, 4500, 6000, 9000];
+  it("the landing autopilot lands every mission soft and bumpy from any phase", () => {
+    for (const id of ["tea-moon", "bento-belt", "matcha-nebula", "black-hole-bakery", "im-fine", "home-delivery"] as const) {
+      for (const start of phases) {
+        expect(simulateLanding(id, "soft", start).result, `${id} soft @${start}`).toBe("soft");
+        expect(simulateLanding(id, "bumpy", start).result, `${id} bumpy @${start}`).toBe("bumpy");
+      }
+    }
+  });
+
+  it("each landing twist matters: ignoring wind or tray motion stops being reliably soft", () => {
+    for (const id of ["bento-belt", "matcha-nebula", "black-hole-bakery", "im-fine"] as const) {
+      const soft = phases.filter((start) => simulateLanding(id, "soft", start, 45000, true).result === "soft").length;
+      expect(soft, id).toBeLessThanOrEqual(phases.length / 2);
     }
   });
 });

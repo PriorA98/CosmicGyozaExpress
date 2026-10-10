@@ -221,22 +221,22 @@ describe("landing environment", () => {
     expect(peak).toBeCloseTo(83.8, 0);
     expect(peak).toBeGreaterThan(landing.tuning.safeHorizontalSpeed);
   });
-  it("I'm Fine squall is zero in the last 60 px, full above 150 px, and swaps sides every gust", () => {
+  it("I'm Fine squall is zero in the last 40 px, full above 110 px, and swaps sides every gust", () => {
     const wind = landingForMission("im-fine").wind;
-    expect(shelterExposure(wind, 50)).toBe(0);
-    expect(shelterExposure(wind, 105)).toBeCloseTo(0.5);
+    expect(shelterExposure(wind, 30)).toBe(0);
+    expect(shelterExposure(wind, 75)).toBeCloseTo(0.5);
     expect(shelterExposure(wind, 300)).toBe(1);
-    expect(sampleLandingWind(wind, 300, 3000).acceleration.x).toBeCloseTo(120);
-    expect(sampleLandingWind(wind, 300, 3000 + 7500).acceleration.x).toBeCloseTo(-120);
+    expect(sampleLandingWind(wind, 300, 3000).acceleration.x).toBeCloseTo(140);
+    expect(sampleLandingWind(wind, 300, 3000 + 7500).acceleration.x).toBeCloseTo(-140);
     expect(sampleLandingWind(wind, 40, 3000).acceleration.x).toBe(0);
     expect(sampleLandingWind(wind, 300, 0).acceleration.x).toBe(0);
   });
   it("Matcha mist pushes right up high and left near the pad", () => {
     const wind = landingForMission("matcha-nebula").wind;
     expect(sampleLandingWind(wind, 400, 0).acceleration.x).toBeCloseTo(75);
-    expect(sampleLandingWind(wind, 100, 0).acceleration.x).toBeCloseTo(-55);
+    expect(sampleLandingWind(wind, 100, 0).acceleration.x).toBeCloseTo(-42);
     const middle = sampleLandingWind(wind, 260, 0).acceleration.x;
-    expect(middle).toBeGreaterThan(-55);
+    expect(middle).toBeGreaterThan(-42);
     expect(middle).toBeLessThan(75);
   });
 });

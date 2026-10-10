@@ -94,20 +94,20 @@ describe("campaign wind and shelter", () => {
       const sample = sampleLandingWind(gust.wind, 200, time);
       expect(sample.phase).toBe("warning");
       expect(sample.acceleration).toEqual({ x: 0, y: 0 });
-      expect(windsockFrameFor(sample, 120)).toBe("warning");
+      expect(windsockFrameFor(sample, 140)).toBe("warning");
     }
     const active = sampleLandingWind(gust.wind, 200, 3000);
-    expect(active.acceleration.x).toBe(120);
-    expect(windsockFrameFor(active, 120)).toBe("strong");
+    expect(active.acceleration.x).toBe(140);
+    expect(windsockFrameFor(active, 140)).toBe("strong");
   });
 
-  it("blends shelter between 60 and 150 pixels and keeps the lower sock calm even during warning", () => {
-    expect(sampleLandingWind(gust.wind, 105, 3000).acceleration.x).toBe(60);
+  it("blends shelter between 40 and 110 pixels and stays calm under the porch even during warning", () => {
+    expect(sampleLandingWind(gust.wind, 75, 3000).acceleration.x).toBe(70);
     for (const time of [0, 3000, 7000]) {
-      const sample = sampleLandingWind(gust.wind, 60, time);
+      const sample = sampleLandingWind(gust.wind, 40, time);
       expect(sample.exposure).toBe(0);
       expect(sample.acceleration.x).toBeCloseTo(0);
-      expect(windsockFrameFor(sample, 120)).toBe("calm");
+      expect(windsockFrameFor(sample, 140)).toBe("calm");
     }
   });
 
@@ -137,9 +137,9 @@ describe("campaign landing notes", () => {
 
   it("prioritizes shelter, warning, and active gust in the player's current context", () => {
     expect(note("im-fine", 0, 200)).toBe("gustWarning");
-    expect(note("im-fine", 0, 50)).toBe("landingCalm");
+    expect(note("im-fine", 0, 30)).toBe("landingCalm");
     expect(note("im-fine", 3000, 200)).toBe("landingTwist");
-    expect(note("im-fine", 3000, 50)).toBe("landingCalm");
+    expect(note("im-fine", 3000, 30)).toBe("landingCalm");
     const definition = landingForMission("im-fine");
     expect(campaignLandingNote({ definition, clockMs: 2100, altitude: 200,
       wind: sampleLandingWind(definition.wind, 200, 2100), introNoteMs: 3600, calmAltitude: 100,

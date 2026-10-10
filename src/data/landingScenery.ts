@@ -576,7 +576,8 @@ export const campaignLandingDecor: Readonly<Record<Exclude<ThemeId, "teaMoon">, 
     rockShape: "mossy",
     rocks: [{ x: 60, y: 690, size: 26 }, { x: 420, y: 688, size: 20 }, { x: 1250, y: 692, size: 28 }],
     flour: false, ambient: { kind: "firefly", count: 14, color: "light" },
-    windsocks: [{ x: 284, altitude: 150, mount: "mast" }], shelter: null, canopy: null,
+    // Two mists: a low sock by the post reads the lower layer, a tall mast on the right reads the upper one.
+    windsocks: [{ x: 284, altitude: 150, mount: "mast" }, { x: 1000, altitude: 380, mount: "mast" }], shelter: null, canopy: null,
   },
   blackHoleBakery: {
     backdrop: { skyTexture: ASSET.campaignLandingSkyBakery, farHillsTexture: ASSET.campaignLandingHillsBakery, groundTexture: null },
@@ -593,7 +594,8 @@ export const campaignLandingDecor: Readonly<Record<Exclude<ThemeId, "teaMoon">, 
     rockShape: "crumb",
     rocks: [{ x: 26, y: 690, size: 22 }, { x: 392, y: 696, size: 16 }, { x: 870, y: 692, size: 24 }, { x: 1250, y: 694, size: 18 }],
     flour: true, ambient: null,
-    windsocks: [], shelter: null, canopy: null,
+    // A flour streamer shows the oven's sideways pull.
+    windsocks: [{ x: 1000, altitude: 190, mount: "mast" }], shelter: null, canopy: null,
   },
   imFine: {
     backdrop: { skyTexture: ASSET.campaignLandingSkyImFine, farHillsTexture: ASSET.campaignLandingHillsImFine, groundTexture: null },

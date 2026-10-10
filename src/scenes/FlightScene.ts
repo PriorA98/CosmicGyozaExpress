@@ -25,6 +25,7 @@ import { TeaMoon } from "../entities/flight/TeaMoon";
 import { CampaignDestination } from "../entities/flight/CampaignDestination";
 import { RoutePickups, RouteLanterns, RouteCheckpoints } from "../entities/flight/RouteMarkers";
 import { ForceZoneCues, FogLayer, drawMotionTracks } from "../entities/flight/RouteMechanicsCues";
+import { DenseFog, TeaKoiSchool, drawWarpCues } from "../entities/flight/ChallengeCues";
 import { routeCameraPath, routeCameraStops, routeKeepOuts, advanceSimClock, pickRockTexture, windsockFrame, simulationSteps } from "../entities/flight/flightCueMath";
 import { GyozaShip, resolveShipArtLayout } from "../entities/GyozaShip";
 import { burstDust, burstIncident, burstSparkles, shakeCamera, isReducedMotion } from "../fx/feedback";
@@ -38,7 +39,8 @@ import {
   type ArrivalGateState,
 } from "../systems/ArrivalGateSystem";
 import { classifyCollision, findFirstCollision, resolveCircleCollision, resolveMovingCollision, sweptMovingContact } from "../systems/CollisionSystem";
-import { sampleForceField, type ForceFieldSample } from "../systems/ForceFieldSystem";
+import { sampleForceField, warpAt, type ForceFieldSample } from "../systems/ForceFieldSystem";
+import { createSeekerStates, seekerContact, stepSeekers, type SeekerState } from "../systems/SeekerSystem";
 import { sampleMovingObstacles, type MovingObstacleState } from "../systems/MotionPathSystem";
 import { collectAlongSegment, checkpointAt, beaconsInReach } from "../systems/CollectibleSystem";
 import { SaveSystem } from "../systems/SaveSystem";
@@ -80,6 +82,9 @@ type FlightMode =
       readonly respawnAtMs: number;
       readonly resumeAtMs: number;
       hasRespawned: boolean;
+      /** Oven warp: no crash frames; the ship is swallowed and popped out at `respawnTo`. */
+      readonly warp: boolean;
+      readonly respawnTo: ShipKinematicState | null;
     }
   | { readonly kind: "arriving"; readonly startedAtMs: number };
 
@@ -127,6 +132,12 @@ export class FlightScene extends Phaser.Scene {
   private checkpointMarkers: RouteCheckpoints | undefined;
   private forceCues: ForceZoneCues | undefined;
   private fog: FogLayer | undefined;
+  private denseFog: DenseFog | undefined;
+  private koiSchool: TeaKoiSchool | undefined;
+  private warpCues: Phaser.GameObjects.GameObject[] = [];
+  private seekers: SeekerState[] = [];
+  private koiWakeNoted = false;
+  private routeWarps = 0;
   private mechanicIntroduced = false;
   private mechanicIntroPending = false;
   private nextGustNoteMs = 0;
@@ -248,6 +259,9 @@ export class FlightScene extends Phaser.Scene {
       this.checkpointMarkers?.destroy();
       this.forceCues?.destroy();
       this.fog?.destroy();
+      this.denseFog?.destroy();
+      this.koiSchool?.destroy();
+      for (const object of this.warpCues) object.destroy();
       if (this.moon instanceof CampaignDestination) this.moon.destroy();
     });
 
@@ -264,6 +278,8 @@ export class FlightScene extends Phaser.Scene {
       simTimeMs: this.simTimeMs,
       environment: { ax: this.environment.acceleration.x, ay: this.environment.acceleration.y, phase: this.environment.dominant?.phase ?? this.environment.zones.find((zone) => this.gustPhases.has(zone.zoneId))?.phase ?? "calm" },
       movingObstacles: this.movingObstacles.map((obstacle) => ({ id: obstacle.id, x: obstacle.position.x, y: obstacle.position.y, vx: obstacle.velocity.x, vy: obstacle.velocity.y, radius: obstacle.radius })),
+      seekers: this.seekers.map((koi, index) => ({ id: koi.id, x: koi.position.x, y: koi.position.y, vx: koi.velocity.x, vy: koi.velocity.y, radius: this.route.seekers[index]?.radius ?? 0, mode: koi.mode, noiseMs: koi.noiseMs })),
+      routeWarps: this.routeWarps,
       collectedIds: [...this.collectedIds],
       checkpointId: this.checkpoint?.id ?? null,
       destination: this.route.destination,
@@ -316,6 +332,53 @@ export class FlightScene extends Phaser.Scene {
       this.handleBadDocking(evaluateDocking(this.ship.kinematics, this.route.destination), time);
     }
     if (!this.theme.legacy && this.flightMode.kind === "flying") this.updateRouteProgress(previous, time);
+    if (!this.theme.legacy && this.flightMode.kind === "flying") this.updateChallenge(controls.thrust, time, delta);
+  }
+
+  /** Phase-4 route mechanics: the oven mouth warp and the tea-koi (same order as the route simulator). */
+  private updateChallenge(thrusting: boolean, time: number, deltaMs: number): void {
+    const warp = warpAt(this.route.forceZones, this.ship.kinematics);
+    if (warp) {
+      this.triggerWarp(time, warp.zoneId, warp.warp.exit);
+      return;
+    }
+    if (this.route.seekers.length === 0) return;
+    const before = this.seekers;
+    this.seekers = stepSeekers(this.route.seekers, this.seekers, { ship: this.ship.kinematics, thrusting, dtMs: deltaMs });
+    this.seekers.forEach((koi, index) => {
+      if (koi.mode === before[index]?.mode) return;
+      emitGameEvent(this, { type: "flight:koi", seekerId: koi.id, mode: koi.mode });
+      if (koi.mode === "alert" && !this.koiWakeNoted) {
+        this.koiWakeNoted = true;
+        this.setDashboardLine(campaignFlightCopy.koiWakeLine, time, campaignFlightTuning.mechanicNoteMs);
+      }
+    });
+    if (time >= this.invulnerableUntilMs && seekerContact(this.route.seekers, this.seekers, this.ship.kinematics, shipTuning.collisionRadius)) {
+      this.triggerIncident(time, campaignFlightCopy.nibbleLine);
+    }
+  }
+
+  /** Swallowed by the oven: a short beat, then the white-hole toaster pops the ship out at `exit`. */
+  private triggerWarp(time: number, zoneId: string, exit: ShipKinematicState): void {
+    if (this.flightMode.kind !== "flying") return;
+    this.routeWarps += 1;
+    this.packageCondition = applyPackageConditionEvent(this.packageCondition, "dramatic-bump");
+    this.setDashboardLine(campaignFlightCopy.warpLine, time, respawnTuning.respawnDelayMs + flightNoteTuning.incidentExtraMs);
+    this.flightMode = {
+      kind: "incident",
+      startedAtMs: time,
+      respawnAtMs: time + respawnTuning.respawnDelayMs,
+      resumeAtMs: time + respawnTuning.respawnDelayMs + respawnTuning.resumeDelayMs,
+      hasRespawned: false,
+      warp: true,
+      respawnTo: exit,
+    };
+    this.collisionCooldownUntilMs = time + respawnTuning.respawnDelayMs + collisionTuning.collisionCooldownMs;
+    const { x, y } = this.ship.kinematics;
+    emitGameEvent(this, { type: "flight:warp", zoneId, x: exit.x, y: exit.y });
+    burstSparkles(this, x, y, { count: 16, spread: 70, depth: depth.shipFx });
+    this.ship.setVisible(false);
+    this.engine.update(x, y, 0, false, 0, time, false);
   }
 
   private readControls(): ShipControls {
@@ -495,6 +558,8 @@ export class FlightScene extends Phaser.Scene {
       respawnAtMs: time + respawnTuning.respawnDelayMs,
       resumeAtMs: time + respawnTuning.respawnDelayMs + respawnTuning.resumeDelayMs,
       hasRespawned: false,
+      warp: false,
+      respawnTo: null,
     };
     this.collisionCooldownUntilMs = time + respawnTuning.respawnDelayMs + collisionTuning.collisionCooldownMs;
     this.ship.setIncidentFrame(1);
@@ -508,7 +573,7 @@ export class FlightScene extends Phaser.Scene {
   private updateIncident(time: number): void {
     if (this.flightMode.kind !== "incident") return;
 
-    if (!this.flightMode.hasRespawned) {
+    if (!this.flightMode.hasRespawned && !this.flightMode.warp) {
       const elapsed = time - this.flightMode.startedAtMs;
       const frame = clamp(Math.floor(elapsed / respawnTuning.incidentFrameMs) + 1, 1, respawnTuning.incidentFrameCount);
       this.ship.setIncidentFrame(frame);
@@ -516,8 +581,11 @@ export class FlightScene extends Phaser.Scene {
 
     if (!this.flightMode.hasRespawned && time >= this.flightMode.respawnAtMs) {
       this.flightMode.hasRespawned = true;
-      const respawn = this.theme.legacy ? this.route.checkpoint : this.checkpoint?.respawn ?? this.route.start;
+      const respawn = this.flightMode.respawnTo ?? (this.theme.legacy ? this.route.checkpoint : this.checkpoint?.respawn ?? this.route.start);
+      this.ship.setVisible(true);
       this.ship.setKinematicState(respawn, false);
+      // Every koi settles back to sleep: a retry always starts quiet.
+      this.seekers = createSeekerStates(this.route.seekers);
       this.ship.playSquash(shipVisualStyle.squash["dramatic-bump"], shipVisualStyle.squashMs);
       this.invulnerableUntilMs = time + respawnTuning.invulnerableMs;
       this.setDashboardLine(flightLines.respawn, time);
@@ -538,6 +606,9 @@ export class FlightScene extends Phaser.Scene {
     this.checkpointMarkers?.reset();
     this.movingContacts.clear();
     this.gustPhases.clear();
+    this.seekers = createSeekerStates(this.route.seekers);
+    this.koiWakeNoted = false;
+    this.routeWarps = 0;
     this.mechanicIntroduced = false;
     this.mechanicIntroPending = false;
     this.nextGustNoteMs = 0;
@@ -640,9 +711,11 @@ export class FlightScene extends Phaser.Scene {
     for (const asteroid of this.asteroids.values()) asteroid.update(time);
     this.forceCues?.update(this.simTimeMs, this.environment.zones, this.ship.kinematics, this.hud.labelAvoidRects);
     this.fog?.update(this.simTimeMs);
+    this.koiSchool?.update(this.seekers, this.simTimeMs);
     this.pickups?.update(this.simTimeMs);
 
     this.updateCameraTarget(delta);
+    this.denseFog?.update(this.ship.kinematics);
     this.backdrop.update(time, this.theme.legacy ? undefined : this.hud.labelAvoidRects);
     this.beacon.update(docking, this.arrivalProgress, time);
     if (!this.theme.legacy && time >= this.nextHudMs) this.indicator.setWorldKeepOuts([
@@ -752,6 +825,10 @@ export class FlightScene extends Phaser.Scene {
     this.checkpointMarkers = undefined;
     this.forceCues = undefined;
     this.fog = undefined;
+    this.denseFog = undefined;
+    this.koiSchool = undefined;
+    this.warpCues = [];
+    this.seekers = createSeekerStates(this.route.seekers);
     this.environment = { acceleration: { x: 0, y: 0 }, magnitude: 0, zones: [], dominant: null };
     this.shownBeaconIds = new Set();
     this.reachedCheckpointIds = new Set();
@@ -770,6 +847,9 @@ export class FlightScene extends Phaser.Scene {
     this.checkpointMarkers = new RouteCheckpoints(this, this.route.checkpoints, this.theme);
     this.forceCues = new ForceZoneCues(this, this.route.forceZones, this.theme, reducedMotion, this.route.start);
     if (this.route.visibility.kind === "fog") this.fog = new FogLayer(this, this.route.visibility, reducedMotion);
+    if (this.route.visibility.kind === "fog" && this.route.visibility.dense) this.denseFog = new DenseFog(this, this.route.visibility, this.theme, reducedMotion);
+    if (this.route.seekers.length > 0) this.koiSchool = new TeaKoiSchool(this, this.route.seekers, this.theme, reducedMotion);
+    this.warpCues = drawWarpCues(this, this.route.forceZones, this.theme, reducedMotion);
     drawMotionTracks(this, this.route.movingObstacles, this.theme);
     this.movingObstacles.forEach((obstacle, index) => {
       this.asteroids.set(obstacle.id, new Asteroid(this, { ...obstacle.position, id: obstacle.id, label: obstacle.label, radius: obstacle.radius }, undefined, this.route.obstacles.length + index, obstacle.textureKey, this.theme.palette.light));

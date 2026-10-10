@@ -15,12 +15,22 @@ export type WindIndicatorWord = keyof typeof campaignLandingCopy.wind;
 
 /** HUD word for a wind sample: steady crosswind, gust gathering / gusting, sheltered under the porch, calm. */
 export function windIndicatorWord(wind: LandingWindDefinition, sample: LandingWindSample): Exclude<WindIndicatorWord, "label"> {
-  if (wind.kind === "steady") return "steady";
+  if (wind.kind === "steady" || wind.kind === "bands") return "steady";
   if (wind.kind === "none") return "calm";
   if (sample.exposure <= 0) return "sheltered";
   if (sample.phase === "warning") return "gathering";
   if (sample.envelope > 0) return "gusting";
   return "calm";
+}
+
+/**
+ * Which way the wind at this sample pushes (or, during a gust warning, will push): -1 left, 1 right.
+ * Alternating squalls flip each gust; layered mist flips with altitude.
+ */
+export function windDirectionSign(wind: LandingWindDefinition, sample: LandingWindSample): 1 | -1 {
+  if (Math.abs(sample.acceleration.x) > 1) return sample.acceleration.x < 0 ? -1 : 1;
+  const base = wind.kind === "steady" ? wind.acceleration.x : wind.kind === "gust" ? wind.peakAcceleration.x * sample.direction : wind.kind === "bands" ? wind.upper.x : 1;
+  return base < 0 ? -1 : 1;
 }
 
 /**
@@ -39,8 +49,8 @@ export class LandingWindIndicator {
   /** `anchor` (screen px): pin the chip by its top-right corner, e.g. beside the touch retry chip. */
   constructor(scene: Phaser.Scene, wind: LandingWindDefinition, uiScale: number, compact = false, anchor?: { readonly right: number; readonly top: number }) {
     this.wind = wind;
-    const direction = wind.kind === "steady" ? wind.acceleration.x : wind.kind === "gust" ? wind.peakAcceleration.x : 1;
-    this.peak = wind.kind === "steady" ? Math.abs(wind.acceleration.x) : wind.kind === "gust" ? Math.abs(wind.peakAcceleration.x) : 1;
+    const direction = wind.kind === "steady" ? wind.acceleration.x : wind.kind === "gust" ? wind.peakAcceleration.x : wind.kind === "bands" ? wind.upper.x : 1;
+    this.peak = wind.kind === "steady" ? Math.abs(wind.acceleration.x) : wind.kind === "gust" ? Math.abs(wind.peakAcceleration.x) : wind.kind === "bands" ? Math.max(Math.abs(wind.upper.x), Math.abs(wind.lower.x)) : 1;
     const config = campaignLandingScenery.windIndicator;
     const panel = scene.add.graphics();
     panel.fillStyle(colorNumber(colors.cosmosDeep), 0.45);
@@ -77,9 +87,11 @@ export class LandingWindIndicator {
     this.highlight.setVisible(word === "gathering").setAlpha(gustWarningAlpha(clockMs, isReducedMotion()));
     const strength = this.peak > 0 ? Math.min(1, Math.abs(sample.acceleration.x) / this.peak) : 0;
     const alphaStep = Math.round((word === "gathering" ? 0.6 : 0.3 + strength * 0.7) * 4) / 4;
-    const key = `${word}:${alphaStep}`;
+    const sign = windDirectionSign(this.wind, sample);
+    const key = `${word}:${alphaStep}:${sign}`;
     if (key === this.key) return;
     this.key = key;
+    this.arrow.setScale(sign, 1);
     this.word.setText(campaignLandingCopy.wind[word]);
     this.arrow.setAlpha(alphaStep).setVisible(word !== "sheltered");
   }

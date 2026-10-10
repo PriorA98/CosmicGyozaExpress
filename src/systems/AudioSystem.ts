@@ -465,6 +465,26 @@ function playSfx(bus: AudioBus, cue: SfxCueId, t0: number, step = 1): void {
       t.notes.forEach((note) => playBell(bus, t0 + 0.32, note, dbToGain(t.db) * 0.45, 1.2, wet));
       return;
     }
+    case "warp-pop": {
+      const t = SFX_TUNING["warp-pop"];
+      const peak = dbToGain(t.db);
+      // Gulp (a falling tone into the oven), then the toaster pops: two bright plucks and a puff.
+      playTone(bus, t0, { type: "triangle", hz: t.fromHz, toHz: t.toHz, glideSeconds: t.seconds, shape: { attack: 0.01, decay: t.seconds, peak: peak * 0.8 } }, wet);
+      t.popNotes.forEach((note, i) => playPluck(bus, t0 + t.seconds + 0.45 + i * 0.06, note, peak * 0.7, wet));
+      playNoise(bus, t0 + t.seconds + 0.42, { filter: "bandpass", fromHz: 900, toHz: 2600, q: 0.8, shape: { attack: 0.01, decay: 0.2, peak: peak * 0.5 } }, dry);
+      return;
+    }
+    case "koi-wake": {
+      const t = SFX_TUNING["koi-wake"];
+      t.notes.forEach((note, i) => playBell(bus, t0 + i * 0.14, note, dbToGain(t.db), 1.4, wet));
+      playTone(bus, t0, { type: "sine", hz: t.bubbleHz, toHz: t.bubbleHz * 1.6, glideSeconds: 0.08, shape: { attack: 0.004, decay: 0.08, peak: dbToGain(t.db) * 0.6 } }, dry);
+      return;
+    }
+    case "gust-whoosh": {
+      const t = SFX_TUNING["gust-whoosh"];
+      playNoise(bus, t0, { filter: "bandpass", fromHz: t.fromHz, toHz: t.toHz, q: 0.7, shape: { attack: t.seconds * 0.5, decay: t.seconds, peak: dbToGain(t.db) } }, dry);
+      return;
+    }
     case "retry-swish": {
       const t = SFX_TUNING["retry-swish"];
       playNoise(bus, t0, { filter: "bandpass", fromHz: t.fromHz, toHz: t.toHz, q: 1.3, shape: { attack: t.seconds * 0.6, decay: t.seconds * 0.6, peak: dbToGain(t.db) } }, dry);
