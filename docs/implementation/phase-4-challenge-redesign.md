@@ -1,6 +1,6 @@
 # Phase 4 — Challenge Redesign (analysis and plan)
 
-Date: 2026-10-10. Status: proposal, nothing implemented yet.
+Date: 2026-10-10. Status: **implemented 2026-10-10** (see §8 for what shipped and how it was verified). Sections 1–7 are the original analysis.
 Trigger: player playtest. "Way too easy; the special mechanics are almost completely ignorable; the black hole is so weak and the moving things add nothing."
 Inspiration: the planets of Outer Wilds, where each world has one physical idea that the route forces you to engage with and that you can eventually exploit.
 
@@ -213,3 +213,35 @@ Cut order, if time runs short:
 5. Banded landing wind (use one strong steady wind).
 
 Never cut P0. The retune alone fixes "the mechanics do nothing".
+
+## 8. As implemented (2026-10-10)
+
+Built in this session with Claude (Codex was out of usage). Numbers below are the shipped values; they differ from §3 where tuning in the route simulator showed a better result.
+
+| Level | Shipped mechanic | Key numbers |
+|---|---|---|
+| Bento Belt | Chopstick gate in a full-height wall; two sushi-conveyor loops (9 rocks each) with lane currents; calm seat between loops | gate 5 s; loops 30 s / 27 s, about 170–190 px/s in the lanes; lane current 70 (flow 170); tray 480↔800, peak 84 px/s, pad 300 |
+| Matcha Nebula | Bending river (flow-speed current) between reed banks; still pool at the bottom bend; 5 tea-koi; dense fog with lantern buoys; two-layer landing mist | river 110–140 (flow 200); koi wake after 450 ms of heard thrust (drains over 1.5 s), chase 175 px/s, give up after 1.7 s quiet, leash 700; fog radius 300; mist +75 above 260 px, −42 below |
+| Black Hole Bakery | Inverse-falloff well behind crust cliffs; rotating crust ring (12 rocks, three double gaps); oven-mouth warp to the toaster; sideways landing pull | peak 300 at 200 px, cap 320; ring 620 px / 30 s; warp radius 140; landing gravity 100 + pull −60, pad 300 |
+| Planet I'm Fine | Three alternating storm strips with sea-stack doorways; calm eyes by lighthouses; tornado column to a sky lane with bobbing islands | gust ±300 (71% of thrust), cycle 7.5 s with 1.5 s warning; doorway about 210 px; tornado −260 (flow 300); landing squall ±140, sheltered below 40 px |
+| Home | Gentle tailwind and a small kettle well; no hazards | tailwind 45 (flow 150); kettle 70 |
+
+The naive pilot model in the test is stricter than §2's straight-line idea: it follows the same path but never waits, never goes quiet, never dodges moving things, reacts to forces 350 ms late at 80%, and presses thrust in bursts of at least 450 ms.
+
+Verification:
+
+- `npm test`: 394 tests. `tests/challengeRedesign.test.ts` holds:
+  - every redesigned route: the hinted pilot arrives with 0 incidents, 0 warps and ≤ 1 hard bump, and never wakes a koi; the naive pilot is defeated (incident, warp, or two or more hard bumps);
+  - every landing: soft and bumpy succeed from six gust and tray phases;
+  - ignoring wind or tray motion is soft at most half the time on the four twisted landings.
+- Real-keyboard e2e (`e2e/campaign-playtest.mjs`, shared TS pilot):
+  - `--mission=all --landing=soft`: all pass, 0 crashes.
+  - `--landing=bumpy --incident-first=true --phase=0.5`: all pass, 0 crashes, landing retry about 1.1 s.
+  - 60 fps throughout.
+- `e2e/capture.mjs --states=all` on desktop and a small phone: 106 captures, 0 runtime errors, 0 failed assets.
+
+Not yet done:
+
+- A human playtest of the new difficulty. Simulated pilots cannot judge how hard it feels.
+- Final art for the koi, toaster and lantern buoys. They are code-drawn pixel art in `ChallengeCues.ts`.
+- Re-scoring by the module critics.

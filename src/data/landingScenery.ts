@@ -577,7 +577,7 @@ export const campaignLandingDecor: Readonly<Record<Exclude<ThemeId, "teaMoon">, 
     rocks: [{ x: 60, y: 690, size: 26 }, { x: 420, y: 688, size: 20 }, { x: 1250, y: 692, size: 28 }],
     flour: false, ambient: { kind: "firefly", count: 14, color: "light" },
     // Two mists: a low sock by the post reads the lower layer, a tall mast on the right reads the upper one.
-    windsocks: [{ x: 284, altitude: 150, mount: "mast" }, { x: 1000, altitude: 380, mount: "mast" }], shelter: null, canopy: null,
+    windsocks: [{ x: 284, altitude: 150, mount: "mast" }, { x: 880, altitude: 380, mount: "mast" }], shelter: null, canopy: null,
   },
   blackHoleBakery: {
     backdrop: { skyTexture: ASSET.campaignLandingSkyBakery, farHillsTexture: ASSET.campaignLandingHillsBakery, groundTexture: null },

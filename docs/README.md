@@ -16,6 +16,8 @@ This folder contains the official project documentation derived from the origina
   - Detailed implementation plan for the Phase 2 Tea Moon vertical slice and one-bottom-thruster landing sequence.
 - `implementation/phase-3-campaign-plan.md`
   - Phase 3 six-mission campaign spec (Codex gpt-6-astra planning pass, adopted 2026-10-02): mechanics per level, data contracts, delivery board, save normalization, art stages, work packages, autopilot criteria.
+- `implementation/phase-4-challenge-redesign.md`
+  - Phase 4 challenge redesign (2026-10-10): measured diagnosis of the too-easy campaign, Outer Wilds-inspired mechanics per level, design rules, the solvable-but-not-ignorable acceptance test, and the implemented tuning.
 - `gameplay-decisions.md`
   - Locked gameplay decisions for Phase 1 and Phase 2.
 - `wiki/README.md`

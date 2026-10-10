@@ -1,6 +1,6 @@
 {
   "project": "Cosmic Gyoza Express — Tea Moon vertical slice polish",
-  "updatedAt": "2026-10-02T22:10:00+09:00",
+  "updatedAt": "2026-10-10",
   "passBar": {
     "score": 8.5,
     "runtimeErrors": 0,
@@ -701,5 +701,23 @@
       }
     },
     "phase": "gate complete (2 of 3 module critics below bar at round limit; whole-game PASS)"
+  },
+  "phase4": {
+    "updatedAt": "2026-10-10",
+    "plan": "docs/implementation/phase-4-challenge-redesign.md",
+    "trigger": "player playtest: campaign too easy, mechanics ignorable",
+    "author": "Claude Opus 5.5 (Codex out of usage)",
+    "status": "implemented, awaiting human playtest",
+    "verification": {
+      "unitTests": "394 passed (tests/challengeRedesign.test.ts: hinted pilot solves, mechanic-blind pilot defeated, landings soft/bumpy at 6 phases)",
+      "e2eSoft": "e2e/out/p4-gate-soft: all missions pass, 0 crashes",
+      "e2eBumpyIncidentFirst": "e2e/out/p4-gate-bumpy: all pass, retry ~1.1 s",
+      "captures": "e2e/out/p4-all: 106 captures desktop + phoneSmallTouch, 0 runtime errors"
+    },
+    "open": [
+      "human playtest of difficulty (Bakery and I'm Fine most likely to need tuning)",
+      "final art for tea-koi, toaster, lantern buoys (code-drawn placeholders)",
+      "module critics not re-scored after phase 4"
+    ]
   }
 }
