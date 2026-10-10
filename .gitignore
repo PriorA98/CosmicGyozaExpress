@@ -20,3 +20,4 @@ art-src/**/raw/
 art-src/**/*.preview.png
 art-src/**/previews/
 art-src/campaign/_work/
+debug.log
