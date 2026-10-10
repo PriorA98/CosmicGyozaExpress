@@ -30,7 +30,13 @@ export const homeDeliveryRoute: FlightRouteDefinition = {
   },
   obstacles: [],
   movingObstacles: [],
-  forceZones: [],
+  // Victory lap (phase-4 §3): gentle echoes of every world that cannot go wrong. A tailwind river toward home
+  // and the kettle's small warm pull to swing around, if you like.
+  forceZones: [
+    { kind: "directional-current", id: "home-tailwind", area: { kind: "rect", x: 520, y: 640, width: 1500, height: 520 }, acceleration: { x: 45, y: 0 }, edgeBlendPx: 120, flowSpeed: 150 },
+    { kind: "radial-gravity", id: "home-kettle", center: { x: 1400, y: 1300 }, radius: 360, coreRadius: 120, peakAcceleration: 70, falloff: "inverse", edgeBlendPx: 120, warp: null },
+  ],
+  seekers: [],
   collectibles: [],
   visibility: { kind: "clear" },
   checkpoints: [],

@@ -778,7 +778,7 @@ export class FlightScene extends Phaser.Scene {
 
   /** Store one sample: physics, cues, and the dev probe all consume it. */
   private sampleRouteEnvironment(): void {
-    this.environment = sampleForceField(this.route.forceZones, this.ship.kinematics, this.simTimeMs, this.route.maxEnvironmentAcceleration);
+    this.environment = sampleForceField(this.route.forceZones, this.ship.kinematics, this.simTimeMs, this.route.maxEnvironmentAcceleration, this.ship.kinematics);
     this.previousMovingObstacles = this.movingObstacles;
     this.movingObstacles = sampleMovingObstacles(this.route.movingObstacles, this.simTimeMs);
     for (const obstacle of this.movingObstacles) this.asteroids.get(obstacle.id)?.moveTo(obstacle.position.x, obstacle.position.y);

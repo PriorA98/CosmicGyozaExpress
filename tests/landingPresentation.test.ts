@@ -4,7 +4,7 @@ import { campaignLandingDecor, campaignLandingScenery } from "../src/data/landin
 import { campaignGaugeY, flourPosition, gustWarningAlpha, windsockPlacement } from "../src/entities/landing/campaignPresentation";
 import { windsockFrameFor, type LandingWindSample } from "../src/systems/LandingEnvironmentSystem";
 
-const wind: LandingWindSample = { acceleration: { x: 0, y: 0 }, phase: "calm", envelope: 0, exposure: 1, msUntilGust: 0 };
+const wind: LandingWindSample = { acceleration: { x: 0, y: 0 }, phase: "calm", envelope: 0, exposure: 1, msUntilGust: 0, direction: 1 };
 
 describe("landing windsock sheet semantics", () => {
   it("keeps all final-art pole centres fixed on the mast, including mirrored wind", () => {

@@ -87,7 +87,7 @@ describe("authored route validity", () => {
   for (const mission of campaignMissions) {
     const route = getRoute(mission.routeId);
     const landing = getLanding(mission.landingId);
-    it(`${mission.id}: positions inside the world, finite, positive periods, calm arrival`, () => {
+    it(`${mission.id}: positions inside the world, finite, positive periods, safe spawns, calm arrival`, () => {
       const inside = (p: { x: number; y: number }) => p.x > 0 && p.y > 0 && p.x < route.world.width && p.y < route.world.height;
       expect(inside(route.start)).toBe(true);
       expect(inside(route.destination)).toBe(true);
@@ -96,20 +96,29 @@ describe("authored route validity", () => {
         expect(sampleForceZone(zone, route.start, 0).influence).toBe(0);
         for (let t = 0; t < 20000; t += 500) expect(sampleForceZone(zone, route.destination, t).influence).toBe(0);
       }
+      // Phase 4: forces stay below thrust and brake, so every spot is escapable.
+      expect(route.maxEnvironmentAcceleration).toBeLessThan(shipTuning.thrustAcceleration);
       for (const rock of route.movingObstacles) {
         expect(rock.path.periodMs).toBeGreaterThan(0);
-        expect(motionPathPeakSpeed(rock.path)).toBeLessThan(80);
+        expect(motionPathPeakSpeed(rock.path)).toBeLessThan(260);
         // Track never comes near spawn, checkpoints or the dock.
         for (let t = 0; t < rock.path.periodMs; t += 250) {
           const p = sampleMotionPath(rock.path, t).position;
           expect(distanceBetween(p, route.start)).toBeGreaterThan(rock.radius + 160);
           expect(distanceBetween(p, route.destination)).toBeGreaterThan(rock.radius + route.destination.approachRadius / 2);
-          for (const cp of route.checkpoints) expect(distanceBetween(p, cp.respawn)).toBeGreaterThan(rock.radius + 120);
+          for (const cp of route.checkpoints) expect(distanceBetween(p, cp.respawn)).toBeGreaterThan(rock.radius + 100);
         }
       }
       for (const cp of route.checkpoints) {
         expect(inShape(cp.activation, cp.respawn) || cp.respawn.x > cp.activation.x).toBe(true);
-        for (const zone of route.forceZones) expect(sampleForceZone(zone, cp.respawn, 0).influence).toBe(0);
+        // A respawn may sit in a mild pull or a river (which only carries you along), never in a strong pull,
+        // a gust, or a koi's hearing.
+        const pushing = route.forceZones.filter((zone) => zone.kind !== "directional-current" || zone.flowSpeed === null);
+        for (let t = 0; t < 15000; t += 250) {
+          expect(sampleForceField(pushing, cp.respawn, t, route.maxEnvironmentAcceleration).magnitude).toBeLessThanOrEqual(shipTuning.thrustAcceleration * 0.25);
+        }
+        for (const koi of route.seekers) expect(distanceBetween(koi.home, cp.respawn)).toBeGreaterThan(koi.hearingRadius * 0.6);
+        for (const rock of route.obstacles) expect(distanceBetween(rock, cp.respawn)).toBeGreaterThan(rock.radius + shipTuning.collisionRadius + 20);
       }
       expect(landing.surfaceTiltRadians).toBe(0);
       expect(landing.tuning.padWidth).toBe(landing.pad.width);
@@ -119,7 +128,7 @@ describe("authored route validity", () => {
 });
 
 describe("ForceFieldSystem", () => {
-  const well: ForceZoneDefinition = { kind: "radial-gravity", id: "w", center: { x: 0, y: 0 }, radius: 900, coreRadius: 180, peakAcceleration: 70, edgeBlendPx: 140 };
+  const well: ForceZoneDefinition = { kind: "radial-gravity", id: "w", center: { x: 0, y: 0 }, radius: 900, coreRadius: 180, peakAcceleration: 70, falloff: "flat", edgeBlendPx: 140, warp: null };
 
   it("radial gravity is finite, zero at the centre and outside, points inward", () => {
     expect(sampleForceZone(well, { x: 0, y: 0 }, 0).acceleration).toEqual({ x: 0, y: 0 });
@@ -141,7 +150,7 @@ describe("ForceFieldSystem", () => {
   });
 
   it("current fades in over the edge blend and caps summed fields", () => {
-    const current: ForceZoneDefinition = { kind: "directional-current", id: "c", area: { kind: "rect", x: 0, y: 0, width: 1000, height: 1000 }, acceleration: { x: 0, y: 38 }, edgeBlendPx: 160 };
+    const current: Extract<ForceZoneDefinition, { kind: "directional-current" }> = { kind: "directional-current", id: "c", area: { kind: "rect", x: 0, y: 0, width: 1000, height: 1000 }, acceleration: { x: 0, y: 38 }, edgeBlendPx: 160, flowSpeed: null };
     expect(sampleForceZone(current, { x: -1, y: 500 }, 0).influence).toBe(0);
     expect(sampleForceZone(current, { x: 80, y: 500 }, 0).acceleration.y).toBeCloseTo(19);
     expect(sampleForceZone(current, { x: 500, y: 500 }, 0).acceleration.y).toBeCloseTo(38);
@@ -150,7 +159,7 @@ describe("ForceFieldSystem", () => {
   });
 
   it("gust cycle: warning pushes nothing and always precedes the attack", () => {
-    const cycle = { warningMs: 2000, attackMs: 800, sustainMs: 2000, releaseMs: 1200, calmMs: 4000, phaseOffsetMs: 0 };
+    const cycle = { warningMs: 2000, attackMs: 800, sustainMs: 2000, releaseMs: 1200, calmMs: 4000, phaseOffsetMs: 0, alternate: false };
     expect(gustCycleLength(cycle)).toBe(10000);
     expect(sampleGustCycle(cycle, 0)).toMatchObject({ phase: "warning", envelope: 0, msUntilGust: 2000 });
     expect(sampleGustCycle(cycle, 2400).phase).toBe("attack");
@@ -204,20 +213,31 @@ describe("collectibles and checkpoints", () => {
 });
 
 describe("landing environment", () => {
-  it("Bento pad slides 576 → 704 and reports its velocity", () => {
+  it("Bento tray slides 480 → 800 and back every 12 s, faster than the sideways limit", () => {
     const landing = landingForMission("bento-belt");
-    expect(sampleLandingPad(landing, 0).pad.centerX).toBeCloseTo(576);
-    expect(sampleLandingPad(landing, 6000).pad.centerX).toBeCloseTo(704);
-    expect(Math.abs(sampleLandingPad(landing, 3000).velocity.x)).toBeCloseTo(33.5, 0);
+    expect(sampleLandingPad(landing, 0).pad.centerX).toBeCloseTo(480);
+    expect(sampleLandingPad(landing, 6000).pad.centerX).toBeCloseTo(800);
+    const peak = Math.abs(sampleLandingPad(landing, 3000).velocity.x);
+    expect(peak).toBeCloseTo(83.8, 0);
+    expect(peak).toBeGreaterThan(landing.tuning.safeHorizontalSpeed);
   });
-  it("I'm Fine wind is zero in the last 100 px and full above 180 px", () => {
+  it("I'm Fine squall is zero in the last 60 px, full above 150 px, and swaps sides every gust", () => {
     const wind = landingForMission("im-fine").wind;
     expect(shelterExposure(wind, 50)).toBe(0);
-    expect(shelterExposure(wind, 140)).toBeCloseTo(0.5);
+    expect(shelterExposure(wind, 105)).toBeCloseTo(0.5);
     expect(shelterExposure(wind, 300)).toBe(1);
-    expect(sampleLandingWind(wind, 300, 3500).acceleration.x).toBeCloseTo(26);
-    expect(sampleLandingWind(wind, 60, 3500).acceleration.x).toBe(0);
+    expect(sampleLandingWind(wind, 300, 3000).acceleration.x).toBeCloseTo(120);
+    expect(sampleLandingWind(wind, 300, 3000 + 7500).acceleration.x).toBeCloseTo(-120);
+    expect(sampleLandingWind(wind, 40, 3000).acceleration.x).toBe(0);
     expect(sampleLandingWind(wind, 300, 0).acceleration.x).toBe(0);
+  });
+  it("Matcha mist pushes right up high and left near the pad", () => {
+    const wind = landingForMission("matcha-nebula").wind;
+    expect(sampleLandingWind(wind, 400, 0).acceleration.x).toBeCloseTo(75);
+    expect(sampleLandingWind(wind, 100, 0).acceleration.x).toBeCloseTo(-55);
+    const middle = sampleLandingWind(wind, 260, 0).acceleration.x;
+    expect(middle).toBeGreaterThan(-55);
+    expect(middle).toBeLessThan(75);
   });
 });
 

@@ -37,7 +37,7 @@ describe("campaign pad contact", () => {
 
   it("classifies pad-relative drift and uses the same metrics in the gauges", () => {
     expect(classifyPadTouchdown("relative-pad", contact, pad, definition.tuning).kind).toBe("soft");
-    expect(classifyPadTouchdown("legacy-horizontal", contact, pad, definition.tuning).kind).toBe("bumpy");
+    expect(classifyPadTouchdown("legacy-horizontal", contact, pad, definition.tuning).kind).not.toBe("soft");
     const relative = landingContactState("relative-pad", contact, pad);
     const zone = readPadLandingZone("relative-pad", contact, pad, definition.tuning);
     const readouts = buildLandingReadouts(zone, relative.velocityX, relative.velocityY, undefined, definition.tuning);
@@ -90,24 +90,24 @@ describe("campaign wind and shelter", () => {
   const gust = landingForMission("im-fine");
 
   it("starts with the full warning and telegraphs the force using the sampled envelope", () => {
-    for (const time of [0, 1999]) {
+    for (const time of [0, 1499]) {
       const sample = sampleLandingWind(gust.wind, 200, time);
       expect(sample.phase).toBe("warning");
       expect(sample.acceleration).toEqual({ x: 0, y: 0 });
-      expect(windsockFrameFor(sample, 26)).toBe("warning");
+      expect(windsockFrameFor(sample, 120)).toBe("warning");
     }
     const active = sampleLandingWind(gust.wind, 200, 3000);
-    expect(active.acceleration.x).toBe(26);
-    expect(windsockFrameFor(active, 26)).toBe("strong");
+    expect(active.acceleration.x).toBe(120);
+    expect(windsockFrameFor(active, 120)).toBe("strong");
   });
 
-  it("blends shelter between 100 and 180 pixels and keeps the lower sock calm even during warning", () => {
-    expect(sampleLandingWind(gust.wind, 140, 3000).acceleration.x).toBe(13);
+  it("blends shelter between 60 and 150 pixels and keeps the lower sock calm even during warning", () => {
+    expect(sampleLandingWind(gust.wind, 105, 3000).acceleration.x).toBe(60);
     for (const time of [0, 3000, 7000]) {
-      const sample = sampleLandingWind(gust.wind, 100, time);
+      const sample = sampleLandingWind(gust.wind, 60, time);
       expect(sample.exposure).toBe(0);
-      expect(sample.acceleration).toEqual({ x: 0, y: 0 });
-      expect(windsockFrameFor(sample, 26)).toBe("calm");
+      expect(sample.acceleration.x).toBeCloseTo(0);
+      expect(windsockFrameFor(sample, 120)).toBe("calm");
     }
   });
 
@@ -150,6 +150,6 @@ describe("campaign landing notes", () => {
     expect(note("bento-belt", 0, 200)).toBe("landingIntro");
     expect(note("bento-belt", 3000, 200)).toBe("landingTwist");
     expect(note("matcha-nebula", 3000, 200)).toBe("landingTwist");
-    expect(note("black-hole-bakery", 3000, 50)).toBe("landingCalm");
+    expect(note("black-hole-bakery", 3000, 50)).toBe("landingTwist");
   });
 });

@@ -13,6 +13,7 @@ export const teaMoonRoute: FlightRouteDefinition = {
   themeId: "teaMoon",
   movingObstacles: [],
   forceZones: [],
+  seekers: [],
   collectibles: [],
   visibility: { kind: "clear" },
   checkpoints: [],

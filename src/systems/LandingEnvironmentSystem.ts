@@ -7,7 +7,7 @@ import type { LandingTuning } from "../data/landingTuning";
 import type { LandingKinematicState, LandingPadDefinition, LandingTouchdownResult } from "../types/landing";
 import { clamp } from "../utils/math";
 import { classifyLandingTouchdown, readLandingZone, type LandingZoneReading } from "./LandingSystem";
-import { sampleGustCycle } from "./ForceFieldSystem";
+import { sampleGustCycle, smoothstep } from "./ForceFieldSystem";
 import { sampleMotionPath } from "./MotionPathSystem";
 
 export type LandingPadSample = {
@@ -25,6 +25,8 @@ export type LandingWindSample = {
   readonly exposure: number;
   /** ms until the next gust attack (gust wind only, else 0). */
   readonly msUntilGust: number;
+  /** Sign of the current (calm: coming) gust for alternating cycles; 1 otherwise. */
+  readonly direction: 1 | -1;
 };
 
 export type LandingEnvironmentSample = {
@@ -32,7 +34,7 @@ export type LandingEnvironmentSample = {
   readonly wind: LandingWindSample;
 };
 
-const CALM_WIND: LandingWindSample = { acceleration: { x: 0, y: 0 }, phase: "calm", envelope: 0, exposure: 1, msUntilGust: 0 };
+const CALM_WIND: LandingWindSample = { acceleration: { x: 0, y: 0 }, phase: "calm", envelope: 0, exposure: 1, msUntilGust: 0, direction: 1 };
 
 export function sampleLandingPad(definition: LandingDefinition, timeMs: number): LandingPadSample {
   if (definition.padMotion.kind === "fixed") return { pad: definition.pad, velocity: { x: 0, y: 0 } };
@@ -53,17 +55,35 @@ export function shelterExposure(wind: LandingWindDefinition, altitude: number): 
 
 export function sampleLandingWind(wind: LandingWindDefinition, altitude: number, timeMs: number): LandingWindSample {
   if (wind.kind === "none") return CALM_WIND;
-  if (wind.kind === "steady") return { acceleration: wind.acceleration, phase: "sustain", envelope: 1, exposure: 1, msUntilGust: 0 };
+  if (wind.kind === "steady") return { acceleration: wind.acceleration, phase: "sustain", envelope: 1, exposure: 1, msUntilGust: 0, direction: 1 };
+  if (wind.kind === "bands") {
+    const upper = bandsUpperShare(wind, altitude);
+    return {
+      acceleration: { x: wind.lower.x + (wind.upper.x - wind.lower.x) * upper, y: wind.lower.y + (wind.upper.y - wind.lower.y) * upper },
+      phase: "sustain",
+      envelope: 1,
+      exposure: 1,
+      msUntilGust: 0,
+      direction: 1,
+    };
+  }
   const gust = sampleGustCycle(wind.cycle, timeMs);
   const exposure = shelterExposure(wind, altitude);
-  const scale = gust.envelope * exposure;
+  const scale = gust.envelope * exposure * gust.direction;
   return {
     acceleration: { x: wind.peakAcceleration.x * scale, y: wind.peakAcceleration.y * scale },
     phase: gust.phase,
     envelope: gust.envelope,
     exposure,
     msUntilGust: gust.msUntilGust,
+    direction: gust.direction,
   };
+}
+
+/** Banded mist: 0 = fully in the lower layer, 1 = fully in the upper layer (smooth across `blendPx`). */
+export function bandsUpperShare(wind: Extract<LandingWindDefinition, { kind: "bands" }>, altitude: number): number {
+  const half = Math.max(1, wind.blendPx / 2);
+  return smoothstep(wind.splitAltitude - half, wind.splitAltitude + half, altitude);
 }
 
 export function sampleLandingEnvironment(
@@ -149,6 +169,7 @@ export function windsockFrameFor(wind: LandingWindSample, peakMagnitude: number)
 export function landingWindPeak(wind: LandingWindDefinition): number {
   if (wind.kind === "none") return 0;
   if (wind.kind === "steady") return Math.hypot(wind.acceleration.x, wind.acceleration.y);
+  if (wind.kind === "bands") return Math.max(Math.hypot(wind.upper.x, wind.upper.y), Math.hypot(wind.lower.x, wind.lower.y));
   return Math.hypot(wind.peakAcceleration.x, wind.peakAcceleration.y);
 }
 
@@ -172,6 +193,6 @@ export function campaignLandingNote(input: {
     return null;
   }
   if (input.clockMs < input.introNoteMs) return "landingIntro";
-  if (definition.wind.kind === "steady" || definition.padMotion.kind === "path") return "landingTwist";
+  if (definition.wind.kind === "steady" || definition.wind.kind === "bands" || definition.padMotion.kind === "path") return "landingTwist";
   return input.altitude < input.calmAltitude ? "landingCalm" : "landingTwist";
 }

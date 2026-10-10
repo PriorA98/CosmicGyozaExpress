@@ -27,6 +27,8 @@ export type GustCycle = {
   readonly calmMs: number;
   /** Shifts the cycle start: time 0 lands `phaseOffsetMs` into the cycle. */
   readonly phaseOffsetMs: number;
+  /** When true, every odd cycle pushes the opposite way (the warning already shows the coming direction). */
+  readonly alternate: boolean;
 };
 
 export type GustPhase = "calm" | "warning" | "attack" | "sustain" | "release";
@@ -39,8 +41,12 @@ export type ForceZoneDefinition =
       readonly radius: number;
       /** Inside this radius the pull fades linearly to zero at the centre (no singularity). */
       readonly coreRadius: number;
+      /** Pull at the core edge. `flat`: constant to the outer blend; `inverse`: peak * coreRadius / distance. */
       readonly peakAcceleration: number;
+      readonly falloff: "flat" | "inverse";
       readonly edgeBlendPx: number;
+      /** Oven mouth: entering `radius` swallows the ship and pops it out at `exit` (a funny relocation, never a loss). */
+      readonly warp: GravityWarpDefinition | null;
     }
   | {
       readonly kind: "directional-current";
@@ -48,6 +54,11 @@ export type ForceZoneDefinition =
       readonly area: ZoneShape;
       readonly acceleration: Vector2;
       readonly edgeBlendPx: number;
+      /**
+       * River model: when set, the push fades as the ship's speed along the flow approaches `flowSpeed` and
+       * reverses (up to the same strength) when the ship outruns it, so the current carries rather than launches.
+       */
+      readonly flowSpeed: number | null;
     }
   | {
       readonly kind: "gust";
@@ -58,6 +69,36 @@ export type ForceZoneDefinition =
       readonly cycle: GustCycle;
       readonly telegraph: "windsock-and-arrows";
     };
+
+export type GravityWarpDefinition = {
+  readonly radius: number;
+  /** Where the white-hole "toaster" pops the ship back out, with its exit velocity. */
+  readonly exit: ShipKinematicState;
+};
+
+/**
+ * Tea-koi (cozy anglerfish): sleep at `home`, wake when a leaky noise meter (fills while the ship thrusts within
+ * `hearingRadius`, drains `wakeThrustMs` per `listenWindowMs`) reaches `wakeThrustMs`, glide toward the ship,
+ * lose interest after `giveUpMs` of quiet.
+ * A touch is a "curious nibble": the ship returns to the last checkpoint.
+ */
+export type SeekerDefinition = {
+  readonly id: string;
+  readonly label: string;
+  readonly home: Point;
+  readonly radius: number;
+  readonly hearingRadius: number;
+  readonly wakeThrustMs: number;
+  readonly listenWindowMs: number;
+  /** Warning beat between waking and chasing (lure flares, eye opens). */
+  readonly alertMs: number;
+  readonly chaseSpeed: number;
+  readonly chaseAcceleration: number;
+  readonly giveUpMs: number;
+  readonly returnSpeed: number;
+  /** Never follows farther than this from home (a leash keeps every pool escapable). */
+  readonly leashRadius: number;
+};
 
 export type MotionPathDefinition =
   | {
@@ -104,6 +145,8 @@ export type VisibilityDefinition =
       readonly textureKey: string;
       readonly maxAlpha: number;
       readonly driftPixelsPerSecond: Vector2;
+      /** Dense fog: inside `area` only a lantern circle around the ship (and each lantern buoy) stays clear. */
+      readonly dense: { readonly shipRadius: number; readonly lanternRadius: number; readonly alpha: number; readonly lanterns: readonly Point[] } | null;
     };
 
 /** Silent checkpoint: crossing `activation` records `respawn` as the safe restart. */
@@ -148,6 +191,7 @@ export type FlightRouteDefinition = {
   readonly obstacles: readonly StaticObstacleDefinition[];
   readonly movingObstacles: readonly MovingObstacleDefinition[];
   readonly forceZones: readonly ForceZoneDefinition[];
+  readonly seekers: readonly SeekerDefinition[];
   readonly collectibles: readonly CollectibleDefinition[];
   readonly visibility: VisibilityDefinition;
   readonly checkpoints: readonly CheckpointDefinition[];
@@ -168,6 +212,14 @@ export type LandingWindDefinition =
       readonly cycle: GustCycle;
       /** Wind fades from full at `fullyExposedAltitude` to zero at `calmBelowAltitude` (px above the pad). */
       readonly shelter: { readonly calmBelowAltitude: number; readonly fullyExposedAltitude: number } | null;
+    }
+  | {
+      /** Layered mist: `upper` blows above `splitAltitude`, `lower` below, blended over `blendPx`. */
+      readonly kind: "bands";
+      readonly splitAltitude: number;
+      readonly blendPx: number;
+      readonly upper: Vector2;
+      readonly lower: Vector2;
     };
 
 export type LandingId =
@@ -193,7 +245,15 @@ export type LandingDefinition = {
   readonly collisionModel: "legacy-horizontal" | "relative-pad";
 };
 
-export type PilotWaypoint = { readonly position: Point; readonly radius: number; readonly targetSpeed: number };
+export type PilotWaypoint = {
+  readonly position: Point;
+  readonly radius: number;
+  readonly targetSpeed: number;
+  /** Stop here and wait until the straight crossing to the next waypoint is clear of moving rocks. */
+  readonly hold?: boolean;
+  /** Keep thrust short (tea-koi listen for engines) on the way to this waypoint. */
+  readonly quiet?: boolean;
+};
 
 export type MissionPilotHints = {
   readonly waypoints: readonly PilotWaypoint[];
